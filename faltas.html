@@ -143,6 +143,7 @@
   }
   button.action:hover { background: #263038; }
   button.action.danger:hover { background: #4a2020; border-color: #e53935; }
+  button.action:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .log {
     width: 100%;
@@ -200,13 +201,13 @@
     border-radius: 14px;
     padding: 24px;
     width: 100%;
-    max-width: 480px;
+    max-width: 680px;
     display: flex;
     flex-direction: column;
     gap: 16px;
   }
   .player-form { display: flex; gap: 8px; flex-wrap: wrap; }
-  .player-form input[type="text"], .player-form select {
+  .player-form input[type="text"], .player-form input[type="date"], .player-form select {
     background: #1c242c;
     border: 1px solid #333;
     color: #eee;
@@ -214,8 +215,8 @@
     padding: 8px 10px;
     font-size: 0.95em;
   }
-  .player-form input#player-number { width: 60px; }
-  .player-form input#player-name { flex: 1; min-width: 120px; }
+  .player-form input#roster-number { width: 60px; }
+  .player-form input#roster-name, .player-form input#match-opponent, .player-form select#convocar-select { flex: 1; min-width: 120px; }
   .players-table { width: 100%; border-collapse: collapse; }
   .players-table th, .players-table td { text-align: center; padding: 6px 8px; border-bottom: 1px solid #232b33; }
   .players-table th:nth-child(2), .players-table td:nth-child(2) { text-align: left; }
@@ -268,421 +269,175 @@
     justify-content: center;
     padding-bottom: 10px;
   }
+
+  .auth-card {
+    background: #151b21;
+    border: 1px solid #232b33;
+    border-radius: 14px;
+    padding: 28px;
+    width: 100%;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+  .auth-form { display: flex; flex-direction: column; gap: 10px; }
+  .auth-form input {
+    background: #1c242c;
+    border: 1px solid #333;
+    color: #eee;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 0.95em;
+  }
+  .auth-actions { display: flex; gap: 8px; }
+  .auth-actions .action { flex: 1; }
+  #auth-error { color: var(--x-color); min-height: 1em; }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 1440px;
+  }
+  .match-indicator {
+    background: #1c242c;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.9em;
+    color: #ccc;
+  }
+
+  #app-root {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    width: 100%;
+  }
 </style>
 </head>
 <body>
 
   <h1 class="page-title">Análise de Jogo</h1>
 
-  <div class="tabs" id="tabs">
-    <button class="tab-btn" data-tab="jogadores">Jogadores</button>
-    <button class="tab-btn active" data-tab="registo">Registo de Jogo</button>
-  </div>
-
-  <div class="tab-panel" id="tab-jogadores" hidden>
-    <div class="players-card">
-      <h2 class="tracker-title">Jogadores Convocados</h2>
-      <div class="player-form">
-        <input type="text" id="player-number" placeholder="Nº" maxlength="3">
-        <input type="text" id="player-name" placeholder="Nome do jogador">
-        <select id="player-status">
-          <option value="Titular">Titular</option>
-          <option value="Suplente">Suplente</option>
-        </select>
-        <button class="action" id="btn-add-player">Adicionar</button>
+  <div class="auth-card" id="auth-screen" hidden>
+    <h2 class="tracker-title">Entrar</h2>
+    <div class="auth-form">
+      <input type="email" id="auth-email" placeholder="Email" autocomplete="email">
+      <input type="password" id="auth-password" placeholder="Palavra-passe" autocomplete="current-password">
+      <div class="auth-actions">
+        <button class="action" id="btn-sign-in">Entrar</button>
+        <button class="action" id="btn-sign-up">Criar conta</button>
       </div>
-      <p class="hint">Clica em 🟨/🟥 para marcar cartão, e em Assist./⚽ para somar (clique direito ou Ctrl+clique para subtrair). Clica no estado para alternar Titular/Suplente.</p>
-      <table class="players-table">
-        <thead>
-          <tr><th>Nº</th><th>Nome</th><th>Estado</th><th>🟨</th><th>🟥</th><th>Assist.</th><th>⚽</th><th>Min. Subst.</th><th></th></tr>
-        </thead>
-        <tbody id="players-body"></tbody>
-      </table>
-      <p class="hint" id="players-empty">Ainda não adicionaste jogadores.</p>
+      <p class="hint" id="auth-error"></p>
     </div>
   </div>
 
-  <div class="tab-panel" id="tab-registo">
-    <p class="hint">Passa o rato sobre um campo e clica para marcar um ponto do tipo selecionado. Usa as teclas <b>X</b> e <b>Y</b> para trocar rapidamente de modo no campo sobre o qual estás. Clique direito ou <b>Ctrl+clique</b> remove o último ponto desse campo.</p>
-    <div class="page" id="page"></div>
-  </div>
+  <div id="app-root" hidden>
 
-  <div class="footer-actions">
-    <button class="action" id="btn-download-session">Descarregar tudo da sessão (CSV)</button>
-  </div>
+    <div class="top-bar">
+      <div class="match-indicator" id="match-indicator">Nenhum jogo selecionado</div>
+      <button class="action" id="btn-sign-out">Sair</button>
+    </div>
 
-<script>
-(function () {
-  const TRACKERS = [
-    { id: 'faltas', title: 'Faltas',           xLabel: 'Realizadas', yLabel: 'Sofridas' },
-    { id: 'cantos', title: 'Cantos',           xLabel: 'A Favor',    yLabel: 'Contra' },
-    { id: 'perdas', title: 'Perdas de Bola',   xLabel: 'A Favor',    yLabel: 'Contra' },
-    { id: 'remates', title: 'Remates',         xLabel: 'A Favor',    yLabel: 'Contra' },
-  ];
+    <div class="tabs" id="tabs">
+      <button class="tab-btn active" data-tab="jogos">Jogos</button>
+      <button class="tab-btn" data-tab="jogadores">Jogadores</button>
+      <button class="tab-btn" data-tab="registo">Registo de Jogo</button>
+      <button class="tab-btn" data-tab="relatorios">Relatórios</button>
+    </div>
 
-  const page = document.getElementById('page');
-  let hoveredTracker = null;
-
-  function buildSection(cfg) {
-    const section = document.createElement('section');
-    section.className = 'tracker';
-    section.dataset.tracker = cfg.id;
-    section.innerHTML = `
-      <h2 class="tracker-title">${cfg.title}</h2>
-      <div class="toolbar">
-        <button class="mode-btn x active" data-tipo="X">${cfg.xLabel}</button>
-        <button class="mode-btn y" data-tipo="Y">${cfg.yLabel}</button>
+    <div class="tab-panel" id="tab-jogos">
+      <div class="players-card">
+        <h2 class="tracker-title">Novo Jogo</h2>
+        <div class="player-form">
+          <input type="date" id="match-date">
+          <input type="text" id="match-opponent" placeholder="Adversário">
+          <button class="action" id="btn-create-match">Criar Jogo</button>
+        </div>
       </div>
-      <div class="counters">
-        <div class="counter x"><span class="num" data-count="X">0</span>${cfg.xLabel}</div>
-        <div class="counter y"><span class="num" data-count="Y">0</span>${cfg.yLabel}</div>
-      </div>
-      <div class="field-wrap">
-        <img src="campo.png" alt="Campo de futebol" class="field-img" draggable="false">
-      </div>
-      <div class="actions">
-        <button class="action" data-action="undo">Desfazer último</button>
-        <button class="action" data-action="download">Descarregar CSV</button>
-        <button class="action danger" data-action="clear">Limpar tudo</button>
-      </div>
-      <div class="log">
-        <table>
-          <thead>
-            <tr><th>#</th><th>Tipo</th><th>X (%)</th><th>Y (%)</th><th>Hora</th></tr>
-          </thead>
-          <tbody></tbody>
+      <div class="players-card">
+        <h2 class="tracker-title">Jogos</h2>
+        <table class="players-table">
+          <thead><tr><th>Data</th><th>Adversário</th><th></th></tr></thead>
+          <tbody id="matches-body"></tbody>
         </table>
+        <p class="hint" id="matches-empty">Ainda não criaste nenhum jogo.</p>
       </div>
-    `;
-    return section;
-  }
+      <div class="players-card" id="import-card" hidden>
+        <h2 class="tracker-title">Importar dados locais</h2>
+        <p class="hint">Encontrei dados guardados neste browser (de antes desta atualização). Podes importá-los para um novo jogo.</p>
+        <button class="action" id="btn-import-local">Importar dados locais para um novo jogo</button>
+      </div>
+    </div>
 
-  function initTracker(cfg, root) {
-    const STORAGE_KEY = `${cfg.id}_clicks_v1`;
-    let mode = 'X';
-    let clicks = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    <div class="tab-panel" id="tab-jogadores" hidden>
+      <div class="players-card">
+        <h2 class="tracker-title">Plantel</h2>
+        <p class="hint">Lista reutilizável de jogadores — adiciona-os aqui uma vez, depois convoca-os para cada jogo.</p>
+        <div class="player-form">
+          <input type="text" id="roster-number" placeholder="Nº" maxlength="3">
+          <input type="text" id="roster-name" placeholder="Nome do jogador">
+          <button class="action" id="btn-add-roster-player">Adicionar ao plantel</button>
+        </div>
+        <table class="players-table">
+          <thead><tr><th>Nº</th><th>Nome</th><th></th></tr></thead>
+          <tbody id="roster-body"></tbody>
+        </table>
+        <p class="hint" id="roster-empty">Ainda não adicionaste jogadores ao plantel.</p>
+      </div>
 
-    const fieldWrap = root.querySelector('.field-wrap');
-    const fieldImg = root.querySelector('.field-img');
-    const btnX = root.querySelector('.mode-btn.x');
-    const btnY = root.querySelector('.mode-btn.y');
-    const countX = root.querySelector('[data-count="X"]');
-    const countY = root.querySelector('[data-count="Y"]');
-    const logBody = root.querySelector('tbody');
+      <div class="players-card" id="convocatoria-card">
+        <h2 class="tracker-title">Convocados para este jogo</h2>
+        <p class="hint" id="convocar-warning">Seleciona ou cria um jogo na tab "Jogos" para convocar jogadores.</p>
+        <div class="player-form">
+          <select id="convocar-select"></select>
+          <select id="convocar-status">
+            <option value="Titular">Titular</option>
+            <option value="Suplente">Suplente</option>
+          </select>
+          <button class="action" id="btn-convocar">Convocar</button>
+        </div>
+        <p class="hint">Clica em 🟨/🟥 para marcar cartão, e em Assist./⚽ para somar (clique direito ou Ctrl+clique para subtrair). Clica no estado para alternar Titular/Suplente.</p>
+        <table class="players-table">
+          <thead>
+            <tr><th>Nº</th><th>Nome</th><th>Estado</th><th>🟨</th><th>🟥</th><th>Assist.</th><th>⚽</th><th>Min. Subst.</th><th></th></tr>
+          </thead>
+          <tbody id="players-body"></tbody>
+        </table>
+        <p class="hint" id="players-empty">Ainda não convocaste jogadores para este jogo.</p>
+      </div>
+    </div>
 
-    function setMode(m) {
-      mode = m;
-      btnX.classList.toggle('active', m === 'X');
-      btnY.classList.toggle('active', m === 'Y');
-    }
+    <div class="tab-panel" id="tab-registo" hidden>
+      <p class="hint" id="tab-registo-warning">Seleciona ou cria um jogo na tab "Jogos" para começar a registar.</p>
+      <p class="hint">Passa o rato sobre um campo e clica para marcar um ponto do tipo selecionado. Usa as teclas <b>X</b> e <b>Y</b> para trocar rapidamente de modo no campo sobre o qual estás. Clique direito ou <b>Ctrl+clique</b> remove o último ponto desse campo.</p>
+      <div class="page" id="page"></div>
+    </div>
 
-    function save() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(clicks));
-    }
+    <div class="tab-panel" id="tab-relatorios" hidden>
+      <div class="players-card">
+        <h2 class="tracker-title">Relatórios por Jogador</h2>
+        <p class="hint">Totais agregados de todos os jogos guardados.</p>
+        <table class="players-table">
+          <thead><tr><th>Nº</th><th>Nome</th><th>Jogos</th><th>Golos</th><th>Assist.</th><th>🟨</th><th>🟥</th></tr></thead>
+          <tbody id="reports-body"></tbody>
+        </table>
+        <p class="hint" id="reports-empty">Sem dados ainda.</p>
+      </div>
+    </div>
 
-    function renderMarker(click) {
-      const marker = document.createElement('div');
-      marker.className = 'marker ' + click.tipo;
-      marker.style.left = click.x_pct + '%';
-      marker.style.top = click.y_pct + '%';
-      marker.textContent = click.tipo;
-      fieldWrap.appendChild(marker);
-    }
+    <div class="footer-actions">
+      <button class="action" id="btn-download-session">Descarregar jogo atual (CSV)</button>
+    </div>
 
-    function redrawMarkers() {
-      fieldWrap.querySelectorAll('.marker').forEach(m => m.remove());
-      clicks.forEach(renderMarker);
-    }
+  </div>
 
-    function renderCounters() {
-      countX.textContent = clicks.filter(c => c.tipo === 'X').length;
-      countY.textContent = clicks.filter(c => c.tipo === 'Y').length;
-    }
-
-    function renderLog() {
-      logBody.innerHTML = '';
-      clicks.forEach((c, i) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${i + 1}</td><td class="tipo-${c.tipo}">${c.tipo}</td><td>${c.x_pct}</td><td>${c.y_pct}</td><td>${c.hora}</td>`;
-        logBody.appendChild(tr);
-      });
-      logBody.parentElement.parentElement.scrollTop = logBody.parentElement.parentElement.scrollHeight;
-    }
-
-    function renderAll() {
-      redrawMarkers();
-      renderCounters();
-      renderLog();
-    }
-
-    function addClick(x_pct, y_pct) {
-      const now = new Date();
-      clicks.push({
-        tipo: mode,
-        x_pct: x_pct.toFixed(2),
-        y_pct: y_pct.toFixed(2),
-        hora: now.toLocaleTimeString('pt-PT')
-      });
-      save();
-      renderAll();
-    }
-
-    function undoLast() {
-      clicks.pop();
-      save();
-      renderAll();
-    }
-
-    fieldImg.addEventListener('click', (e) => {
-      if (e.ctrlKey || e.metaKey) { undoLast(); return; }
-      const rect = fieldImg.getBoundingClientRect();
-      const x_pct = ((e.clientX - rect.left) / rect.width) * 100;
-      const y_pct = ((e.clientY - rect.top) / rect.height) * 100;
-      addClick(x_pct, y_pct);
-    });
-
-    fieldImg.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      undoLast();
-    });
-
-    btnX.addEventListener('click', () => setMode('X'));
-    btnY.addEventListener('click', () => setMode('Y'));
-
-    root.querySelector('[data-action="undo"]').addEventListener('click', undoLast);
-
-    root.querySelector('[data-action="clear"]').addEventListener('click', () => {
-      if (clicks.length && !confirm(`Apagar todos os pontos registados de "${cfg.title}"?`)) return;
-      clicks = [];
-      save();
-      renderAll();
-    });
-
-    root.querySelector('[data-action="download"]').addEventListener('click', () => {
-      const header = 'tipo,x_pct,y_pct,hora\n';
-      const rows = clicks.map(c => `${c.tipo},${c.x_pct},${c.y_pct},${c.hora}`).join('\n');
-      const csv = header + rows;
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-      a.href = url;
-      a.download = `coordenadas_${cfg.id}_${stamp}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    });
-
-    renderAll();
-
-    return { setMode };
-  }
-
-  TRACKERS.forEach(cfg => {
-    const section = buildSection(cfg);
-    page.appendChild(section);
-    const api = initTracker(cfg, section);
-    section.addEventListener('mouseenter', () => { hoveredTracker = api; });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    const tag = (e.target.tagName || '').toLowerCase();
-    if (tag === 'input' || tag === 'textarea') return;
-    if (!hoveredTracker) return;
-    if (e.key === 'x' || e.key === 'X') hoveredTracker.setMode('X');
-    if (e.key === 'y' || e.key === 'Y') hoveredTracker.setMode('Y');
-  });
-
-  // --- Tabs ---
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
-      document.querySelectorAll('.tab-panel').forEach(panel => {
-        panel.hidden = panel.id !== `tab-${btn.dataset.tab}`;
-      });
-    });
-  });
-
-  // --- Jogadores ---
-  (function initPlayers() {
-    const STORAGE_KEY = 'jogadores_v1';
-    let players = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-
-    const numberInput = document.getElementById('player-number');
-    const nameInput = document.getElementById('player-name');
-    const statusSelect = document.getElementById('player-status');
-    const addBtn = document.getElementById('btn-add-player');
-    const body = document.getElementById('players-body');
-    const emptyHint = document.getElementById('players-empty');
-
-    function save() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
-    }
-
-    function render() {
-      body.innerHTML = '';
-      players.forEach((p, i) => {
-        const estado = p.estado || 'Suplente';
-        const amarelo = p.amarelo || 0;
-        const vermelho = p.vermelho || 0;
-        const assistencias = p.assistencias || 0;
-        const golo = p.golo || 0;
-        const minuto = p.minutoSubstituicao || '';
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${p.numero || ''}</td>
-          <td>${p.nome}</td>
-          <td><span class="badge-estado ${estado === 'Titular' ? 'titular' : ''}" data-action="toggle-estado" data-index="${i}">${estado}</span></td>
-          <td class="stat-cell stat-toggle ${amarelo ? 'on' : ''}" data-action="toggle-amarelo" data-index="${i}">🟨</td>
-          <td class="stat-cell stat-toggle ${vermelho ? 'on' : ''}" data-action="toggle-vermelho" data-index="${i}">🟥</td>
-          <td class="stat-cell stat-counter ${assistencias ? 'has-count' : ''}" data-action="count-assistencias" data-index="${i}">${assistencias}</td>
-          <td class="stat-cell stat-counter ${golo ? 'has-count' : ''}" data-action="count-golo" data-index="${i}">${golo}</td>
-          <td><input type="number" class="minute-input" data-index="${i}" min="0" max="130" placeholder="Min" value="${minuto}"></td>
-          <td><button class="btn-remove-player" data-index="${i}" title="Remover">✕</button></td>
-        `;
-        body.appendChild(tr);
-      });
-      emptyHint.hidden = players.length > 0;
-    }
-
-    function addPlayer() {
-      const nome = nameInput.value.trim();
-      if (!nome) return;
-      const numero = numberInput.value.trim();
-      const estado = statusSelect.value;
-      players.push({ numero, nome, estado, amarelo: 0, vermelho: 0, assistencias: 0, golo: 0 });
-      players.sort((a, b) => {
-        const na = parseInt(a.numero, 10);
-        const nb = parseInt(b.numero, 10);
-        if (isNaN(na) && isNaN(nb)) return 0;
-        if (isNaN(na)) return 1;
-        if (isNaN(nb)) return -1;
-        return na - nb;
-      });
-      save();
-      render();
-      numberInput.value = '';
-      nameInput.value = '';
-      nameInput.focus();
-    }
-
-    addBtn.addEventListener('click', addPlayer);
-    [numberInput, nameInput].forEach(input => {
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') addPlayer();
-      });
-    });
-
-    body.addEventListener('click', (e) => {
-      const removeBtn = e.target.closest('.btn-remove-player');
-      if (removeBtn) {
-        players.splice(Number(removeBtn.dataset.index), 1);
-        save();
-        render();
-        return;
-      }
-
-      const cell = e.target.closest('[data-action]');
-      if (!cell) return;
-      const player = players[Number(cell.dataset.index)];
-      if (!player) return;
-      const decrement = e.ctrlKey || e.metaKey;
-
-      switch (cell.dataset.action) {
-        case 'toggle-estado':
-          player.estado = player.estado === 'Titular' ? 'Suplente' : 'Titular';
-          break;
-        case 'toggle-amarelo':
-          player.amarelo = player.amarelo ? 0 : 1;
-          break;
-        case 'toggle-vermelho':
-          player.vermelho = player.vermelho ? 0 : 1;
-          break;
-        case 'count-assistencias':
-          player.assistencias = Math.max(0, (player.assistencias || 0) + (decrement ? -1 : 1));
-          break;
-        case 'count-golo':
-          player.golo = Math.max(0, (player.golo || 0) + (decrement ? -1 : 1));
-          break;
-      }
-      save();
-      render();
-    });
-
-    body.addEventListener('input', (e) => {
-      const input = e.target.closest('.minute-input');
-      if (!input) return;
-      const player = players[Number(input.dataset.index)];
-      if (!player) return;
-      player.minutoSubstituicao = input.value;
-      save();
-    });
-
-    body.addEventListener('contextmenu', (e) => {
-      const cell = e.target.closest('.stat-counter');
-      if (!cell) return;
-      e.preventDefault();
-      const player = players[Number(cell.dataset.index)];
-      if (!player) return;
-      const key = cell.dataset.action === 'count-assistencias' ? 'assistencias' : 'golo';
-      player[key] = Math.max(0, (player[key] || 0) - 1);
-      save();
-      render();
-    });
-
-    render();
-  })();
-
-  // --- Descarregar tudo da sessão ---
-  function csvField(v) {
-    const s = String(v ?? '');
-    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-  }
-
-  document.getElementById('btn-download-session').addEventListener('click', () => {
-    const lines = [];
-
-    lines.push('=== JOGADORES ===');
-    lines.push(['Número', 'Nome', 'Estado', 'Amarelo', 'Vermelho', 'Assistências', 'Golos', 'Minuto Substituição'].join(','));
-    const players = JSON.parse(localStorage.getItem('jogadores_v1') || '[]');
-    players.forEach(p => {
-      lines.push([
-        csvField(p.numero || ''),
-        csvField(p.nome || ''),
-        csvField(p.estado || 'Suplente'),
-        p.amarelo || 0,
-        p.vermelho || 0,
-        p.assistencias || 0,
-        p.golo || 0,
-        csvField(p.minutoSubstituicao || '')
-      ].join(','));
-    });
-
-    TRACKERS.forEach(cfg => {
-      lines.push('');
-      lines.push(`=== ${cfg.title.toUpperCase()} ===`);
-      lines.push(['Tipo', 'X (%)', 'Y (%)', 'Hora'].join(','));
-      const clicks = JSON.parse(localStorage.getItem(`${cfg.id}_clicks_v1`) || '[]');
-      clicks.forEach(c => {
-        lines.push([c.tipo, c.x_pct, c.y_pct, csvField(c.hora)].join(','));
-      });
-    });
-
-    const csv = lines.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    a.href = url;
-    a.download = `analise_completa_${stamp}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  });
-})();
-</script>
-
+<script type="module" src="app.js"></script>
 </body>
 </html>
