@@ -43,7 +43,7 @@ async function loadApp() {
 function wireAuthForm() {
   el('btn-sign-out').addEventListener('click', async () => {
     await supabase.auth.signOut();
-    window.location.href = 'faltas.html';
+    window.location.href = 'login.html';
   });
 }
 
@@ -633,7 +633,7 @@ function wireImport() {
 
 async function init() {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) { window.location.href = 'faltas.html'; return; }
+  if (!session) { window.location.href = 'login.html'; return; }
   currentUser = session.user;
 
   wireAuthForm();
@@ -646,7 +646,7 @@ async function init() {
   wireDownloadSession();
 
   supabase.auth.onAuthStateChange((_event, newSession) => {
-    if (!newSession) window.location.href = 'faltas.html';
+    if (!newSession) window.location.href = 'login.html';
   });
 
   await loadApp();
