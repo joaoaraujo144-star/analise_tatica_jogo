@@ -1,11 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-// Preenche estes dois valores com os do teu projeto Supabase
-// (Settings -> API -> Project URL / anon public key).
-const SUPABASE_URL = 'https://ryxoevwixjfmzlzbrbyq.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5eG9ldndpeGpmbXpsemJyYnlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1Mzg2NjEsImV4cCI6MjA5OTExNDY2MX0.UrnlqfF79hfSouCqYYZhMMF2HhSGLPsc9ZZnQLTihkQ';
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { supabase } from './supabase-client.js';
 
 const TRACKERS = [
   { id: 'faltas', title: 'Faltas', xLabel: 'Realizadas', yLabel: 'Sofridas' },
@@ -31,15 +24,7 @@ function csvField(v) {
 
 // ---------- Auth ----------
 
-function showAuth() {
-  el('auth-screen').hidden = false;
-  el('app-root').hidden = true;
-}
-
-async function showApp() {
-  el('auth-screen').hidden = true;
-  el('app-root').hidden = false;
-
+async function loadApp() {
   await loadMatches();
   await loadRoster();
 
@@ -56,30 +41,9 @@ async function showApp() {
 }
 
 function wireAuthForm() {
-  el('btn-sign-in').addEventListener('click', async () => {
-    const email = el('auth-email').value.trim();
-    const password = el('auth-password').value;
-    if (!email || !password) { el('auth-error').textContent = 'Preenche o email e a palavra-passe.'; return; }
-    el('auth-error').textContent = '';
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) el('auth-error').textContent = error.message;
-  });
-
-  el('btn-sign-up').addEventListener('click', async () => {
-    const email = el('auth-email').value.trim();
-    const password = el('auth-password').value;
-    if (!email || !password) { el('auth-error').textContent = 'Preenche o email e a palavra-passe.'; return; }
-    el('auth-error').textContent = '';
-    const { error } = await supabase.auth.signUp({ email, password });
-    el('auth-error').textContent = error ? error.message : 'Conta criada. Já podes entrar.';
-  });
-
-  el('btn-sign-out').addEventListener('click', () => supabase.auth.signOut());
-
-  [el('auth-email'), el('auth-password')].forEach(input => {
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') el('btn-sign-in').click();
-    });
+  el('btn-sign-out').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    window.location.href = 'faltas.html';
   });
 }
 
@@ -667,7 +631,11 @@ function wireImport() {
 
 // ---------- Init ----------
 
-function init() {
+async function init() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) { window.location.href = 'faltas.html'; return; }
+  currentUser = session.user;
+
   wireAuthForm();
   wireTabs();
   wireMatches();
@@ -677,17 +645,11 @@ function init() {
   buildTrackerSections();
   wireDownloadSession();
 
-  supabase.auth.onAuthStateChange(async (_event, session) => {
-    if (session) {
-      if (currentUser?.id === session.user.id) return;
-      currentUser = session.user;
-      await showApp();
-    } else {
-      currentUser = null;
-      currentMatchId = null;
-      showAuth();
-    }
+  supabase.auth.onAuthStateChange((_event, newSession) => {
+    if (!newSession) window.location.href = 'faltas.html';
   });
+
+  await loadApp();
 }
 
 init();
