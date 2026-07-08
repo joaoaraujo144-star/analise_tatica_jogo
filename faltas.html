@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise de Jogo</title>
+<style>
+  :root {
+    --x-color: #e53935;
+    --y-color: #1e88e5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Arial, sans-serif;
+    background: #10151a;
+    color: #eee;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+  h1.page-title {
+    margin: 0;
+    font-size: 1.8em;
+    color: #fff;
+  }
+  .hint { font-size: 0.8em; color: #888; text-align: center; max-width: 680px; }
+
+  .page {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 28px;
+    width: 100%;
+    max-width: 1440px;
+  }
+
+  .tracker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    background: #151b21;
+    border: 1px solid #232b33;
+    border-radius: 14px;
+    padding: 20px;
+  }
+
+  h2.tracker-title {
+    margin: 0;
+    font-size: 1.4em;
+    color: #fff;
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .mode-btn {
+    font-size: 1.1em;
+    font-weight: bold;
+    padding: 10px 22px;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    color: #fff;
+    opacity: 0.55;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .mode-btn:active { transform: scale(0.96); }
+  .mode-btn.x { background: var(--x-color); }
+  .mode-btn.y { background: var(--y-color); }
+  .mode-btn.active {
+    opacity: 1;
+    border-color: #fff;
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.25);
+  }
+  .counters {
+    display: flex;
+    gap: 18px;
+    font-size: 1.1em;
+  }
+  .counter {
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: #1c242c;
+    min-width: 70px;
+    text-align: center;
+  }
+  .counter span.num { font-size: 1.3em; font-weight: bold; display: block; }
+  .counter.x .num { color: var(--x-color); }
+  .counter.y .num { color: var(--y-color); }
+
+  .field-wrap {
+    position: relative;
+    max-width: 680px;
+    width: 100%;
+    user-select: none;
+  }
+  .field-wrap img {
+    width: 100%;
+    display: block;
+    border-radius: 6px;
+    cursor: crosshair;
+  }
+  .marker {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    margin-left: -9px;
+    margin-top: -9px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    pointer-events: none;
+    font-size: 12px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+  }
+  .marker.X { background: var(--x-color); }
+  .marker.Y { background: var(--y-color); }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button.action {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #1c242c;
+    color: #eee;
+    cursor: pointer;
+    font-size: 0.95em;
+  }
+  button.action:hover { background: #263038; }
+  button.action.danger:hover { background: #4a2020; border-color: #e53935; }
+
+  .log {
+    width: 100%;
+    max-width: 680px;
+    max-height: 180px;
+    overflow-y: auto;
+    background: #1c242c;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.85em;
+  }
+  .log table { width: 100%; border-collapse: collapse; }
+  .log th, .log td { text-align: left; padding: 3px 6px; }
+  .log th { color: #888; font-weight: normal; border-bottom: 1px solid #333; }
+  .log tr:last-child td { font-weight: bold; }
+  .log td.tipo-X { color: var(--x-color); }
+  .log td.tipo-Y { color: var(--y-color); }
+</style>
+</head>
+<body>
+
+  <h1 class="page-title">Análise de Jogo</h1>
+  <p class="hint">Passa o rato sobre um campo e clica para marcar um ponto do tipo selecionado. Usa as teclas <b>X</b> e <b>Y</b> para trocar rapidamente de modo no campo sobre o qual estás. Clique direito ou <b>Ctrl+clique</b> remove o último ponto desse campo.</p>
+
+  <div class="page" id="page"></div>
+
+<script>
+(function () {
+  const TRACKERS = [
+    { id: 'faltas', title: 'Faltas',           xLabel: 'Realizadas', yLabel: 'Sofridas' },
+    { id: 'cantos', title: 'Cantos',           xLabel: 'A Favor',    yLabel: 'Contra' },
+    { id: 'perdas', title: 'Perdas de Bola',   xLabel: 'A Favor',    yLabel: 'Contra' },
+    { id: 'remates', title: 'Remates',         xLabel: 'A Favor',    yLabel: 'Contra' },
+  ];
+
+  const page = document.getElementById('page');
+  let hoveredTracker = null;
+
+  function buildSection(cfg) {
+    const section = document.createElement('section');
+    section.className = 'tracker';
+    section.dataset.tracker = cfg.id;
+    section.innerHTML = `
+      <h2 class="tracker-title">${cfg.title}</h2>
+      <div class="toolbar">
+        <button class="mode-btn x active" data-tipo="X">${cfg.xLabel}</button>
+        <button class="mode-btn y" data-tipo="Y">${cfg.yLabel}</button>
+      </div>
+      <div class="counters">
+        <div class="counter x"><span class="num" data-count="X">0</span>${cfg.xLabel}</div>
+        <div class="counter y"><span class="num" data-count="Y">0</span>${cfg.yLabel}</div>
+      </div>
+      <div class="field-wrap">
+        <img src="campo.png" alt="Campo de futebol" class="field-img" draggable="false">
+      </div>
+      <div class="actions">
+        <button class="action" data-action="undo">Desfazer último</button>
+        <button class="action" data-action="download">Descarregar CSV</button>
+        <button class="action danger" data-action="clear">Limpar tudo</button>
+      </div>
+      <div class="log">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Tipo</th><th>X (%)</th><th>Y (%)</th><th>Hora</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    `;
+    return section;
+  }
+
+  function initTracker(cfg, root) {
+    const STORAGE_KEY = `${cfg.id}_clicks_v1`;
+    let mode = 'X';
+    let clicks = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+
+    const fieldWrap = root.querySelector('.field-wrap');
+    const fieldImg = root.querySelector('.field-img');
+    const btnX = root.querySelector('.mode-btn.x');
+    const btnY = root.querySelector('.mode-btn.y');
+    const countX = root.querySelector('[data-count="X"]');
+    const countY = root.querySelector('[data-count="Y"]');
+    const logBody = root.querySelector('tbody');
+
+    function setMode(m) {
+      mode = m;
+      btnX.classList.toggle('active', m === 'X');
+      btnY.classList.toggle('active', m === 'Y');
+    }
+
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(clicks));
+    }
+
+    function renderMarker(click) {
+      const marker = document.createElement('div');
+      marker.className = 'marker ' + click.tipo;
+      marker.style.left = click.x_pct + '%';
+      marker.style.top = click.y_pct + '%';
+      marker.textContent = click.tipo;
+      fieldWrap.appendChild(marker);
+    }
+
+    function redrawMarkers() {
+      fieldWrap.querySelectorAll('.marker').forEach(m => m.remove());
+      clicks.forEach(renderMarker);
+    }
+
+    function renderCounters() {
+      countX.textContent = clicks.filter(c => c.tipo === 'X').length;
+      countY.textContent = clicks.filter(c => c.tipo === 'Y').length;
+    }
+
+    function renderLog() {
+      logBody.innerHTML = '';
+      clicks.forEach((c, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${i + 1}</td><td class="tipo-${c.tipo}">${c.tipo}</td><td>${c.x_pct}</td><td>${c.y_pct}</td><td>${c.hora}</td>`;
+        logBody.appendChild(tr);
+      });
+      logBody.parentElement.parentElement.scrollTop = logBody.parentElement.parentElement.scrollHeight;
+    }
+
+    function renderAll() {
+      redrawMarkers();
+      renderCounters();
+      renderLog();
+    }
+
+    function addClick(x_pct, y_pct) {
+      const now = new Date();
+      clicks.push({
+        tipo: mode,
+        x_pct: x_pct.toFixed(2),
+        y_pct: y_pct.toFixed(2),
+        hora: now.toLocaleTimeString('pt-PT')
+      });
+      save();
+      renderAll();
+    }
+
+    function undoLast() {
+      clicks.pop();
+      save();
+      renderAll();
+    }
+
+    fieldImg.addEventListener('click', (e) => {
+      if (e.ctrlKey || e.metaKey) { undoLast(); return; }
+      const rect = fieldImg.getBoundingClientRect();
+      const x_pct = ((e.clientX - rect.left) / rect.width) * 100;
+      const y_pct = ((e.clientY - rect.top) / rect.height) * 100;
+      addClick(x_pct, y_pct);
+    });
+
+    fieldImg.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      undoLast();
+    });
+
+    btnX.addEventListener('click', () => setMode('X'));
+    btnY.addEventListener('click', () => setMode('Y'));
+
+    root.querySelector('[data-action="undo"]').addEventListener('click', undoLast);
+
+    root.querySelector('[data-action="clear"]').addEventListener('click', () => {
+      if (clicks.length && !confirm(`Apagar todos os pontos registados de "${cfg.title}"?`)) return;
+      clicks = [];
+      save();
+      renderAll();
+    });
+
+    root.querySelector('[data-action="download"]').addEventListener('click', () => {
+      const header = 'tipo,x_pct,y_pct,hora\n';
+      const rows = clicks.map(c => `${c.tipo},${c.x_pct},${c.y_pct},${c.hora}`).join('\n');
+      const csv = header + rows;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      a.href = url;
+      a.download = `coordenadas_${cfg.id}_${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    renderAll();
+
+    return { setMode };
+  }
+
+  TRACKERS.forEach(cfg => {
+    const section = buildSection(cfg);
+    page.appendChild(section);
+    const api = initTracker(cfg, section);
+    section.addEventListener('mouseenter', () => { hoveredTracker = api; });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea') return;
+    if (!hoveredTracker) return;
+    if (e.key === 'x' || e.key === 'X') hoveredTracker.setMode('X');
+    if (e.key === 'y' || e.key === 'Y') hoveredTracker.setMode('Y');
+  });
+})();
+</script>
+
+</body>
+</html>
