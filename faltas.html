@@ -205,8 +205,8 @@
     flex-direction: column;
     gap: 16px;
   }
-  .player-form { display: flex; gap: 8px; }
-  .player-form input[type="text"] {
+  .player-form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .player-form input[type="text"], .player-form select {
     background: #1c242c;
     border: 1px solid #333;
     color: #eee;
@@ -215,9 +215,10 @@
     font-size: 0.95em;
   }
   .player-form input#player-number { width: 60px; }
-  .player-form input#player-name { flex: 1; }
+  .player-form input#player-name { flex: 1; min-width: 120px; }
   .players-table { width: 100%; border-collapse: collapse; }
-  .players-table th, .players-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #232b33; }
+  .players-table th, .players-table td { text-align: center; padding: 6px 8px; border-bottom: 1px solid #232b33; }
+  .players-table th:nth-child(2), .players-table td:nth-child(2) { text-align: left; }
   .players-table th { color: #888; font-weight: normal; }
   .btn-remove-player {
     background: none;
@@ -228,6 +229,29 @@
     line-height: 1;
     padding: 2px 6px;
   }
+  .badge-estado {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    background: #263038;
+    color: #aaa;
+  }
+  .badge-estado.titular { background: #1e5c2f; color: #7ee89a; }
+  .stat-cell {
+    cursor: pointer;
+    user-select: none;
+    font-weight: bold;
+    border-radius: 6px;
+  }
+  .stat-cell:hover { background: #1c242c; }
+  .stat-toggle { font-size: 1.1em; opacity: 0.25; }
+  .stat-toggle.on { opacity: 1; }
+  .stat-counter { color: #555; }
+  .stat-counter.has-count { color: #fff; }
 </style>
 </head>
 <body>
@@ -245,11 +269,16 @@
       <div class="player-form">
         <input type="text" id="player-number" placeholder="Nº" maxlength="3">
         <input type="text" id="player-name" placeholder="Nome do jogador">
+        <select id="player-status">
+          <option value="Titular">Titular</option>
+          <option value="Suplente">Suplente</option>
+        </select>
         <button class="action" id="btn-add-player">Adicionar</button>
       </div>
+      <p class="hint">Clica em 🟨/🟥 para marcar cartão, e em Assist./⚽ para somar (clique direito ou Ctrl+clique para subtrair). Clica no estado para alternar Titular/Suplente.</p>
       <table class="players-table">
         <thead>
-          <tr><th>Nº</th><th>Nome</th><th></th></tr>
+          <tr><th>Nº</th><th>Nome</th><th>Estado</th><th>🟨</th><th>🟥</th><th>Assist.</th><th>⚽</th><th></th></tr>
         </thead>
         <tbody id="players-body"></tbody>
       </table>
@@ -462,6 +491,7 @@
 
     const numberInput = document.getElementById('player-number');
     const nameInput = document.getElementById('player-name');
+    const statusSelect = document.getElementById('player-status');
     const addBtn = document.getElementById('btn-add-player');
     const body = document.getElementById('players-body');
     const emptyHint = document.getElementById('players-empty');
@@ -473,8 +503,22 @@
     function render() {
       body.innerHTML = '';
       players.forEach((p, i) => {
+        const estado = p.estado || 'Suplente';
+        const amarelo = p.amarelo || 0;
+        const vermelho = p.vermelho || 0;
+        const assistencias = p.assistencias || 0;
+        const golo = p.golo || 0;
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td><button class="btn-remove-player" data-index="${i}" title="Remover">✕</button></td>`;
+        tr.innerHTML = `
+          <td>${p.numero || ''}</td>
+          <td>${p.nome}</td>
+          <td><span class="badge-estado ${estado === 'Titular' ? 'titular' : ''}" data-action="toggle-estado" data-index="${i}">${estado}</span></td>
+          <td class="stat-cell stat-toggle ${amarelo ? 'on' : ''}" data-action="toggle-amarelo" data-index="${i}">🟨</td>
+          <td class="stat-cell stat-toggle ${vermelho ? 'on' : ''}" data-action="toggle-vermelho" data-index="${i}">🟥</td>
+          <td class="stat-cell stat-counter ${assistencias ? 'has-count' : ''}" data-action="count-assistencias" data-index="${i}">${assistencias}</td>
+          <td class="stat-cell stat-counter ${golo ? 'has-count' : ''}" data-action="count-golo" data-index="${i}">${golo}</td>
+          <td><button class="btn-remove-player" data-index="${i}" title="Remover">✕</button></td>
+        `;
         body.appendChild(tr);
       });
       emptyHint.hidden = players.length > 0;
@@ -484,7 +528,8 @@
       const nome = nameInput.value.trim();
       if (!nome) return;
       const numero = numberInput.value.trim();
-      players.push({ numero, nome });
+      const estado = statusSelect.value;
+      players.push({ numero, nome, estado, amarelo: 0, vermelho: 0, assistencias: 0, golo: 0 });
       players.sort((a, b) => {
         const na = parseInt(a.numero, 10);
         const nb = parseInt(b.numero, 10);
@@ -508,9 +553,49 @@
     });
 
     body.addEventListener('click', (e) => {
-      const btn = e.target.closest('.btn-remove-player');
-      if (!btn) return;
-      players.splice(Number(btn.dataset.index), 1);
+      const removeBtn = e.target.closest('.btn-remove-player');
+      if (removeBtn) {
+        players.splice(Number(removeBtn.dataset.index), 1);
+        save();
+        render();
+        return;
+      }
+
+      const cell = e.target.closest('[data-action]');
+      if (!cell) return;
+      const player = players[Number(cell.dataset.index)];
+      if (!player) return;
+      const decrement = e.ctrlKey || e.metaKey;
+
+      switch (cell.dataset.action) {
+        case 'toggle-estado':
+          player.estado = player.estado === 'Titular' ? 'Suplente' : 'Titular';
+          break;
+        case 'toggle-amarelo':
+          player.amarelo = player.amarelo ? 0 : 1;
+          break;
+        case 'toggle-vermelho':
+          player.vermelho = player.vermelho ? 0 : 1;
+          break;
+        case 'count-assistencias':
+          player.assistencias = Math.max(0, (player.assistencias || 0) + (decrement ? -1 : 1));
+          break;
+        case 'count-golo':
+          player.golo = Math.max(0, (player.golo || 0) + (decrement ? -1 : 1));
+          break;
+      }
+      save();
+      render();
+    });
+
+    body.addEventListener('contextmenu', (e) => {
+      const cell = e.target.closest('.stat-counter');
+      if (!cell) return;
+      e.preventDefault();
+      const player = players[Number(cell.dataset.index)];
+      if (!player) return;
+      const key = cell.dataset.action === 'count-assistencias' ? 'assistencias' : 'golo';
+      player[key] = Math.max(0, (player[key] || 0) - 1);
       save();
       render();
     });
