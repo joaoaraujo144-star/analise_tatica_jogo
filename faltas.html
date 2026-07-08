@@ -160,14 +160,107 @@
   .log tr:last-child td { font-weight: bold; }
   .log td.tipo-X { color: var(--x-color); }
   .log td.tipo-Y { color: var(--y-color); }
+
+  .tabs {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .tab-btn {
+    padding: 10px 22px;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background: #1c242c;
+    color: #eee;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+  }
+  .tab-btn:hover { opacity: 0.85; }
+  .tab-btn.active {
+    opacity: 1;
+    border-color: #fff;
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.15);
+  }
+  .tab-panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+  .tab-panel[hidden] { display: none; }
+
+  .players-card {
+    background: #151b21;
+    border: 1px solid #232b33;
+    border-radius: 14px;
+    padding: 24px;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .player-form { display: flex; gap: 8px; }
+  .player-form input[type="text"] {
+    background: #1c242c;
+    border: 1px solid #333;
+    color: #eee;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 0.95em;
+  }
+  .player-form input#player-number { width: 60px; }
+  .player-form input#player-name { flex: 1; }
+  .players-table { width: 100%; border-collapse: collapse; }
+  .players-table th, .players-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #232b33; }
+  .players-table th { color: #888; font-weight: normal; }
+  .btn-remove-player {
+    background: none;
+    border: none;
+    color: var(--x-color);
+    cursor: pointer;
+    font-size: 1.1em;
+    line-height: 1;
+    padding: 2px 6px;
+  }
 </style>
 </head>
 <body>
 
   <h1 class="page-title">Análise de Jogo</h1>
-  <p class="hint">Passa o rato sobre um campo e clica para marcar um ponto do tipo selecionado. Usa as teclas <b>X</b> e <b>Y</b> para trocar rapidamente de modo no campo sobre o qual estás. Clique direito ou <b>Ctrl+clique</b> remove o último ponto desse campo.</p>
 
-  <div class="page" id="page"></div>
+  <div class="tabs" id="tabs">
+    <button class="tab-btn" data-tab="jogadores">Jogadores</button>
+    <button class="tab-btn active" data-tab="registo">Registo de Jogo</button>
+  </div>
+
+  <div class="tab-panel" id="tab-jogadores" hidden>
+    <div class="players-card">
+      <h2 class="tracker-title">Jogadores Convocados</h2>
+      <div class="player-form">
+        <input type="text" id="player-number" placeholder="Nº" maxlength="3">
+        <input type="text" id="player-name" placeholder="Nome do jogador">
+        <button class="action" id="btn-add-player">Adicionar</button>
+      </div>
+      <table class="players-table">
+        <thead>
+          <tr><th>Nº</th><th>Nome</th><th></th></tr>
+        </thead>
+        <tbody id="players-body"></tbody>
+      </table>
+      <p class="hint" id="players-empty">Ainda não adicionaste jogadores.</p>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-registo">
+    <p class="hint">Passa o rato sobre um campo e clica para marcar um ponto do tipo selecionado. Usa as teclas <b>X</b> e <b>Y</b> para trocar rapidamente de modo no campo sobre o qual estás. Clique direito ou <b>Ctrl+clique</b> remove o último ponto desse campo.</p>
+    <div class="page" id="page"></div>
+  </div>
 
 <script>
 (function () {
@@ -351,6 +444,79 @@
     if (e.key === 'x' || e.key === 'X') hoveredTracker.setMode('X');
     if (e.key === 'y' || e.key === 'Y') hoveredTracker.setMode('Y');
   });
+
+  // --- Tabs ---
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.hidden = panel.id !== `tab-${btn.dataset.tab}`;
+      });
+    });
+  });
+
+  // --- Jogadores ---
+  (function initPlayers() {
+    const STORAGE_KEY = 'jogadores_v1';
+    let players = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+
+    const numberInput = document.getElementById('player-number');
+    const nameInput = document.getElementById('player-name');
+    const addBtn = document.getElementById('btn-add-player');
+    const body = document.getElementById('players-body');
+    const emptyHint = document.getElementById('players-empty');
+
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
+    }
+
+    function render() {
+      body.innerHTML = '';
+      players.forEach((p, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td><button class="btn-remove-player" data-index="${i}" title="Remover">✕</button></td>`;
+        body.appendChild(tr);
+      });
+      emptyHint.hidden = players.length > 0;
+    }
+
+    function addPlayer() {
+      const nome = nameInput.value.trim();
+      if (!nome) return;
+      const numero = numberInput.value.trim();
+      players.push({ numero, nome });
+      players.sort((a, b) => {
+        const na = parseInt(a.numero, 10);
+        const nb = parseInt(b.numero, 10);
+        if (isNaN(na) && isNaN(nb)) return 0;
+        if (isNaN(na)) return 1;
+        if (isNaN(nb)) return -1;
+        return na - nb;
+      });
+      save();
+      render();
+      numberInput.value = '';
+      nameInput.value = '';
+      nameInput.focus();
+    }
+
+    addBtn.addEventListener('click', addPlayer);
+    [numberInput, nameInput].forEach(input => {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') addPlayer();
+      });
+    });
+
+    body.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-remove-player');
+      if (!btn) return;
+      players.splice(Number(btn.dataset.index), 1);
+      save();
+      render();
+    });
+
+    render();
+  })();
 })();
 </script>
 
