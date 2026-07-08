@@ -252,6 +252,22 @@
   .stat-toggle.on { opacity: 1; }
   .stat-counter { color: #555; }
   .stat-counter.has-count { color: #fff; }
+  .minute-input {
+    width: 56px;
+    background: #1c242c;
+    border: 1px solid #333;
+    color: #eee;
+    border-radius: 6px;
+    padding: 4px 6px;
+    font-size: 0.9em;
+    text-align: center;
+  }
+
+  .footer-actions {
+    display: flex;
+    justify-content: center;
+    padding-bottom: 10px;
+  }
 </style>
 </head>
 <body>
@@ -278,7 +294,7 @@
       <p class="hint">Clica em 🟨/🟥 para marcar cartão, e em Assist./⚽ para somar (clique direito ou Ctrl+clique para subtrair). Clica no estado para alternar Titular/Suplente.</p>
       <table class="players-table">
         <thead>
-          <tr><th>Nº</th><th>Nome</th><th>Estado</th><th>🟨</th><th>🟥</th><th>Assist.</th><th>⚽</th><th></th></tr>
+          <tr><th>Nº</th><th>Nome</th><th>Estado</th><th>🟨</th><th>🟥</th><th>Assist.</th><th>⚽</th><th>Min. Subst.</th><th></th></tr>
         </thead>
         <tbody id="players-body"></tbody>
       </table>
@@ -289,6 +305,10 @@
   <div class="tab-panel" id="tab-registo">
     <p class="hint">Passa o rato sobre um campo e clica para marcar um ponto do tipo selecionado. Usa as teclas <b>X</b> e <b>Y</b> para trocar rapidamente de modo no campo sobre o qual estás. Clique direito ou <b>Ctrl+clique</b> remove o último ponto desse campo.</p>
     <div class="page" id="page"></div>
+  </div>
+
+  <div class="footer-actions">
+    <button class="action" id="btn-download-session">Descarregar tudo da sessão (CSV)</button>
   </div>
 
 <script>
@@ -508,6 +528,7 @@
         const vermelho = p.vermelho || 0;
         const assistencias = p.assistencias || 0;
         const golo = p.golo || 0;
+        const minuto = p.minutoSubstituicao || '';
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${p.numero || ''}</td>
@@ -517,6 +538,7 @@
           <td class="stat-cell stat-toggle ${vermelho ? 'on' : ''}" data-action="toggle-vermelho" data-index="${i}">🟥</td>
           <td class="stat-cell stat-counter ${assistencias ? 'has-count' : ''}" data-action="count-assistencias" data-index="${i}">${assistencias}</td>
           <td class="stat-cell stat-counter ${golo ? 'has-count' : ''}" data-action="count-golo" data-index="${i}">${golo}</td>
+          <td><input type="number" class="minute-input" data-index="${i}" min="0" max="130" placeholder="Min" value="${minuto}"></td>
           <td><button class="btn-remove-player" data-index="${i}" title="Remover">✕</button></td>
         `;
         body.appendChild(tr);
@@ -588,6 +610,15 @@
       render();
     });
 
+    body.addEventListener('input', (e) => {
+      const input = e.target.closest('.minute-input');
+      if (!input) return;
+      const player = players[Number(input.dataset.index)];
+      if (!player) return;
+      player.minutoSubstituicao = input.value;
+      save();
+    });
+
     body.addEventListener('contextmenu', (e) => {
       const cell = e.target.closest('.stat-counter');
       if (!cell) return;
@@ -602,6 +633,54 @@
 
     render();
   })();
+
+  // --- Descarregar tudo da sessão ---
+  function csvField(v) {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  document.getElementById('btn-download-session').addEventListener('click', () => {
+    const lines = [];
+
+    lines.push('=== JOGADORES ===');
+    lines.push(['Número', 'Nome', 'Estado', 'Amarelo', 'Vermelho', 'Assistências', 'Golos', 'Minuto Substituição'].join(','));
+    const players = JSON.parse(localStorage.getItem('jogadores_v1') || '[]');
+    players.forEach(p => {
+      lines.push([
+        csvField(p.numero || ''),
+        csvField(p.nome || ''),
+        csvField(p.estado || 'Suplente'),
+        p.amarelo || 0,
+        p.vermelho || 0,
+        p.assistencias || 0,
+        p.golo || 0,
+        csvField(p.minutoSubstituicao || '')
+      ].join(','));
+    });
+
+    TRACKERS.forEach(cfg => {
+      lines.push('');
+      lines.push(`=== ${cfg.title.toUpperCase()} ===`);
+      lines.push(['Tipo', 'X (%)', 'Y (%)', 'Hora'].join(','));
+      const clicks = JSON.parse(localStorage.getItem(`${cfg.id}_clicks_v1`) || '[]');
+      clicks.forEach(c => {
+        lines.push([c.tipo, c.x_pct, c.y_pct, csvField(c.hora)].join(','));
+      });
+    });
+
+    const csv = lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    a.href = url;
+    a.download = `analise_completa_${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
 })();
 </script>
 
