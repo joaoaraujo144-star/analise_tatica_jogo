@@ -10,6 +10,8 @@ const TRACKERS = [
 const el = (id) => document.getElementById(id);
 
 let currentUser = null;
+let currentTeamId = localStorage.getItem('current_team_id') || null;
+let currentTeam = null;
 let currentMatchId = localStorage.getItem('current_match_id') || null;
 let matchesCache = [];
 let rosterCache = [];
@@ -42,9 +44,18 @@ async function loadApp() {
 
 function wireAuthForm() {
   el('btn-sign-out').addEventListener('click', async () => {
+    localStorage.removeItem('current_team_id');
     await supabase.auth.signOut();
     window.location.href = 'login.html';
   });
+
+  el('btn-switch-team').addEventListener('click', () => {
+    window.location.href = 'teams.html';
+  });
+}
+
+function updateTeamIndicator() {
+  el('team-indicator').textContent = currentTeam ? `Equipa: ${currentTeam.nome}` : 'Equipa';
 }
 
 // ---------- Tabs ----------
@@ -70,7 +81,7 @@ function wireMatches() {
     if (!data || !adversario) return;
     const { data: row, error } = await supabase
       .from('matches')
-      .insert({ user_id: currentUser.id, data, adversario })
+      .insert({ user_id: currentUser.id, team_id: currentTeamId, data, adversario })
       .select()
       .single();
     if (error) { alert(error.message); return; }
@@ -82,7 +93,11 @@ function wireMatches() {
 }
 
 async function loadMatches() {
-  const { data, error } = await supabase.from('matches').select('*').order('data', { ascending: false });
+  const { data, error } = await supabase
+    .from('matches')
+    .select('*')
+    .eq('team_id', currentTeamId)
+    .order('data', { ascending: false });
   if (error) { console.error(error); return; }
   matchesCache = data || [];
   renderMatches();
@@ -135,7 +150,7 @@ function wireRoster() {
     const nome = el('roster-name').value.trim();
     if (!nome) return;
     const numero = el('roster-number').value.trim();
-    const { error } = await supabase.from('players').insert({ user_id: currentUser.id, numero: numero || null, nome });
+    const { error } = await supabase.from('players').insert({ user_id: currentUser.id, team_id: currentTeamId, numero: numero || null, nome });
     if (error) { alert(error.message); return; }
     el('roster-number').value = '';
     el('roster-name').value = '';
@@ -159,7 +174,11 @@ function wireRoster() {
 }
 
 async function loadRoster() {
-  const { data, error } = await supabase.from('players').select('*').order('nome', { ascending: true });
+  const { data, error } = await supabase
+    .from('players')
+    .select('*')
+    .eq('team_id', currentTeamId)
+    .order('nome', { ascending: true });
   if (error) { console.error(error); return; }
   rosterCache = data || [];
   renderRoster();
@@ -196,6 +215,7 @@ function wireConvocatoria() {
     const estado = el('convocar-status').value;
     const { error } = await supabase.from('match_players').insert({
       user_id: currentUser.id,
+      team_id: currentTeamId,
       match_id: currentMatchId,
       player_id: playerId,
       estado
@@ -421,6 +441,7 @@ function initTracker(cfg, root) {
     if (!currentMatchId) { alert('Seleciona ou cria um jogo primeiro (tab Jogos).'); return; }
     const row = {
       user_id: currentUser.id,
+      team_id: currentTeamId,
       match_id: currentMatchId,
       tracker_id: cfg.id,
       tipo: mode,
@@ -482,7 +503,8 @@ function reloadAllTrackers() {
 async function loadReports() {
   const { data, error } = await supabase
     .from('match_players')
-    .select('golo, assistencias, amarelo, vermelho, players(id, numero, nome)');
+    .select('golo, assistencias, amarelo, vermelho, players(id, numero, nome)')
+    .eq('team_id', currentTeamId);
   if (error) { console.error(error); return; }
 
   const byPlayer = new Map();
@@ -582,7 +604,7 @@ function wireImport() {
 
     const { data: match, error } = await supabase
       .from('matches')
-      .insert({ user_id: currentUser.id, adversario: 'Importado', data: new Date().toISOString().slice(0, 10) })
+      .insert({ user_id: currentUser.id, team_id: currentTeamId, adversario: 'Importado', data: new Date().toISOString().slice(0, 10) })
       .select()
       .single();
     if (error) { alert(error.message); return; }
@@ -591,12 +613,13 @@ function wireImport() {
     for (const p of oldPlayers) {
       const { data: newPlayer, error: playerError } = await supabase
         .from('players')
-        .insert({ user_id: currentUser.id, numero: p.numero || null, nome: p.nome })
+        .insert({ user_id: currentUser.id, team_id: currentTeamId, numero: p.numero || null, nome: p.nome })
         .select()
         .single();
       if (playerError) continue;
       await supabase.from('match_players').insert({
         user_id: currentUser.id,
+        team_id: currentTeamId,
         match_id: match.id,
         player_id: newPlayer.id,
         estado: p.estado || 'Suplente',
@@ -613,6 +636,7 @@ function wireImport() {
       if (!oldClicks.length) continue;
       const rows = oldClicks.map(c => ({
         user_id: currentUser.id,
+        team_id: currentTeamId,
         match_id: match.id,
         tracker_id: cfg.id,
         tipo: c.tipo,
@@ -635,6 +659,12 @@ async function init() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) { window.location.href = 'login.html'; return; }
   currentUser = session.user;
+
+  if (!currentTeamId) { window.location.href = 'teams.html'; return; }
+  const { data: team, error: teamError } = await supabase.from('teams').select('*').eq('id', currentTeamId).single();
+  if (teamError || !team) { window.location.href = 'teams.html'; return; }
+  currentTeam = team;
+  updateTeamIndicator();
 
   wireAuthForm();
   wireTabs();

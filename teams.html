@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise de Jogo — Equipas</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <h1 class="page-title">Análise de Jogo</h1>
+
+  <div class="top-bar">
+    <div class="match-indicator">Escolhe ou cria uma equipa</div>
+    <button class="action" id="btn-sign-out">Sair</button>
+  </div>
+
+  <div class="teams-section">
+    <h2 class="tracker-title">As tuas equipas</h2>
+    <div class="team-grid" id="teams-grid"></div>
+    <p class="hint" id="teams-empty">Ainda não tens nenhuma equipa. Cria uma ou junta-te a uma abaixo.</p>
+  </div>
+
+  <div class="players-card">
+    <h2 class="tracker-title">Criar equipa</h2>
+    <div class="player-form">
+      <input type="text" id="team-name" placeholder="Nome da equipa">
+      <label class="file-label" for="team-logo">
+        <span id="team-logo-filename">Escolher emblema (opcional)</span>
+        <input type="file" id="team-logo" accept="image/*">
+      </label>
+      <button class="action" id="btn-create-team">Criar</button>
+    </div>
+    <p class="hint" id="create-team-error"></p>
+  </div>
+
+  <div class="players-card">
+    <h2 class="tracker-title">Juntar a uma equipa</h2>
+    <p class="hint">Pede o código de convite a quem já tem acesso à equipa.</p>
+    <div class="player-form">
+      <input type="text" id="team-code" placeholder="Código (ex: A3F9K2)" maxlength="6">
+      <button class="action" id="btn-join-team">Juntar</button>
+    </div>
+    <p class="hint" id="join-team-error"></p>
+  </div>
+
+<script type="module" src="teams.js"></script>
+</body>
+</html>

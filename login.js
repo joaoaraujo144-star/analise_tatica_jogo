@@ -8,7 +8,7 @@ function showMessage(msg) {
 
 async function redirectIfLoggedIn() {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) window.location.href = 'dashboard.html';
+  if (session) window.location.href = 'teams.html';
 }
 
 el('btn-sign-in').addEventListener('click', async () => {
@@ -18,7 +18,7 @@ el('btn-sign-in').addEventListener('click', async () => {
   showMessage('');
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) { showMessage(error.message); return; }
-  window.location.href = 'dashboard.html';
+  window.location.href = 'teams.html';
 });
 
 el('btn-sign-up').addEventListener('click', async () => {

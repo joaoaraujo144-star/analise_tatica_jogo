@@ -210,6 +210,92 @@ button.action:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .player-form input#roster-number { width: 60px; }
 .player-form input#roster-name, .player-form input#match-opponent, .player-form select#convocar-select { flex: 1; min-width: 120px; }
+
+.file-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #1c242c;
+  border: 1px solid #333;
+  color: #aaa;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.9em;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+.file-label:hover { background: #263038; }
+.file-label input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.teams-section {
+  width: 100%;
+  max-width: 680px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.teams-section .tracker-title { align-self: flex-start; }
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 18px;
+  width: 100%;
+}
+.team-card {
+  background: #151b21;
+  border: 1px solid #232b33;
+  border-radius: 16px;
+  padding: 22px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+  text-align: center;
+}
+.team-card:hover { transform: translateY(-3px); border-color: #3a4552; }
+.team-card-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #1c242c;
+}
+.team-card-fallback {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6em;
+  font-weight: bold;
+  color: #fff;
+  flex-shrink: 0;
+}
+.team-card-name {
+  font-weight: bold;
+  font-size: 1.05em;
+  color: #fff;
+  word-break: break-word;
+}
+.team-card-code {
+  font-size: 0.75em;
+  color: #888;
+  font-family: monospace;
+  letter-spacing: 0.05em;
+}
 .players-table { width: 100%; border-collapse: collapse; }
 .players-table th, .players-table td { text-align: center; padding: 6px 8px; border-bottom: 1px solid #232b33; }
 .players-table th:nth-child(2), .players-table td:nth-child(2) { text-align: left; }

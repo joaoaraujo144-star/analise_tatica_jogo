@@ -1,21 +1,45 @@
--- Análise de Jogo — esquema Supabase
--- Corre este script uma vez no SQL Editor do teu projeto Supabase.
+-- Análise de Jogo — esquema Supabase completo
+-- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
+-- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
+-- supabase_schema_teams.sql e depois supabase_schema_team_logos.sql.)
 
 create extension if not exists "pgcrypto";
 
--- Plantel reutilizável (lista mestra de jogadores)
+-- Equipas (partilháveis entre contas)
+create table if not exists teams (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null,
+  join_code text not null unique,
+  logo_url text,
+  created_by uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+-- Pertença a uma equipa (define quem tem acesso a quê)
+create table if not exists team_members (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references teams(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null default 'membro' check (role in ('owner', 'membro')),
+  created_at timestamptz not null default now(),
+  unique (team_id, user_id)
+);
+
+-- Plantel reutilizável (lista mestra de jogadores de uma equipa)
 create table if not exists players (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  team_id uuid not null references teams(id) on delete cascade,
   numero text,
   nome text not null,
   created_at timestamptz not null default now()
 );
 
--- Jogos
+-- Jogos de uma equipa
 create table if not exists matches (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  team_id uuid not null references teams(id) on delete cascade,
   adversario text not null,
   data date not null,
   created_at timestamptz not null default now()
@@ -25,6 +49,7 @@ create table if not exists matches (
 create table if not exists match_players (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  team_id uuid not null references teams(id) on delete cascade,
   match_id uuid not null references matches(id) on delete cascade,
   player_id uuid not null references players(id) on delete cascade,
   estado text not null default 'Suplente' check (estado in ('Titular', 'Suplente')),
@@ -40,6 +65,7 @@ create table if not exists match_players (
 create table if not exists events (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  team_id uuid not null references teams(id) on delete cascade,
   match_id uuid not null references matches(id) on delete cascade,
   tracker_id text not null check (tracker_id in ('faltas', 'cantos', 'perdas', 'remates')),
   tipo text not null check (tipo in ('X', 'Y')),
@@ -49,26 +75,130 @@ create table if not exists events (
 );
 
 -- Índices para as queries mais comuns
-create index if not exists idx_matches_user on matches(user_id);
-create index if not exists idx_players_user on players(user_id);
+create index if not exists idx_players_team on players(team_id);
+create index if not exists idx_matches_team on matches(team_id);
 create index if not exists idx_match_players_match on match_players(match_id);
 create index if not exists idx_match_players_player on match_players(player_id);
+create index if not exists idx_match_players_team on match_players(team_id);
 create index if not exists idx_events_match_tracker on events(match_id, tracker_id);
+create index if not exists idx_events_team on events(team_id);
 
--- Row Level Security: cada utilizador só vê/edita os seus próprios dados
+-- Row Level Security
+alter table teams enable row level security;
+alter table team_members enable row level security;
 alter table players enable row level security;
 alter table matches enable row level security;
 alter table match_players enable row level security;
 alter table events enable row level security;
 
-create policy "players_owner" on players
-  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- Só é possível ver uma equipa (ou dados dela) se se for membro dessa equipa
+create policy "teams_member_select" on teams
+  for select using (
+    exists (select 1 from team_members tm where tm.team_id = teams.id and tm.user_id = auth.uid())
+  );
 
-create policy "matches_owner" on matches
-  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "team_members_self_select" on team_members
+  for select using (user_id = auth.uid());
 
-create policy "match_players_owner" on match_players
-  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- Permite a um membro da equipa atualizar os dados da equipa (ex: o emblema)
+create policy "teams_member_update" on teams
+  for update
+  using (exists (select 1 from team_members tm where tm.team_id = teams.id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = teams.id and tm.user_id = auth.uid()));
 
-create policy "events_owner" on events
-  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "players_team_member" on players
+  for all
+  using (exists (select 1 from team_members tm where tm.team_id = players.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = players.team_id and tm.user_id = auth.uid()));
+
+create policy "matches_team_member" on matches
+  for all
+  using (exists (select 1 from team_members tm where tm.team_id = matches.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = matches.team_id and tm.user_id = auth.uid()));
+
+create policy "match_players_team_member" on match_players
+  for all
+  using (exists (select 1 from team_members tm where tm.team_id = match_players.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = match_players.team_id and tm.user_id = auth.uid()));
+
+create policy "events_team_member" on events
+  for all
+  using (exists (select 1 from team_members tm where tm.team_id = events.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = events.team_id and tm.user_id = auth.uid()));
+
+-- Criar uma equipa: cria a equipa e torna o criador "owner", numa operação atómica
+create or replace function create_team(p_nome text)
+returns teams
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_team teams;
+  v_code text;
+begin
+  v_code := upper(substr(md5(random()::text), 1, 6));
+  insert into teams (nome, join_code, created_by) values (p_nome, v_code, auth.uid())
+  returning * into v_team;
+  insert into team_members (team_id, user_id, role) values (v_team.id, auth.uid(), 'owner');
+  return v_team;
+end;
+$$;
+
+-- Entrar numa equipa através do código de convite
+create or replace function join_team_by_code(p_code text)
+returns teams
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_team teams;
+begin
+  select * into v_team from teams where join_code = upper(p_code);
+  if not found then
+    raise exception 'Código de equipa inválido';
+  end if;
+  insert into team_members (team_id, user_id, role)
+    values (v_team.id, auth.uid(), 'membro')
+    on conflict (team_id, user_id) do nothing;
+  return v_team;
+end;
+$$;
+
+grant execute on function create_team(text) to authenticated;
+grant execute on function join_team_by_code(text) to authenticated;
+
+-- ---------- Emblema da equipa (Supabase Storage) ----------
+
+insert into storage.buckets (id, name, public)
+values ('team-logos', 'team-logos', true)
+on conflict (id) do nothing;
+
+-- Qualquer pessoa pode ver os emblemas (bucket público)
+create policy "team_logos_public_read" on storage.objects
+  for select using (bucket_id = 'team-logos');
+
+-- Só um membro da equipa pode enviar/substituir o emblema dessa equipa
+-- (o ficheiro deve ser guardado no caminho "<team_id>/nome-ficheiro")
+create policy "team_logos_member_write" on storage.objects
+  for insert
+  with check (
+    bucket_id = 'team-logos'
+    and exists (
+      select 1 from team_members tm
+      where tm.team_id = (storage.foldername(name))[1]::uuid
+      and tm.user_id = auth.uid()
+    )
+  );
+
+create policy "team_logos_member_update" on storage.objects
+  for update
+  using (
+    bucket_id = 'team-logos'
+    and exists (
+      select 1 from team_members tm
+      where tm.team_id = (storage.foldername(name))[1]::uuid
+      and tm.user_id = auth.uid()
+    )
+  );
