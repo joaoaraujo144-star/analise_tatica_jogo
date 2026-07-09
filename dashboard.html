@@ -14,100 +14,32 @@
 
     <div class="top-bar">
       <div class="match-indicator" id="team-indicator">Equipa</div>
-      <div class="match-indicator" id="match-indicator">Nenhum jogo selecionado</div>
       <button class="action" id="btn-switch-team">Trocar de equipa</button>
       <button class="action" id="btn-sign-out">Sair</button>
     </div>
 
-    <div class="tabs" id="tabs">
-      <button class="tab-btn active" data-tab="jogos">Jogos</button>
-      <button class="tab-btn" data-tab="jogadores">Jogadores</button>
-      <button class="tab-btn" data-tab="registo">Registo de Jogo</button>
-      <button class="tab-btn" data-tab="relatorios">Relatórios</button>
-    </div>
-
-    <div class="tab-panel" id="tab-jogos">
-      <div class="players-card">
-        <h2 class="tracker-title">Novo Jogo</h2>
-        <div class="player-form">
-          <input type="date" id="match-date">
-          <input type="text" id="match-opponent" placeholder="Adversário">
-          <button class="action" id="btn-create-match">Criar Jogo</button>
-        </div>
-      </div>
-      <div class="players-card">
-        <h2 class="tracker-title">Jogos</h2>
-        <table class="players-table">
-          <thead><tr><th>Data</th><th>Adversário</th><th></th></tr></thead>
-          <tbody id="matches-body"></tbody>
-        </table>
-        <p class="hint" id="matches-empty">Ainda não criaste nenhum jogo.</p>
-      </div>
-      <div class="players-card" id="import-card" hidden>
-        <h2 class="tracker-title">Importar dados locais</h2>
-        <p class="hint">Encontrei dados guardados neste browser (de antes desta atualização). Podes importá-los para um novo jogo.</p>
-        <button class="action" id="btn-import-local">Importar dados locais para um novo jogo</button>
+    <div class="players-card">
+      <h2 class="tracker-title">Novo Jogo</h2>
+      <div class="player-form">
+        <input type="date" id="match-date">
+        <input type="text" id="match-opponent" placeholder="Adversário">
+        <button class="action" id="btn-create-match">Criar Jogo</button>
       </div>
     </div>
 
-    <div class="tab-panel" id="tab-jogadores" hidden>
-      <div class="players-card">
-        <h2 class="tracker-title">Plantel</h2>
-        <p class="hint">Lista reutilizável de jogadores — adiciona-os aqui uma vez, depois convoca-os para cada jogo.</p>
-        <div class="player-form">
-          <input type="text" id="roster-number" placeholder="Nº" maxlength="3">
-          <input type="text" id="roster-name" placeholder="Nome do jogador">
-          <button class="action" id="btn-add-roster-player">Adicionar ao plantel</button>
-        </div>
-        <table class="players-table">
-          <thead><tr><th>Nº</th><th>Nome</th><th></th></tr></thead>
-          <tbody id="roster-body"></tbody>
-        </table>
-        <p class="hint" id="roster-empty">Ainda não adicionaste jogadores ao plantel.</p>
-      </div>
-
-      <div class="players-card" id="convocatoria-card">
-        <h2 class="tracker-title">Convocados para este jogo</h2>
-        <p class="hint" id="convocar-warning">Seleciona ou cria um jogo na tab "Jogos" para convocar jogadores.</p>
-        <div class="player-form">
-          <select id="convocar-select"></select>
-          <select id="convocar-status">
-            <option value="Titular">Titular</option>
-            <option value="Suplente">Suplente</option>
-          </select>
-          <button class="action" id="btn-convocar">Convocar</button>
-        </div>
-        <p class="hint">Clica em 🟨/🟥 para marcar cartão, e em Assist./⚽ para somar (clique direito ou Ctrl+clique para subtrair). Clica no estado para alternar Titular/Suplente.</p>
-        <table class="players-table">
-          <thead>
-            <tr><th>Nº</th><th>Nome</th><th>Estado</th><th>🟨</th><th>🟥</th><th>Assist.</th><th>⚽</th><th>Min. Subst.</th><th></th></tr>
-          </thead>
-          <tbody id="players-body"></tbody>
-        </table>
-        <p class="hint" id="players-empty">Ainda não convocaste jogadores para este jogo.</p>
-      </div>
+    <div class="players-card">
+      <h2 class="tracker-title">Jogos</h2>
+      <table class="players-table">
+        <thead><tr><th>Data</th><th>Adversário</th><th></th></tr></thead>
+        <tbody id="matches-body"></tbody>
+      </table>
+      <p class="hint" id="matches-empty">Ainda não criaste nenhum jogo.</p>
     </div>
 
-    <div class="tab-panel" id="tab-registo" hidden>
-      <p class="hint" id="tab-registo-warning">Seleciona ou cria um jogo na tab "Jogos" para começar a registar.</p>
-      <p class="hint">Passa o rato sobre um campo e clica para marcar um ponto do tipo selecionado. Usa as teclas <b>X</b> e <b>Y</b> para trocar rapidamente de modo no campo sobre o qual estás. Clique direito ou <b>Ctrl+clique</b> remove o último ponto desse campo.</p>
-      <div class="page" id="page"></div>
-    </div>
-
-    <div class="tab-panel" id="tab-relatorios" hidden>
-      <div class="players-card">
-        <h2 class="tracker-title">Relatórios por Jogador</h2>
-        <p class="hint">Totais agregados de todos os jogos guardados.</p>
-        <table class="players-table">
-          <thead><tr><th>Nº</th><th>Nome</th><th>Jogos</th><th>Golos</th><th>Assist.</th><th>🟨</th><th>🟥</th></tr></thead>
-          <tbody id="reports-body"></tbody>
-        </table>
-        <p class="hint" id="reports-empty">Sem dados ainda.</p>
-      </div>
-    </div>
-
-    <div class="footer-actions">
-      <button class="action" id="btn-download-session">Descarregar jogo atual (CSV)</button>
+    <div class="players-card" id="import-card" hidden>
+      <h2 class="tracker-title">Importar dados locais</h2>
+      <p class="hint">Encontrei dados guardados neste browser (de antes desta atualização). Podes importá-los para um novo jogo.</p>
+      <button class="action" id="btn-import-local">Importar dados locais para um novo jogo</button>
     </div>
 
   </div>
