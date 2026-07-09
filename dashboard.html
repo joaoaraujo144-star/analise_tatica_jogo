@@ -20,6 +20,7 @@
 
     <div class="tabs" id="tabs">
       <button class="tab-btn active" data-tab="jogos">Jogos</button>
+      <button class="tab-btn" data-tab="plantel">Plantel</button>
       <button class="tab-btn" data-tab="relatorios">Relatórios</button>
     </div>
 
@@ -46,6 +47,23 @@
         <h2 class="tracker-title">Importar dados locais</h2>
         <p class="hint">Encontrei dados guardados neste browser (de antes desta atualização). Podes importá-los para um novo jogo.</p>
         <button class="action" id="btn-import-local">Importar dados locais para um novo jogo</button>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-plantel" hidden>
+      <div class="players-card">
+        <h2 class="tracker-title">Plantel</h2>
+        <p class="hint">Lista reutilizável de jogadores da equipa — adiciona-os aqui uma vez, depois convoca-os para cada jogo.</p>
+        <div class="player-form">
+          <input type="text" id="roster-number" placeholder="Nº" maxlength="3">
+          <input type="text" id="roster-name" placeholder="Nome do jogador">
+          <button class="action" id="btn-add-roster-player">Adicionar ao plantel</button>
+        </div>
+        <table class="players-table">
+          <thead><tr><th>Nº</th><th>Nome</th><th></th></tr></thead>
+          <tbody id="roster-body"></tbody>
+        </table>
+        <p class="hint" id="roster-empty">Ainda não adicionaste jogadores ao plantel.</p>
       </div>
     </div>
 

@@ -10,10 +10,9 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/l
 - **Equipas**: cada conta pode criar ou pertencer a várias equipas, com os dados totalmente isolados entre elas (jogadores, jogos, cliques de uma equipa nunca aparecem noutra).
   - Cada equipa tem um nome e um emblema (upload de imagem, ou um avatar colorido gerado automaticamente se não houver imagem), editáveis a qualquer momento diretamente no cartão da equipa.
   - **Partilhável por código de convite**: cada equipa tem um código único; quem tiver o código pode juntar-se e passa a ver e editar os mesmos dados dessa equipa.
+- **Plantel**: tab no dashboard da equipa — lista reutilizável de jogadores (Nº + Nome), gerida uma única vez e partilhada por todos os jogos da equipa.
 - **Jogos**: dentro de uma equipa, cria e guarda um histórico de jogos (adversário + data). Abrir um jogo leva à sua própria página, com três tabs só disponíveis aí (Jogadores, Registo de Jogo, Relatórios) e um botão "Trocar de jogo" para voltar à lista.
-- **Jogadores** (dentro de um jogo):
-  - *Plantel*: lista reutilizável de jogadores da equipa (Nº + Nome), não precisa de ser reintroduzida em cada jogo.
-  - *Convocados*: escolhe jogadores do plantel para o jogo atual, define Titular/Suplente, e regista por jogador: cartão amarelo, cartão vermelho, assistências, golos e minuto de substituição (tudo clicável diretamente na tabela).
+- **Jogadores** (dentro de um jogo): *Convocatória* — escolhe jogadores do plantel para o jogo atual, define Titular/Suplente, e regista por jogador: cartão amarelo, cartão vermelho, assistências, golos e minuto de substituição (tudo clicável diretamente na tabela).
 - **Registo de Jogo**: 4 campos de futebol clicáveis — Faltas (Realizadas/Sofridas), Cantos, Perdas de Bola e Remates (A Favor/Contra) — cada clique marca um ponto no campo com o tipo selecionado. Atalhos de teclado `X`/`Y` trocam de modo no campo onde o rato está; clique direito ou Ctrl+clique desfaz o último ponto.
 - **Relatórios**, em dois níveis:
   - Na página de um jogo: estatísticas só dos convocados desse jogo.
@@ -31,8 +30,8 @@ Site 100% estático (sem servidor próprio), hospedado no GitHub Pages, com [Sup
 |---|---|
 | `login.html` / `login.js` | Página de login e registo de conta. |
 | `teams.html` / `teams.js` | Escolher, criar, entrar (por código de convite) ou editar uma equipa (nome + emblema). Passo obrigatório entre o login e o dashboard. |
-| `dashboard.html` / `dashboard.js` | Tabs "Jogos" (criar, abrir, importar dados locais) e "Relatórios" (agregado de todos os jogos da equipa). |
-| `match.html` / `match.js` | Página de um jogo específico (aberto a partir do dashboard): tabs Jogadores, Registo de Jogo e Relatórios (só deste jogo), com botão "Trocar de jogo" para voltar ao dashboard. |
+| `dashboard.html` / `dashboard.js` | Tabs "Jogos" (criar, abrir, importar dados locais), "Plantel" (lista de jogadores da equipa) e "Relatórios" (agregado de todos os jogos da equipa). |
+| `match.html` / `match.js` | Página de um jogo específico (aberto a partir do dashboard): tabs Jogadores (convocatória para este jogo), Registo de Jogo e Relatórios (só deste jogo), com botão "Trocar de jogo" para voltar ao dashboard. |
 | `supabase-client.js` | Inicializa o cliente Supabase (URL + chave pública) — partilhado por todas as páginas. |
 | `styles.css` | Estilos partilhados entre todas as páginas. |
 | `supabase_schema.sql` | Esquema completo (tabelas, RLS, funções, storage) — para configurar um projeto Supabase novo de raiz. |

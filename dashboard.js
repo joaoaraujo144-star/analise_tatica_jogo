@@ -13,6 +13,7 @@ let currentUser = null;
 let currentTeamId = localStorage.getItem('current_team_id') || null;
 let currentTeam = null;
 let matchesCache = [];
+let rosterCache = [];
 
 function updateTeamIndicator() {
   el('team-indicator').textContent = currentTeam ? `Equipa: ${currentTeam.nome}` : 'Equipa';
@@ -94,6 +95,57 @@ function renderMatches() {
   body.querySelectorAll('button[data-id]').forEach(btn => {
     btn.addEventListener('click', () => openMatch(btn.dataset.id));
   });
+}
+
+// ---------- Plantel ----------
+
+function wireRoster() {
+  el('btn-add-roster-player').addEventListener('click', async () => {
+    const nome = el('roster-name').value.trim();
+    if (!nome) return;
+    const numero = el('roster-number').value.trim();
+    const { error } = await supabase.from('players').insert({ user_id: currentUser.id, team_id: currentTeamId, numero: numero || null, nome });
+    if (error) { alert(error.message); return; }
+    el('roster-number').value = '';
+    el('roster-name').value = '';
+    await loadRoster();
+  });
+
+  [el('roster-number'), el('roster-name')].forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') el('btn-add-roster-player').click();
+    });
+  });
+
+  el('roster-body').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.btn-remove-player');
+    if (!btn) return;
+    if (!confirm('Remover este jogador do plantel? Isto remove também as suas convocatórias em todos os jogos.')) return;
+    await supabase.from('players').delete().eq('id', btn.dataset.id);
+    await loadRoster();
+  });
+}
+
+async function loadRoster() {
+  const { data, error } = await supabase
+    .from('players')
+    .select('*')
+    .eq('team_id', currentTeamId)
+    .order('nome', { ascending: true });
+  if (error) { console.error(error); return; }
+  rosterCache = data || [];
+  renderRoster();
+}
+
+function renderRoster() {
+  const body = el('roster-body');
+  body.innerHTML = '';
+  rosterCache.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td><button class="btn-remove-player" data-id="${p.id}" title="Remover">✕</button></td>`;
+    body.appendChild(tr);
+  });
+  el('roster-empty').hidden = rosterCache.length > 0;
 }
 
 // ---------- Relatórios ----------
@@ -210,6 +262,7 @@ async function init() {
   wireAuthForm();
   wireTabs();
   wireMatches();
+  wireRoster();
   wireImport();
 
   supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -217,6 +270,7 @@ async function init() {
   });
 
   await loadMatches();
+  await loadRoster();
   checkLocalImport();
 }
 

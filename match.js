@@ -61,35 +61,7 @@ function wireTabs() {
   });
 }
 
-// ---------- Plantel ----------
-
-function wireRoster() {
-  el('btn-add-roster-player').addEventListener('click', async () => {
-    const nome = el('roster-name').value.trim();
-    if (!nome) return;
-    const numero = el('roster-number').value.trim();
-    const { error } = await supabase.from('players').insert({ user_id: currentUser.id, team_id: currentTeamId, numero: numero || null, nome });
-    if (error) { alert(error.message); return; }
-    el('roster-number').value = '';
-    el('roster-name').value = '';
-    await loadRoster();
-  });
-
-  [el('roster-number'), el('roster-name')].forEach(input => {
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') el('btn-add-roster-player').click();
-    });
-  });
-
-  el('roster-body').addEventListener('click', async (e) => {
-    const btn = e.target.closest('.btn-remove-player');
-    if (!btn) return;
-    if (!confirm('Remover este jogador do plantel? Isto remove também as suas convocatórias em todos os jogos.')) return;
-    await supabase.from('players').delete().eq('id', btn.dataset.id);
-    await loadRoster();
-    await loadMatchPlayers();
-  });
-}
+// ---------- Plantel (leitura, para preencher o dropdown de convocatória) ----------
 
 async function loadRoster() {
   const { data, error } = await supabase
@@ -99,19 +71,7 @@ async function loadRoster() {
     .order('nome', { ascending: true });
   if (error) { console.error(error); return; }
   rosterCache = data || [];
-  renderRoster();
   renderConvocarOptions();
-}
-
-function renderRoster() {
-  const body = el('roster-body');
-  body.innerHTML = '';
-  rosterCache.forEach(p => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td><button class="btn-remove-player" data-id="${p.id}" title="Remover">✕</button></td>`;
-    body.appendChild(tr);
-  });
-  el('roster-empty').hidden = rosterCache.length > 0;
 }
 
 // ---------- Convocatória ----------
@@ -502,7 +462,6 @@ async function init() {
 
   wireTopBar();
   wireTabs();
-  wireRoster();
   wireConvocatoria();
   buildTrackerSections();
   wireDownloadSession();
