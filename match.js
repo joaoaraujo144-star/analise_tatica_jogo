@@ -406,40 +406,19 @@ function reloadAllTrackers() {
   Object.values(trackerApis).forEach(api => api.reload());
 }
 
-// ---------- Relatórios ----------
+// ---------- Relatórios (só deste jogo) ----------
 
-async function loadReports() {
-  const { data, error } = await supabase
-    .from('match_players')
-    .select('golo, assistencias, amarelo, vermelho, players(id, numero, nome)')
-    .eq('team_id', currentTeamId);
-  if (error) { console.error(error); return; }
-
-  const byPlayer = new Map();
-  (data || []).forEach(row => {
-    const p = row.players;
-    if (!p) return;
-    if (!byPlayer.has(p.id)) {
-      byPlayer.set(p.id, { numero: p.numero, nome: p.nome, jogos: 0, golo: 0, assistencias: 0, amarelo: 0, vermelho: 0 });
-    }
-    const agg = byPlayer.get(p.id);
-    agg.jogos += 1;
-    agg.golo += row.golo || 0;
-    agg.assistencias += row.assistencias || 0;
-    agg.amarelo += row.amarelo || 0;
-    agg.vermelho += row.vermelho || 0;
-  });
-
-  const rows = Array.from(byPlayer.values()).sort((a, b) => b.golo - a.golo || b.assistencias - a.assistencias);
+function loadReports() {
+  const rows = [...matchPlayersCache].sort((a, b) => (b.golo || 0) - (a.golo || 0) || (b.assistencias || 0) - (a.assistencias || 0));
   renderReports(rows);
 }
 
 function renderReports(rows) {
   const body = el('reports-body');
   body.innerHTML = '';
-  rows.forEach(r => {
+  rows.forEach(mp => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.numero || ''}</td><td>${r.nome}</td><td>${r.jogos}</td><td>${r.golo}</td><td>${r.assistencias}</td><td>${r.amarelo}</td><td>${r.vermelho}</td>`;
+    tr.innerHTML = `<td>${mp.players?.numero || ''}</td><td>${mp.players?.nome || ''}</td><td>${mp.estado || 'Suplente'}</td><td>${mp.golo || 0}</td><td>${mp.assistencias || 0}</td><td>${mp.amarelo || 0}</td><td>${mp.vermelho || 0}</td>`;
     body.appendChild(tr);
   });
   el('reports-empty').hidden = rows.length > 0;

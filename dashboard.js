@@ -31,6 +31,20 @@ function wireAuthForm() {
   });
 }
 
+// ---------- Tabs ----------
+
+function wireTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.hidden = panel.id !== `tab-${btn.dataset.tab}`;
+      });
+      if (btn.dataset.tab === 'relatorios') loadReports();
+    });
+  });
+}
+
 // ---------- Jogos ----------
 
 function openMatch(matchId) {
@@ -80,6 +94,45 @@ function renderMatches() {
   body.querySelectorAll('button[data-id]').forEach(btn => {
     btn.addEventListener('click', () => openMatch(btn.dataset.id));
   });
+}
+
+// ---------- Relatórios ----------
+
+async function loadReports() {
+  const { data, error } = await supabase
+    .from('match_players')
+    .select('golo, assistencias, amarelo, vermelho, players(id, numero, nome)')
+    .eq('team_id', currentTeamId);
+  if (error) { console.error(error); return; }
+
+  const byPlayer = new Map();
+  (data || []).forEach(row => {
+    const p = row.players;
+    if (!p) return;
+    if (!byPlayer.has(p.id)) {
+      byPlayer.set(p.id, { numero: p.numero, nome: p.nome, jogos: 0, golo: 0, assistencias: 0, amarelo: 0, vermelho: 0 });
+    }
+    const agg = byPlayer.get(p.id);
+    agg.jogos += 1;
+    agg.golo += row.golo || 0;
+    agg.assistencias += row.assistencias || 0;
+    agg.amarelo += row.amarelo || 0;
+    agg.vermelho += row.vermelho || 0;
+  });
+
+  const rows = Array.from(byPlayer.values()).sort((a, b) => b.golo - a.golo || b.assistencias - a.assistencias);
+  renderReports(rows);
+}
+
+function renderReports(rows) {
+  const body = el('reports-body');
+  body.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.numero || ''}</td><td>${r.nome}</td><td>${r.jogos}</td><td>${r.golo}</td><td>${r.assistencias}</td><td>${r.amarelo}</td><td>${r.vermelho}</td>`;
+    body.appendChild(tr);
+  });
+  el('reports-empty').hidden = rows.length > 0;
 }
 
 // ---------- Importar dados locais (localStorage -> Supabase) ----------
@@ -155,6 +208,7 @@ async function init() {
   updateTeamIndicator();
 
   wireAuthForm();
+  wireTabs();
   wireMatches();
   wireImport();
 

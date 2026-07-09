@@ -18,28 +18,47 @@
       <button class="action" id="btn-sign-out">Sair</button>
     </div>
 
-    <div class="players-card">
-      <h2 class="tracker-title">Novo Jogo</h2>
-      <div class="player-form">
-        <input type="date" id="match-date">
-        <input type="text" id="match-opponent" placeholder="Adversário">
-        <button class="action" id="btn-create-match">Criar Jogo</button>
+    <div class="tabs" id="tabs">
+      <button class="tab-btn active" data-tab="jogos">Jogos</button>
+      <button class="tab-btn" data-tab="relatorios">Relatórios</button>
+    </div>
+
+    <div class="tab-panel" id="tab-jogos">
+      <div class="players-card">
+        <h2 class="tracker-title">Novo Jogo</h2>
+        <div class="player-form">
+          <input type="date" id="match-date">
+          <input type="text" id="match-opponent" placeholder="Adversário">
+          <button class="action" id="btn-create-match">Criar Jogo</button>
+        </div>
+      </div>
+
+      <div class="players-card">
+        <h2 class="tracker-title">Jogos</h2>
+        <table class="players-table">
+          <thead><tr><th>Data</th><th>Adversário</th><th></th></tr></thead>
+          <tbody id="matches-body"></tbody>
+        </table>
+        <p class="hint" id="matches-empty">Ainda não criaste nenhum jogo.</p>
+      </div>
+
+      <div class="players-card" id="import-card" hidden>
+        <h2 class="tracker-title">Importar dados locais</h2>
+        <p class="hint">Encontrei dados guardados neste browser (de antes desta atualização). Podes importá-los para um novo jogo.</p>
+        <button class="action" id="btn-import-local">Importar dados locais para um novo jogo</button>
       </div>
     </div>
 
-    <div class="players-card">
-      <h2 class="tracker-title">Jogos</h2>
-      <table class="players-table">
-        <thead><tr><th>Data</th><th>Adversário</th><th></th></tr></thead>
-        <tbody id="matches-body"></tbody>
-      </table>
-      <p class="hint" id="matches-empty">Ainda não criaste nenhum jogo.</p>
-    </div>
-
-    <div class="players-card" id="import-card" hidden>
-      <h2 class="tracker-title">Importar dados locais</h2>
-      <p class="hint">Encontrei dados guardados neste browser (de antes desta atualização). Podes importá-los para um novo jogo.</p>
-      <button class="action" id="btn-import-local">Importar dados locais para um novo jogo</button>
+    <div class="tab-panel" id="tab-relatorios" hidden>
+      <div class="players-card">
+        <h2 class="tracker-title">Relatórios da Equipa</h2>
+        <p class="hint">Totais agregados de todos os jogos guardados.</p>
+        <table class="players-table">
+          <thead><tr><th>Nº</th><th>Nome</th><th>Jogos</th><th>Golos</th><th>Assist.</th><th>🟨</th><th>🟥</th></tr></thead>
+          <tbody id="reports-body"></tbody>
+        </table>
+        <p class="hint" id="reports-empty">Sem dados ainda.</p>
+      </div>
     </div>
 
   </div>
