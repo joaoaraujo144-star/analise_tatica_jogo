@@ -1,45 +1,55 @@
 # Análise de Jogo
 
-Ferramenta web para registar dados táticos de um jogo de futebol num campo clicável, gerir o plantel e a convocatória, e obter relatórios por jogador ao longo de vários jogos.
+Ferramenta web para registar dados táticos de um jogo de futebol num campo clicável, gerir o plantel e a convocatória, e obter relatórios por jogador ao longo de vários jogos — organizada por equipas, partilhável com outras contas (ex: um adjunto).
 
 Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/login.html**
 
 ## Funcionalidades
 
-- **Login por conta** (email + palavra-passe), com dados privados por conta — acesso a partir de qualquer dispositivo.
-- **Jogos**: cria e guarda um histórico de jogos (adversário + data), e seleciona qual está ativo.
+- **Login por conta** (email + palavra-passe) — acesso a partir de qualquer dispositivo.
+- **Equipas**: cada conta pode criar ou pertencer a várias equipas, com os dados totalmente isolados entre elas (jogadores, jogos, cliques de uma equipa nunca aparecem noutra).
+  - Cada equipa tem um nome e um emblema (upload de imagem, ou um avatar colorido gerado automaticamente se não houver imagem), editáveis a qualquer momento diretamente no cartão da equipa.
+  - **Partilhável por código de convite**: cada equipa tem um código único; quem tiver o código pode juntar-se e passa a ver e editar os mesmos dados dessa equipa.
+- **Jogos**: dentro de uma equipa, cria e guarda um histórico de jogos (adversário + data), e seleciona qual está ativo.
 - **Jogadores**:
-  - *Plantel*: lista reutilizável de jogadores (Nº + Nome), não precisa de ser reintroduzida em cada jogo.
+  - *Plantel*: lista reutilizável de jogadores da equipa (Nº + Nome), não precisa de ser reintroduzida em cada jogo.
   - *Convocados*: escolhe jogadores do plantel para o jogo atual, define Titular/Suplente, e regista por jogador: cartão amarelo, cartão vermelho, assistências, golos e minuto de substituição (tudo clicável diretamente na tabela).
 - **Registo de Jogo**: 4 campos de futebol clicáveis — Faltas (Realizadas/Sofridas), Cantos, Perdas de Bola e Remates (A Favor/Contra) — cada clique marca um ponto no campo com o tipo selecionado. Atalhos de teclado `X`/`Y` trocam de modo no campo onde o rato está; clique direito ou Ctrl+clique desfaz o último ponto.
-- **Relatórios**: totais agregados por jogador (jogos, golos, assistências, cartões) ao longo de todos os jogos guardados.
+- **Relatórios**: totais agregados por jogador (jogos, golos, assistências, cartões) ao longo de todos os jogos da equipa.
 - **Exportação CSV**: descarrega um único ficheiro com todos os dados do jogo atualmente selecionado (jogadores convocados + todos os cliques dos 4 campos).
-- **Importação de dados locais**: se existirem dados de uma versão anterior (guardados no `localStorage` do browser), a app oferece um botão para os importar como um novo jogo.
+- **Importação de dados locais**: se existirem dados de uma versão anterior (guardados no `localStorage` do browser), a app oferece um botão para os importar como um novo jogo da equipa atual.
 
 ## Arquitetura
 
-Site 100% estático (sem servidor próprio), hospedado no GitHub Pages, com [Supabase](https://supabase.com) (Postgres + Auth) como backend, acedido diretamente do browser via `@supabase/supabase-js` (importado de um CDN, sem build step).
+Site 100% estático (sem servidor próprio), hospedado no GitHub Pages, com [Supabase](https://supabase.com) (Postgres + Auth + Storage) como backend, acedido diretamente do browser via `@supabase/supabase-js` (importado de um CDN, sem build step).
 
 ### Ficheiros
 
 | Ficheiro | Descrição |
 |---|---|
 | `login.html` / `login.js` | Página de login e registo de conta. |
-| `dashboard.html` / `dashboard.js` | A aplicação principal (as 4 tabs: Jogos, Jogadores, Registo de Jogo, Relatórios). Só acessível com sessão ativa. |
-| `supabase-client.js` | Inicializa o cliente Supabase (URL + chave pública) — partilhado por `login.js` e `dashboard.js`. |
-| `styles.css` | Estilos partilhados entre as duas páginas. |
-| `supabase_schema.sql` | Script SQL com as tabelas e as políticas de segurança (RLS) — corre-se uma vez no SQL Editor do Supabase. |
+| `teams.html` / `teams.js` | Escolher, criar, entrar (por código de convite) ou editar uma equipa (nome + emblema). Passo obrigatório entre o login e o dashboard. |
+| `dashboard.html` / `dashboard.js` | A aplicação principal da equipa selecionada (as 4 tabs: Jogos, Jogadores, Registo de Jogo, Relatórios). |
+| `supabase-client.js` | Inicializa o cliente Supabase (URL + chave pública) — partilhado por todas as páginas. |
+| `styles.css` | Estilos partilhados entre todas as páginas. |
+| `supabase_schema.sql` | Esquema completo (tabelas, RLS, funções, storage) — para configurar um projeto Supabase novo de raiz. |
+| `supabase_schema_teams.sql` | Migração incremental que introduziu as equipas (histórico; só necessária em projetos criados antes desta funcionalidade). |
+| `supabase_schema_team_logos.sql` | Migração incremental que introduziu o emblema da equipa (histórico; idem). |
 | `faltas.html` | Redirecionamento automático para `login.html`, mantido só para não quebrar o link antigo que já tinha sido partilhado. |
 | `campo.png` / `campo.jpeg` | Imagem do campo de futebol usada nos 4 trackers (`campo.png` é a versão rodada para horizontal). |
 
 ### Base de dados (Supabase / Postgres)
 
-4 tabelas, todas com Row Level Security — cada conta só vê e edita os seus próprios dados (`user_id = auth.uid()`):
+Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`team_members`) — só quem for membro de uma equipa vê ou edita os dados dessa equipa:
 
-- **`players`** — plantel reutilizável (`numero`, `nome`).
-- **`matches`** — jogos (`adversario`, `data`).
+- **`teams`** — equipas (`nome`, `join_code`, `logo_url`).
+- **`team_members`** — quem pertence a que equipa (`role`: `owner` ou `membro`).
+- **`players`** — plantel reutilizável de uma equipa (`numero`, `nome`).
+- **`matches`** — jogos de uma equipa (`adversario`, `data`).
 - **`match_players`** — convocatória e estatísticas de um jogador num jogo específico (`estado`, `amarelo`, `vermelho`, `assistencias`, `golo`, `minuto_substituicao`).
 - **`events`** — cliques nos 4 campos (`tracker_id`, `tipo`, `x_pct`, `y_pct`).
+
+Criar/entrar numa equipa passa por duas funções Postgres (`create_team`, `join_team_by_code`) chamadas via RPC, que tratam a criação da equipa + associação do utilizador de forma atómica. Os emblemas ficam num bucket público do Supabase Storage (`team-logos`), com upload restrito a membros da equipa correspondente.
 
 Ver `supabase_schema.sql` para a definição completa.
 

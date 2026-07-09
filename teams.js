@@ -21,10 +21,18 @@ function colorForName(name) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
+let editingTeamId = null;
+
 async function loadTeams() {
   const { data, error } = await supabase.from('teams').select('*').order('nome', { ascending: true });
   if (error) { console.error(error); return; }
   renderTeams(data || []);
+}
+
+function teamBadge(t) {
+  return t.logo_url
+    ? `<img class="team-card-logo" src="${t.logo_url}" alt="${t.nome}">`
+    : `<div class="team-card-fallback" style="background:${colorForName(t.nome)}">${t.nome.charAt(0).toUpperCase()}</div>`;
 }
 
 function renderTeams(teams) {
@@ -32,16 +40,32 @@ function renderTeams(teams) {
   grid.innerHTML = '';
   teams.forEach(t => {
     const card = document.createElement('div');
-    card.className = 'team-card';
-    const badge = t.logo_url
-      ? `<img class="team-card-logo" src="${t.logo_url}" alt="${t.nome}">`
-      : `<div class="team-card-fallback" style="background:${colorForName(t.nome)}">${t.nome.charAt(0).toUpperCase()}</div>`;
-    card.innerHTML = `
-      ${badge}
-      <div class="team-card-name">${t.nome}</div>
-      <div class="team-card-code">${t.join_code}</div>
-    `;
-    card.addEventListener('click', () => openTeam(t.id));
+    card.dataset.id = t.id;
+
+    if (editingTeamId === t.id) {
+      card.className = 'team-card editing';
+      card.innerHTML = `
+        <button class="team-card-edit-btn" data-action="cancel-edit" title="Cancelar">✕</button>
+        ${teamBadge(t)}
+        <input type="text" class="team-edit-name" value="${t.nome}">
+        <label class="file-label small">
+          <span class="team-edit-logo-filename">Trocar emblema</span>
+          <input type="file" class="team-edit-logo" accept="image/*">
+        </label>
+        <div class="team-card-edit-actions">
+          <button class="action" data-action="save-edit">Guardar</button>
+        </div>
+        <p class="hint team-edit-error"></p>
+      `;
+    } else {
+      card.className = 'team-card';
+      card.innerHTML = `
+        <button class="team-card-edit-btn" data-action="edit" title="Editar equipa">✏️</button>
+        ${teamBadge(t)}
+        <div class="team-card-name">${t.nome}</div>
+        <div class="team-card-code">${t.join_code}</div>
+      `;
+    }
     grid.appendChild(card);
   });
   el('teams-empty').hidden = teams.length > 0;
@@ -54,6 +78,64 @@ async function uploadTeamLogo(teamId, file) {
   if (uploadError) throw uploadError;
   const { data } = supabase.storage.from('team-logos').getPublicUrl(path);
   return `${data.publicUrl}?v=${Date.now()}`;
+}
+
+function wireTeamGrid() {
+  const grid = el('teams-grid');
+
+  grid.addEventListener('change', (e) => {
+    const input = e.target.closest('.team-edit-logo');
+    if (!input) return;
+    const filenameSpan = input.previousElementSibling;
+    if (filenameSpan) filenameSpan.textContent = input.files[0]?.name || 'Trocar emblema';
+  });
+
+  grid.addEventListener('click', async (e) => {
+    const card = e.target.closest('.team-card');
+    if (!card) return;
+    const teamId = card.dataset.id;
+
+    if (e.target.closest('[data-action="edit"]')) {
+      editingTeamId = teamId;
+      await loadTeams();
+      return;
+    }
+
+    if (e.target.closest('[data-action="cancel-edit"]')) {
+      editingTeamId = null;
+      await loadTeams();
+      return;
+    }
+
+    if (e.target.closest('[data-action="save-edit"]')) {
+      const nameInput = card.querySelector('.team-edit-name');
+      const fileInput = card.querySelector('.team-edit-logo');
+      const errorEl = card.querySelector('.team-edit-error');
+      const nome = nameInput.value.trim();
+      if (!nome) { errorEl.textContent = 'O nome não pode ficar vazio.'; return; }
+
+      const patch = { nome };
+      const file = fileInput.files[0];
+      if (file) {
+        try {
+          patch.logo_url = await uploadTeamLogo(teamId, file);
+        } catch (uploadErr) {
+          console.error(uploadErr);
+          errorEl.textContent = 'Falha ao carregar o novo emblema.';
+          return;
+        }
+      }
+
+      const { error } = await supabase.from('teams').update(patch).eq('id', teamId);
+      if (error) { errorEl.textContent = error.message; return; }
+
+      editingTeamId = null;
+      await loadTeams();
+      return;
+    }
+
+    if (editingTeamId !== teamId) openTeam(teamId);
+  });
 }
 
 function wireCreateTeam() {
@@ -115,6 +197,7 @@ function wireSignOut() {
 async function init() {
   const session = await requireSession();
   if (!session) return;
+  wireTeamGrid();
   wireCreateTeam();
   wireJoinTeam();
   wireSignOut();

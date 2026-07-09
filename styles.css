@@ -252,6 +252,7 @@ button.action:disabled { opacity: 0.4; cursor: not-allowed; }
   width: 100%;
 }
 .team-card {
+  position: relative;
   background: #151b21;
   border: 1px solid #232b33;
   border-radius: 16px;
@@ -265,6 +266,40 @@ button.action:disabled { opacity: 0.4; cursor: not-allowed; }
   text-align: center;
 }
 .team-card:hover { transform: translateY(-3px); border-color: #3a4552; }
+.team-card.editing { cursor: default; border-color: #3a4552; }
+.team-card.editing:hover { transform: none; }
+.team-card-edit-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,0.35);
+  color: #eee;
+  font-size: 0.85em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.team-card-edit-btn:hover { background: rgba(0,0,0,0.55); }
+.team-edit-name {
+  width: 100%;
+  background: #1c242c;
+  border: 1px solid #333;
+  color: #eee;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.9em;
+  text-align: center;
+}
+.file-label.small { font-size: 0.8em; padding: 6px 10px; max-width: 100%; }
+.team-card-edit-actions { display: flex; gap: 6px; width: 100%; }
+.team-card-edit-actions .action { flex: 1; padding: 6px 8px; font-size: 0.85em; }
+.team-edit-error { font-size: 0.75em; margin: 0; min-height: 1em; }
 .team-card-logo {
   width: 72px;
   height: 72px;
