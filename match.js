@@ -72,6 +72,40 @@ function updatePeriodoTimer() {
   timerEl.textContent = `${mm}:${ss}`;
 }
 
+// ---------- Orientação do campo ----------
+
+function flipOrientacao(dir) {
+  return dir === 'D-E' ? 'E-D' : 'D-E';
+}
+
+function updateOrientacaoUI() {
+  const m = currentMatch;
+  const btn = el('btn-orientacao');
+  const base = m.orientacao_parte1 || 'E-D';
+  const p2Active = !!(m.parte2_inicio || m.parte2_fim);
+  const current = p2Active ? flipOrientacao(base) : base;
+
+  btn.textContent = current === 'E-D' ? '→' : '←';
+  btn.title = current === 'E-D'
+    ? 'A equipa ataca da esquerda para a direita'
+    : 'A equipa ataca da direita para a esquerda';
+
+  const locked = !!m.parte1_inicio;
+  btn.disabled = locked;
+  btn.classList.toggle('locked', locked);
+}
+
+function wireOrientacao() {
+  el('btn-orientacao').addEventListener('click', async () => {
+    if (currentMatch.parte1_inicio) return;
+    const novo = flipOrientacao(currentMatch.orientacao_parte1 || 'E-D');
+    const { error } = await supabase.from('matches').update({ orientacao_parte1: novo }).eq('id', currentMatchId);
+    if (error) { alert(error.message); return; }
+    currentMatch.orientacao_parte1 = novo;
+    updateOrientacaoUI();
+  });
+}
+
 function updatePeriodoUI() {
   const m = currentMatch;
   const pill = el('periodo-pill');
@@ -82,6 +116,7 @@ function updatePeriodoUI() {
   const p2Running = !!(m.parte2_inicio && !m.parte2_fim);
 
   updatePeriodoTimer();
+  updateOrientacaoUI();
 
   pill.classList.toggle('part-2', p2Running || !!m.parte2_fim);
   pill.classList.toggle('part-1', !(p2Running || m.parte2_fim));
@@ -130,9 +165,11 @@ function applyLockState() {
 function wirePeriodo() {
   el('btn-iniciar-parte1').addEventListener('click', async () => {
     const now = new Date().toISOString();
-    const { error } = await supabase.from('matches').update({ parte1_inicio: now }).eq('id', currentMatchId);
+    const patch = { parte1_inicio: now };
+    if (!currentMatch.orientacao_parte1) patch.orientacao_parte1 = 'E-D';
+    const { error } = await supabase.from('matches').update(patch).eq('id', currentMatchId);
     if (error) { alert(error.message); return; }
-    currentMatch.parte1_inicio = now;
+    Object.assign(currentMatch, patch);
     updatePeriodoUI();
   });
 
@@ -644,6 +681,7 @@ async function init() {
 
   updateIndicators();
   wirePeriodo();
+  wireOrientacao();
   updatePeriodoUI();
   startPeriodoTimer();
 

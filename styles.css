@@ -439,6 +439,27 @@ button.action:disabled { opacity: 0.4; cursor: not-allowed; }
   color: #fff;
   line-height: 1;
 }
+.orientacao-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+}
+.orientacao-arrow {
+  font-size: 1.6em;
+  font-weight: bold;
+  width: 56px;
+  height: 40px;
+  background: #1c242c;
+  border: 1px solid #333;
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+.orientacao-arrow:hover:not(:disabled) { background: #263b5c; }
+.orientacao-arrow.locked,
+.orientacao-arrow:disabled { opacity: 0.45; cursor: not-allowed; }
 .periodo-row {
   display: flex;
   align-items: center;

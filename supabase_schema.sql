@@ -3,7 +3,8 @@
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
 -- supabase_schema_teams.sql, supabase_schema_team_logos.sql,
 -- supabase_schema_substituicao.sql, supabase_schema_amarelo2.sql,
--- supabase_schema_player_events.sql e supabase_schema_partes.sql.)
+-- supabase_schema_player_events.sql, supabase_schema_partes.sql
+-- e supabase_schema_orientacao.sql.)
 
 create extension if not exists "pgcrypto";
 
@@ -48,6 +49,7 @@ create table if not exists matches (
   parte1_fim timestamptz,
   parte2_inicio timestamptz,
   parte2_fim timestamptz,
+  orientacao_parte1 text check (orientacao_parte1 in ('E-D', 'D-E')),
   created_at timestamptz not null default now()
 );
 

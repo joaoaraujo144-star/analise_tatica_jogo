@@ -13,6 +13,7 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/l
 - **Plantel**: tab no dashboard da equipa — lista reutilizável de jogadores (Nº + Nome), gerida uma única vez e partilhada por todos os jogos da equipa.
 - **Jogos**: dentro de uma equipa, cria e guarda um histórico de jogos (adversário + data). Abrir um jogo leva à sua própria página, com três tabs só disponíveis aí (Jogadores, Registo de Jogo, Relatórios) e um botão "Trocar de jogo" para voltar à lista.
 - **Cronómetro do jogo**: botões "Iniciar 1ª Parte", "Finalizar Parte" e "Iniciar 2ª Parte" (cada um grava a hora exata), um indicador visual (slide) da parte atual, um temporizador grande em minutos:segundos que conta a partir do início da parte em curso, e "Recomeçar Jogo" para limpar o cronómetro sem apagar dados. Quando a 2ª parte termina, as tabs Jogadores e Registo de Jogo ficam bloqueadas (só leitura).
+- **Orientação do campo**: uma seta clicável define a direção de ataque da equipa na 1ª parte; fica bloqueada assim que "Iniciar 1ª Parte" é premido e inverte automaticamente ao iniciar a 2ª parte. Fica guardada na base de dados (`matches.orientacao_parte1`).
 - **Jogadores** (dentro de um jogo): *Convocatória* — escolhe jogadores do plantel para o jogo atual, define Titular/Suplente, e regista por jogador: 2 cartões amarelos, cartão vermelho, assistências, golos e substituição (tudo clicável diretamente na tabela). Marcar os 2 cartões amarelos marca automaticamente o vermelho. O badge de substituição adapta-se ao Estado: um Titular só alterna entre `—` e `Saiu`; um Suplente só entre `—` e `Entrou`.
 - **Registo de Jogo**: 4 campos de futebol clicáveis — Faltas (Realizadas/Sofridas), Cantos, Perdas de Bola e Remates (A Favor/Contra) — cada clique marca um ponto no campo com o tipo selecionado. Atalhos de teclado `X`/`Y` trocam de modo no campo onde o rato está; clique direito ou Ctrl+clique desfaz o último ponto.
 - **Relatórios**, em dois níveis:
@@ -43,6 +44,7 @@ Site 100% estático (sem servidor próprio), hospedado no GitHub Pages, com [Sup
 | `supabase_schema_amarelo2.sql` | Migração incremental que adicionou o segundo cartão amarelo (histórico; idem). |
 | `supabase_schema_player_events.sql` | Migração incremental que criou o histórico de ações por jogador (histórico; idem). |
 | `supabase_schema_partes.sql` | Migração incremental que adicionou o cronómetro de 1ª/2ª parte (histórico; idem). |
+| `supabase_schema_orientacao.sql` | Migração incremental que adicionou a orientação do campo (histórico; idem). |
 | `faltas.html` | Redirecionamento automático para `login.html`, mantido só para não quebrar o link antigo que já tinha sido partilhado. |
 | `campo.png` / `campo.jpeg` | Imagem do campo de futebol usada nos 4 trackers (`campo.png` é a versão rodada para horizontal). |
 
@@ -53,7 +55,7 @@ Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`tea
 - **`teams`** — equipas (`nome`, `join_code`, `logo_url`).
 - **`team_members`** — quem pertence a que equipa (`role`: `owner` ou `membro`).
 - **`players`** — plantel reutilizável de uma equipa (`numero`, `nome`).
-- **`matches`** — jogos de uma equipa (`adversario`, `data`, `parte1_inicio`, `parte1_fim`, `parte2_inicio`, `parte2_fim`).
+- **`matches`** — jogos de uma equipa (`adversario`, `data`, `parte1_inicio`, `parte1_fim`, `parte2_inicio`, `parte2_fim`, `orientacao_parte1`: `E-D` ou `D-E`).
 - **`match_players`** — convocatória e estatísticas de um jogador num jogo específico (`estado`, `amarelo`, `amarelo2`, `vermelho`, `assistencias`, `golo`, `substituicao`: vazio, `Saiu` ou `Entrou`).
 - **`events`** — cliques nos 4 campos (`tracker_id`, `tipo`, `x_pct`, `y_pct`).
 - **`player_events`** — histórico de cada ação clicada na convocatória (`tipo`, `valor`, `created_at`), um registo por clique.
