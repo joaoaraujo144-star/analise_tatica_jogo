@@ -425,3 +425,58 @@ button.action:disabled { opacity: 0.4; cursor: not-allowed; }
   gap: 24px;
   width: 100%;
 }
+
+#periodo-card {
+  max-width: 680px;
+  align-items: center;
+}
+.periodo-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.periodo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.periodo-actions .action:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.periodo-pill {
+  position: relative;
+  display: flex;
+  width: 200px;
+  height: 34px;
+  background: #1c242c;
+  border: 1px solid #333;
+  border-radius: 20px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.periodo-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8em;
+  font-weight: bold;
+  color: #888;
+  z-index: 1;
+  transition: color 0.2s ease;
+}
+.periodo-slider {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  height: calc(100% - 6px);
+  background: #263b5c;
+  border-radius: 16px;
+  transition: transform 0.25s ease, background 0.25s ease;
+}
+.periodo-pill.part-2 .periodo-slider { transform: translateX(100%); background: #1e5c2f; }
+.periodo-pill.part-1 .periodo-option[data-part="1"],
+.periodo-pill.part-2 .periodo-option[data-part="2"] { color: #fff; }

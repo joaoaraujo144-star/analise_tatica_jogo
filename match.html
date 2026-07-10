@@ -20,6 +20,23 @@
       <button class="action" id="btn-sign-out">Sair</button>
     </div>
 
+    <div class="players-card" id="periodo-card">
+      <div class="periodo-row">
+        <div class="periodo-pill" id="periodo-pill">
+          <span class="periodo-option" data-part="1">1ª Parte</span>
+          <span class="periodo-option" data-part="2">2ª Parte</span>
+          <span class="periodo-slider"></span>
+        </div>
+        <div class="periodo-actions">
+          <button class="action" id="btn-iniciar-parte1">Iniciar 1ª Parte</button>
+          <button class="action" id="btn-finalizar-parte">Finalizar Parte</button>
+          <button class="action" id="btn-iniciar-parte2">Iniciar 2ª Parte</button>
+          <button class="action danger" id="btn-recomecar-jogo">Recomeçar Jogo</button>
+        </div>
+      </div>
+      <p class="hint" id="periodo-status">Jogo ainda não começou.</p>
+    </div>
+
     <div class="tabs" id="tabs">
       <button class="tab-btn active" data-tab="jogadores">Jogadores</button>
       <button class="tab-btn" data-tab="registo">Registo de Jogo</button>
@@ -27,6 +44,7 @@
     </div>
 
     <div class="tab-panel" id="tab-jogadores">
+      <p class="hint" id="jogadores-locked-hint" hidden>Jogo terminado — já não é possível fazer alterações.</p>
       <div class="players-card" id="convocatoria-card">
         <h2 class="tracker-title">Convocados para este jogo</h2>
         <div class="player-form">
@@ -49,6 +67,7 @@
     </div>
 
     <div class="tab-panel" id="tab-registo" hidden>
+      <p class="hint" id="registo-locked-hint" hidden>Jogo terminado — já não é possível fazer alterações.</p>
       <p class="hint">Passa o rato sobre um campo e clica para marcar um ponto do tipo selecionado. Usa as teclas <b>X</b> e <b>Y</b> para trocar rapidamente de modo no campo sobre o qual estás. Clique direito ou <b>Ctrl+clique</b> remove o último ponto desse campo.</p>
       <div class="page" id="page"></div>
     </div>

@@ -44,6 +44,101 @@ function updateIndicators() {
   el('match-indicator').textContent = currentMatch ? `Jogo: vs ${currentMatch.adversario} (${currentMatch.data})` : 'Jogo';
 }
 
+// ---------- Cronómetro do jogo (1ª / 2ª parte) ----------
+
+function isLocked() {
+  return !!(currentMatch && currentMatch.parte2_fim);
+}
+
+function updatePeriodoUI() {
+  const m = currentMatch;
+  const pill = el('periodo-pill');
+  const status = el('periodo-status');
+  const fmt = (ts) => ts ? new Date(ts).toLocaleTimeString('pt-PT') : null;
+
+  const p1Running = !!(m.parte1_inicio && !m.parte1_fim);
+  const p2Running = !!(m.parte2_inicio && !m.parte2_fim);
+
+  pill.classList.toggle('part-2', p2Running || !!m.parte2_fim);
+  pill.classList.toggle('part-1', !(p2Running || m.parte2_fim));
+
+  el('btn-iniciar-parte1').disabled = !!m.parte1_inicio;
+  el('btn-iniciar-parte2').disabled = !m.parte1_fim || !!m.parte2_inicio;
+  el('btn-finalizar-parte').disabled = !(p1Running || p2Running);
+  el('btn-recomecar-jogo').disabled = !m.parte1_inicio;
+
+  if (p2Running) {
+    status.textContent = `2ª parte em curso (início ${fmt(m.parte2_inicio)}).`;
+  } else if (m.parte2_fim) {
+    status.textContent = `Jogo terminado (fim ${fmt(m.parte2_fim)}).`;
+  } else if (m.parte1_fim) {
+    status.textContent = `Intervalo (1ª parte terminou às ${fmt(m.parte1_fim)}).`;
+  } else if (p1Running) {
+    status.textContent = `1ª parte em curso (início ${fmt(m.parte1_inicio)}).`;
+  } else {
+    status.textContent = 'Jogo ainda não começou.';
+  }
+
+  applyLockState();
+}
+
+function applyLockState() {
+  const locked = isLocked();
+
+  el('jogadores-locked-hint').hidden = !locked;
+  el('registo-locked-hint').hidden = !locked;
+
+  el('btn-convocar').disabled = locked;
+  el('convocar-select').disabled = locked;
+  el('convocar-status').disabled = locked;
+  document.querySelectorAll('#players-body .stat-cell, #players-body .badge-estado, #players-body .btn-remove-player').forEach(node => {
+    node.style.pointerEvents = locked ? 'none' : '';
+    node.style.opacity = locked ? '0.5' : '';
+  });
+
+  document.querySelectorAll('.tracker .field-img').forEach(img => {
+    img.style.pointerEvents = locked ? 'none' : '';
+    img.style.opacity = locked ? '0.5' : '';
+  });
+  document.querySelectorAll('.tracker .actions button').forEach(btn => { btn.disabled = locked; });
+}
+
+function wirePeriodo() {
+  el('btn-iniciar-parte1').addEventListener('click', async () => {
+    const now = new Date().toISOString();
+    const { error } = await supabase.from('matches').update({ parte1_inicio: now }).eq('id', currentMatchId);
+    if (error) { alert(error.message); return; }
+    currentMatch.parte1_inicio = now;
+    updatePeriodoUI();
+  });
+
+  el('btn-finalizar-parte').addEventListener('click', async () => {
+    const now = new Date().toISOString();
+    const field = (currentMatch.parte2_inicio && !currentMatch.parte2_fim) ? 'parte2_fim' : 'parte1_fim';
+    const { error } = await supabase.from('matches').update({ [field]: now }).eq('id', currentMatchId);
+    if (error) { alert(error.message); return; }
+    currentMatch[field] = now;
+    updatePeriodoUI();
+  });
+
+  el('btn-iniciar-parte2').addEventListener('click', async () => {
+    const now = new Date().toISOString();
+    const { error } = await supabase.from('matches').update({ parte2_inicio: now }).eq('id', currentMatchId);
+    if (error) { alert(error.message); return; }
+    currentMatch.parte2_inicio = now;
+    updatePeriodoUI();
+  });
+
+  el('btn-recomecar-jogo').addEventListener('click', async () => {
+    if (!confirm('Recomeçar o jogo? Isto limpa o início/fim da 1ª e 2ª parte (os dados dos jogadores e do registo não são apagados).')) return;
+    const reset = { parte1_inicio: null, parte1_fim: null, parte2_inicio: null, parte2_fim: null };
+    const { error } = await supabase.from('matches').update(reset).eq('id', currentMatchId);
+    if (error) { alert(error.message); return; }
+    Object.assign(currentMatch, reset);
+    updatePeriodoUI();
+  });
+}
+
 function wireTopBar() {
   el('btn-sign-out').addEventListener('click', async () => {
     localStorage.removeItem('current_team_id');
@@ -102,6 +197,7 @@ function renderConvocarOptions() {
 
 function wireConvocatoria() {
   el('btn-convocar').addEventListener('click', async () => {
+    if (isLocked()) return;
     const playerId = el('convocar-select').value;
     if (!playerId) return;
     const estado = el('convocar-status').value;
@@ -117,6 +213,7 @@ function wireConvocatoria() {
   });
 
   el('players-body').addEventListener('click', async (e) => {
+    if (isLocked()) return;
     const removeBtn = e.target.closest('.btn-remove-player');
     if (removeBtn) {
       await supabase.from('match_players').delete().eq('id', removeBtn.dataset.id);
@@ -174,6 +271,7 @@ function wireConvocatoria() {
   });
 
   el('players-body').addEventListener('contextmenu', async (e) => {
+    if (isLocked()) return;
     const substCell = e.target.closest('[data-action="toggle-substituicao"]');
     if (substCell) {
       e.preventDefault();
@@ -348,6 +446,7 @@ function initTracker(cfg, root) {
   }
 
   async function addClick(x_pct, y_pct) {
+    if (isLocked()) return;
     const row = {
       user_id: currentUser.id,
       team_id: currentTeamId,
@@ -364,6 +463,7 @@ function initTracker(cfg, root) {
   }
 
   async function undoLast() {
+    if (isLocked()) return;
     const last = clicks[clicks.length - 1];
     if (!last) return;
     clicks.pop();
@@ -389,7 +489,7 @@ function initTracker(cfg, root) {
 
   root.querySelector('[data-action="undo"]').addEventListener('click', undoLast);
   root.querySelector('[data-action="clear"]').addEventListener('click', async () => {
-    if (!clicks.length) return;
+    if (isLocked() || !clicks.length) return;
     if (!confirm(`Apagar todos os pontos registados de "${cfg.title}" neste jogo?`)) return;
     const ids = clicks.map(c => c.id);
     clicks = [];
@@ -519,12 +619,15 @@ async function init() {
   currentMatch = match;
 
   updateIndicators();
+  wirePeriodo();
+  updatePeriodoUI();
 
   wireTopBar();
   wireTabs();
   wireConvocatoria();
   buildTrackerSections();
   wireDownloadSession();
+  applyLockState();
 
   supabase.auth.onAuthStateChange((_event, newSession) => {
     if (!newSession) window.location.href = 'login.html';
