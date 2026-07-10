@@ -2,7 +2,8 @@
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
 -- supabase_schema_teams.sql, supabase_schema_team_logos.sql,
--- supabase_schema_substituicao.sql e supabase_schema_amarelo2.sql.)
+-- supabase_schema_substituicao.sql, supabase_schema_amarelo2.sql e
+-- supabase_schema_player_events.sql.)
 
 create extension if not exists "pgcrypto";
 
@@ -76,6 +77,19 @@ create table if not exists events (
   created_at timestamptz not null default now()
 );
 
+-- Histórico de cada ação clicada na convocatória (cartões, assistências,
+-- golos, estado, substituição), com data/hora, além dos totais em match_players
+create table if not exists player_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  team_id uuid not null references teams(id) on delete cascade,
+  match_id uuid not null references matches(id) on delete cascade,
+  player_id uuid not null references players(id) on delete cascade,
+  tipo text not null check (tipo in ('amarelo', 'amarelo2', 'vermelho', 'assistencias', 'golo', 'estado', 'substituicao')),
+  valor text,
+  created_at timestamptz not null default now()
+);
+
 -- Índices para as queries mais comuns
 create index if not exists idx_players_team on players(team_id);
 create index if not exists idx_matches_team on matches(team_id);
@@ -84,6 +98,9 @@ create index if not exists idx_match_players_player on match_players(player_id);
 create index if not exists idx_match_players_team on match_players(team_id);
 create index if not exists idx_events_match_tracker on events(match_id, tracker_id);
 create index if not exists idx_events_team on events(team_id);
+create index if not exists idx_player_events_match on player_events(match_id);
+create index if not exists idx_player_events_player on player_events(player_id);
+create index if not exists idx_player_events_team on player_events(team_id);
 
 -- Row Level Security
 alter table teams enable row level security;
@@ -92,6 +109,7 @@ alter table players enable row level security;
 alter table matches enable row level security;
 alter table match_players enable row level security;
 alter table events enable row level security;
+alter table player_events enable row level security;
 
 -- Só é possível ver uma equipa (ou dados dela) se se for membro dessa equipa
 create policy "teams_member_select" on teams
@@ -127,6 +145,11 @@ create policy "events_team_member" on events
   for all
   using (exists (select 1 from team_members tm where tm.team_id = events.team_id and tm.user_id = auth.uid()))
   with check (exists (select 1 from team_members tm where tm.team_id = events.team_id and tm.user_id = auth.uid()));
+
+create policy "player_events_team_member" on player_events
+  for all
+  using (exists (select 1 from team_members tm where tm.team_id = player_events.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = player_events.team_id and tm.user_id = auth.uid()));
 
 -- Criar uma equipa: cria a equipa e torna o criador "owner", numa operação atómica
 create or replace function create_team(p_nome text)

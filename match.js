@@ -24,6 +24,21 @@ function csvField(v) {
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
+// ---------- Histórico de ações (player_events) ----------
+
+function logPlayerActions(mp, patch) {
+  const rows = Object.entries(patch).map(([tipo, valor]) => ({
+    user_id: currentUser.id,
+    team_id: currentTeamId,
+    match_id: currentMatchId,
+    player_id: mp.player_id,
+    tipo,
+    valor: valor === null || valor === undefined ? '' : String(valor)
+  }));
+  if (!rows.length) return Promise.resolve();
+  return supabase.from('player_events').insert(rows);
+}
+
 function updateIndicators() {
   el('team-indicator').textContent = currentTeam ? `Equipa: ${currentTeam.nome}` : 'Equipa';
   el('match-indicator').textContent = currentMatch ? `Jogo: vs ${currentMatch.adversario} (${currentMatch.data})` : 'Jogo';
@@ -152,7 +167,10 @@ function wireConvocatoria() {
 
     Object.assign(mp, patch);
     renderMatchPlayers();
-    await supabase.from('match_players').update(patch).eq('id', mp.id);
+    await Promise.all([
+      supabase.from('match_players').update(patch).eq('id', mp.id),
+      logPlayerActions(mp, patch)
+    ]);
   });
 
   el('players-body').addEventListener('contextmenu', async (e) => {
@@ -163,7 +181,10 @@ function wireConvocatoria() {
       if (!mp) return;
       mp.substituicao = null;
       renderMatchPlayers();
-      await supabase.from('match_players').update({ substituicao: null }).eq('id', mp.id);
+      await Promise.all([
+        supabase.from('match_players').update({ substituicao: null }).eq('id', mp.id),
+        logPlayerActions(mp, { substituicao: null })
+      ]);
       return;
     }
 
@@ -175,7 +196,10 @@ function wireConvocatoria() {
     const key = cell.dataset.action === 'count-assistencias' ? 'assistencias' : 'golo';
     mp[key] = Math.max(0, (mp[key] || 0) - 1);
     renderMatchPlayers();
-    await supabase.from('match_players').update({ [key]: mp[key] }).eq('id', mp.id);
+    await Promise.all([
+      supabase.from('match_players').update({ [key]: mp[key] }).eq('id', mp.id),
+      logPlayerActions(mp, { [key]: mp[key] })
+    ]);
   });
 }
 
@@ -436,6 +460,26 @@ function wireDownloadSession() {
         lines.push([c.tipo, c.x_pct, c.y_pct, csvField(hora)].join(','));
       });
     }
+
+    lines.push('');
+    lines.push('=== HISTÓRICO DE AÇÕES ===');
+    lines.push(['Nº', 'Nome', 'Tipo', 'Valor', 'Data', 'Hora'].join(','));
+    const { data: playerEvents } = await supabase
+      .from('player_events')
+      .select('*, players(numero, nome)')
+      .eq('match_id', currentMatchId)
+      .order('created_at', { ascending: true });
+    (playerEvents || []).forEach(pe => {
+      const when = new Date(pe.created_at);
+      lines.push([
+        csvField(pe.players?.numero || ''),
+        csvField(pe.players?.nome || ''),
+        csvField(pe.tipo),
+        csvField(pe.valor ?? ''),
+        csvField(when.toLocaleDateString('pt-PT')),
+        csvField(when.toLocaleTimeString('pt-PT'))
+      ].join(','));
+    });
 
     const csv = lines.join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

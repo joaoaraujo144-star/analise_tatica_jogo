@@ -17,7 +17,8 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/l
 - **Relatórios**, em dois níveis:
   - Na página de um jogo: estatísticas só dos convocados desse jogo.
   - No dashboard da equipa: totais agregados por jogador (jogos, golos, assistências, cartões) ao longo de **todos** os jogos da equipa.
-- **Exportação CSV**: descarrega um único ficheiro com todos os dados do jogo atualmente selecionado (jogadores convocados + todos os cliques dos 4 campos).
+- **Histórico de ações**: cada clique na convocatória (cartões, assistências, golos, estado, substituição — incluindo quando desligas/subtrais algo) fica registado com data e hora, tal como já acontecia com cada coordenada marcada no Registo de Jogo.
+- **Exportação CSV**: descarrega um único ficheiro com todos os dados do jogo atualmente selecionado (jogadores convocados, todos os cliques dos 4 campos, e o histórico de ações com data/hora).
 - **Importação de dados locais**: se existirem dados de uma versão anterior (guardados no `localStorage` do browser), a app oferece um botão para os importar como um novo jogo da equipa atual.
 
 ## Arquitetura
@@ -39,6 +40,7 @@ Site 100% estático (sem servidor próprio), hospedado no GitHub Pages, com [Sup
 | `supabase_schema_team_logos.sql` | Migração incremental que introduziu o emblema da equipa (histórico; idem). |
 | `supabase_schema_substituicao.sql` | Migração incremental que trocou o minuto de substituição por um badge Saiu/Entrou (histórico; idem). |
 | `supabase_schema_amarelo2.sql` | Migração incremental que adicionou o segundo cartão amarelo (histórico; idem). |
+| `supabase_schema_player_events.sql` | Migração incremental que criou o histórico de ações por jogador (histórico; idem). |
 | `faltas.html` | Redirecionamento automático para `login.html`, mantido só para não quebrar o link antigo que já tinha sido partilhado. |
 | `campo.png` / `campo.jpeg` | Imagem do campo de futebol usada nos 4 trackers (`campo.png` é a versão rodada para horizontal). |
 
@@ -52,6 +54,7 @@ Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`tea
 - **`matches`** — jogos de uma equipa (`adversario`, `data`).
 - **`match_players`** — convocatória e estatísticas de um jogador num jogo específico (`estado`, `amarelo`, `amarelo2`, `vermelho`, `assistencias`, `golo`, `substituicao`: vazio, `Saiu` ou `Entrou`).
 - **`events`** — cliques nos 4 campos (`tracker_id`, `tipo`, `x_pct`, `y_pct`).
+- **`player_events`** — histórico de cada ação clicada na convocatória (`tipo`, `valor`, `created_at`), um registo por clique.
 
 Criar/entrar numa equipa passa por duas funções Postgres (`create_team`, `join_team_by_code`) chamadas via RPC, que tratam a criação da equipa + associação do utilizador de forma atómica. Os emblemas ficam num bucket público do Supabase Storage (`team-logos`), com upload restrito a membros da equipa correspondente.
 
