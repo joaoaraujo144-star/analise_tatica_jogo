@@ -50,6 +50,28 @@ function isLocked() {
   return !!(currentMatch && currentMatch.parte2_fim);
 }
 
+let periodoTimerInterval = null;
+
+function startPeriodoTimer() {
+  if (periodoTimerInterval) return;
+  periodoTimerInterval = setInterval(updatePeriodoTimer, 1000);
+}
+
+function updatePeriodoTimer() {
+  const m = currentMatch;
+  const timerEl = el('periodo-timer');
+  const p1Running = !!(m && m.parte1_inicio && !m.parte1_fim);
+  const p2Running = !!(m && m.parte2_inicio && !m.parte2_fim);
+  const start = p2Running ? m.parte2_inicio : (p1Running ? m.parte1_inicio : null);
+
+  if (!start) { timerEl.textContent = '00:00'; return; }
+
+  const totalSeconds = Math.max(0, Math.floor((Date.now() - new Date(start).getTime()) / 1000));
+  const mm = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+  const ss = String(totalSeconds % 60).padStart(2, '0');
+  timerEl.textContent = `${mm}:${ss}`;
+}
+
 function updatePeriodoUI() {
   const m = currentMatch;
   const pill = el('periodo-pill');
@@ -58,6 +80,8 @@ function updatePeriodoUI() {
 
   const p1Running = !!(m.parte1_inicio && !m.parte1_fim);
   const p2Running = !!(m.parte2_inicio && !m.parte2_fim);
+
+  updatePeriodoTimer();
 
   pill.classList.toggle('part-2', p2Running || !!m.parte2_fim);
   pill.classList.toggle('part-1', !(p2Running || m.parte2_fim));
@@ -621,6 +645,7 @@ async function init() {
   updateIndicators();
   wirePeriodo();
   updatePeriodoUI();
+  startPeriodoTimer();
 
   wireTopBar();
   wireTabs();
