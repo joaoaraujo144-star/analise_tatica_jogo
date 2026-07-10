@@ -1,7 +1,8 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- supabase_schema_teams.sql e depois supabase_schema_team_logos.sql.)
+-- supabase_schema_teams.sql, supabase_schema_team_logos.sql e
+-- supabase_schema_substituicao.sql.)
 
 create extension if not exists "pgcrypto";
 
@@ -57,7 +58,7 @@ create table if not exists match_players (
   vermelho int not null default 0,
   assistencias int not null default 0,
   golo int not null default 0,
-  minuto_substituicao int,
+  substituicao text check (substituicao in ('Saiu', 'Entrou')),
   unique (match_id, player_id)
 );
 

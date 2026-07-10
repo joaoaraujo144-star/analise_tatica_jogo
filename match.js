@@ -132,6 +132,11 @@ function wireConvocatoria() {
       case 'count-golo':
         patch.golo = Math.max(0, (mp.golo || 0) + (decrement ? -1 : 1));
         break;
+      case 'toggle-substituicao': {
+        const target = mp.estado === 'Titular' ? 'Saiu' : 'Entrou';
+        patch.substituicao = mp.substituicao === target ? null : target;
+        break;
+      }
       default:
         return;
     }
@@ -142,6 +147,17 @@ function wireConvocatoria() {
   });
 
   el('players-body').addEventListener('contextmenu', async (e) => {
+    const substCell = e.target.closest('[data-action="toggle-substituicao"]');
+    if (substCell) {
+      e.preventDefault();
+      const mp = matchPlayersCache.find(x => x.id === substCell.dataset.id);
+      if (!mp) return;
+      mp.substituicao = null;
+      renderMatchPlayers();
+      await supabase.from('match_players').update({ substituicao: null }).eq('id', mp.id);
+      return;
+    }
+
     const cell = e.target.closest('.stat-counter');
     if (!cell) return;
     e.preventDefault();
@@ -151,16 +167,6 @@ function wireConvocatoria() {
     mp[key] = Math.max(0, (mp[key] || 0) - 1);
     renderMatchPlayers();
     await supabase.from('match_players').update({ [key]: mp[key] }).eq('id', mp.id);
-  });
-
-  el('players-body').addEventListener('input', async (e) => {
-    const input = e.target.closest('.minute-input');
-    if (!input) return;
-    const mp = matchPlayersCache.find(x => x.id === input.dataset.id);
-    if (!mp) return;
-    const value = input.value === '' ? null : Number(input.value);
-    mp.minuto_substituicao = value;
-    await supabase.from('match_players').update({ minuto_substituicao: value }).eq('id', mp.id);
   });
 }
 
@@ -197,7 +203,7 @@ function renderMatchPlayers() {
       <td class="stat-cell stat-toggle ${mp.vermelho ? 'on' : ''}" data-action="toggle-vermelho" data-id="${mp.id}">🟥</td>
       <td class="stat-cell stat-counter ${mp.assistencias ? 'has-count' : ''}" data-action="count-assistencias" data-id="${mp.id}">${mp.assistencias || 0}</td>
       <td class="stat-cell stat-counter ${mp.golo ? 'has-count' : ''}" data-action="count-golo" data-id="${mp.id}">${mp.golo || 0}</td>
-      <td><input type="number" class="minute-input" data-id="${mp.id}" min="0" max="130" placeholder="Min" value="${mp.minuto_substituicao ?? ''}"></td>
+      <td><span class="badge-estado ${mp.substituicao === 'Entrou' ? 'entrou' : mp.substituicao === 'Saiu' ? 'saiu' : ''}" data-action="toggle-substituicao" data-id="${mp.id}">${mp.substituicao || '—'}</span></td>
       <td><button class="btn-remove-player" data-id="${mp.id}" title="Remover">✕</button></td>
     `;
     body.appendChild(tr);
@@ -391,7 +397,7 @@ function wireDownloadSession() {
     const lines = [];
 
     lines.push('=== JOGADORES ===');
-    lines.push(['Número', 'Nome', 'Estado', 'Amarelo', 'Vermelho', 'Assistências', 'Golos', 'Minuto Substituição'].join(','));
+    lines.push(['Número', 'Nome', 'Estado', 'Amarelo', 'Vermelho', 'Assistências', 'Golos', 'Substituição'].join(','));
     matchPlayersCache.forEach(mp => {
       lines.push([
         csvField(mp.players?.numero || ''),
@@ -401,7 +407,7 @@ function wireDownloadSession() {
         mp.vermelho || 0,
         mp.assistencias || 0,
         mp.golo || 0,
-        csvField(mp.minuto_substituicao ?? '')
+        csvField(mp.substituicao ?? '')
       ].join(','));
     });
 

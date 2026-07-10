@@ -356,6 +356,8 @@ button.action:disabled { opacity: 0.4; cursor: not-allowed; }
   color: #aaa;
 }
 .badge-estado.titular { background: #1e5c2f; color: #7ee89a; }
+.badge-estado.entrou { background: #1e5c2f; color: #7ee89a; }
+.badge-estado.saiu { background: #5c1e1e; color: #e88a8a; }
 .stat-cell {
   cursor: pointer;
   user-select: none;
@@ -367,16 +369,6 @@ button.action:disabled { opacity: 0.4; cursor: not-allowed; }
 .stat-toggle.on { opacity: 1; }
 .stat-counter { color: #555; }
 .stat-counter.has-count { color: #fff; }
-.minute-input {
-  width: 56px;
-  background: #1c242c;
-  border: 1px solid #333;
-  color: #eee;
-  border-radius: 6px;
-  padding: 4px 6px;
-  font-size: 0.9em;
-  text-align: center;
-}
 
 .footer-actions {
   display: flex;
