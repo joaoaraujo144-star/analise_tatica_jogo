@@ -54,6 +54,11 @@ function currentParte() {
   return currentMatch && currentMatch.parte2_inicio ? 2 : 1;
 }
 
+function isPeriodoRunning() {
+  const m = currentMatch;
+  return !!(m && ((m.parte1_inicio && !m.parte1_fim) || (m.parte2_inicio && !m.parte2_fim)));
+}
+
 let periodoTimerInterval = null;
 
 function startPeriodoTimer() {
@@ -148,23 +153,36 @@ function updatePeriodoUI() {
 
 function applyLockState() {
   const locked = isLocked();
+  const canEditWhileRunning = !locked && isPeriodoRunning();
 
   el('jogadores-locked-hint').hidden = !locked;
+  el('jogadores-paused-hint').hidden = locked || isPeriodoRunning();
   el('registo-locked-hint').hidden = !locked;
+  el('registo-paused-hint').hidden = locked || isPeriodoRunning();
 
   el('btn-convocar').disabled = locked;
   el('convocar-select').disabled = locked;
   el('convocar-status').disabled = locked;
-  document.querySelectorAll('#players-body .stat-cell, #players-body .badge-estado, #players-body .btn-remove-player').forEach(node => {
+  document.querySelectorAll('#players-body .btn-remove-player, #players-body [data-action="toggle-estado"]').forEach(node => {
     node.style.pointerEvents = locked ? 'none' : '';
     node.style.opacity = locked ? '0.5' : '';
   });
-
-  document.querySelectorAll('.tracker .field-img').forEach(img => {
-    img.style.pointerEvents = locked ? 'none' : '';
-    img.style.opacity = locked ? '0.5' : '';
+  document.querySelectorAll('#players-body .stat-cell, #players-body [data-action="toggle-substituicao"]').forEach(node => {
+    node.style.pointerEvents = canEditWhileRunning ? '' : 'none';
+    node.style.opacity = canEditWhileRunning ? '' : '0.5';
   });
-  document.querySelectorAll('.tracker .actions button').forEach(btn => { btn.disabled = locked; });
+
+  document.querySelectorAll('#page .tracker .field-img').forEach(img => {
+    img.style.pointerEvents = canEditWhileRunning ? '' : 'none';
+    img.style.opacity = canEditWhileRunning ? '' : '0.5';
+  });
+  document.querySelectorAll('#page .tracker .actions button').forEach(btn => { btn.disabled = locked; });
+
+  const registoTabBtn = document.querySelector('.tab-btn[data-tab="registo"]');
+  registoTabBtn.hidden = locked;
+  if (locked && registoTabBtn.classList.contains('active')) {
+    document.querySelector('.tab-btn[data-tab="relatorios"]').click();
+  }
 }
 
 function wirePeriodo() {
@@ -185,6 +203,7 @@ function wirePeriodo() {
     if (error) { alert(error.message); return; }
     currentMatch[field] = now;
     updatePeriodoUI();
+    if (field === 'parte2_fim') loadNormalizadoReport();
   });
 
   el('btn-iniciar-parte2').addEventListener('click', async () => {
@@ -204,6 +223,7 @@ function wirePeriodo() {
     Object.assign(currentMatch, reset);
     updatePeriodoUI();
     reloadAllTrackers();
+    el('normalizado-card').hidden = true;
   });
 }
 
@@ -234,7 +254,7 @@ function wireTabs() {
       document.querySelectorAll('.tab-panel').forEach(panel => {
         panel.hidden = panel.id !== `tab-${btn.dataset.tab}`;
       });
-      if (btn.dataset.tab === 'relatorios') loadReports();
+      if (btn.dataset.tab === 'relatorios') { loadReports(); loadNormalizadoReport(); }
     });
   });
 }
@@ -262,6 +282,8 @@ function renderConvocarOptions() {
     ? available.map(p => `<option value="${p.id}">${p.numero ? p.numero + ' - ' : ''}${p.nome}</option>`).join('')
     : '<option value="">Sem jogadores disponíveis</option>';
 }
+
+const STAT_ACTIONS = new Set(['toggle-amarelo', 'toggle-amarelo2', 'toggle-vermelho', 'count-assistencias', 'count-golo', 'toggle-substituicao']);
 
 function wireConvocatoria() {
   el('btn-convocar').addEventListener('click', async () => {
@@ -291,6 +313,7 @@ function wireConvocatoria() {
 
     const cell = e.target.closest('[data-action]');
     if (!cell) return;
+    if (STAT_ACTIONS.has(cell.dataset.action) && !isPeriodoRunning()) return;
     const mp = matchPlayersCache.find(x => x.id === cell.dataset.id);
     if (!mp) return;
     const decrement = e.ctrlKey || e.metaKey;
@@ -343,6 +366,7 @@ function wireConvocatoria() {
     const substCell = e.target.closest('[data-action="toggle-substituicao"]');
     if (substCell) {
       e.preventDefault();
+      if (!isPeriodoRunning()) return;
       const mp = matchPlayersCache.find(x => x.id === substCell.dataset.id);
       if (!mp) return;
       mp.substituicao = null;
@@ -357,6 +381,7 @@ function wireConvocatoria() {
     const cell = e.target.closest('.stat-counter');
     if (!cell) return;
     e.preventDefault();
+    if (!isPeriodoRunning()) return;
     const mp = matchPlayersCache.find(x => x.id === cell.dataset.id);
     if (!mp) return;
     const key = cell.dataset.action === 'count-assistencias' ? 'assistencias' : 'golo';
@@ -515,7 +540,7 @@ function initTracker(cfg, root) {
   }
 
   async function addClick(x_pct, y_pct) {
-    if (isLocked()) return;
+    if (isLocked() || !isPeriodoRunning()) return;
     const row = {
       user_id: currentUser.id,
       team_id: currentTeamId,
@@ -592,6 +617,63 @@ function renderReports(rows) {
     body.appendChild(tr);
   });
   el('reports-empty').hidden = rows.length > 0;
+}
+
+// ---------- Registo de Jogo normalizado (1ª + 2ª parte juntas, fim de jogo) ----------
+
+let normalizadoBuilt = false;
+
+function buildNormalizadoSections() {
+  const page = el('normalizado-page');
+  page.innerHTML = '';
+  TRACKERS.forEach(cfg => {
+    const section = document.createElement('section');
+    section.className = 'tracker';
+    section.dataset.tracker = cfg.id;
+    section.innerHTML = `
+      <h2 class="tracker-title">${cfg.title}</h2>
+      <div class="counters">
+        <div class="counter x"><span class="num" data-count="X">0</span>${cfg.xLabel}</div>
+        <div class="counter y"><span class="num" data-count="Y">0</span>${cfg.yLabel}</div>
+      </div>
+      <div class="field-wrap">
+        <img src="campo.png" alt="Campo de futebol" class="field-img" draggable="false">
+      </div>
+    `;
+    page.appendChild(section);
+  });
+  normalizadoBuilt = true;
+}
+
+async function loadNormalizadoReport() {
+  const card = el('normalizado-card');
+  if (!isLocked()) { card.hidden = true; return; }
+  card.hidden = false;
+  if (!normalizadoBuilt) buildNormalizadoSections();
+
+  const { data, error } = await supabase
+    .from('events_normalizado')
+    .select('*')
+    .eq('match_id', currentMatchId);
+  el('normalizado-error').hidden = !error;
+  if (error) { console.error(error); return; }
+
+  TRACKERS.forEach(cfg => {
+    const section = document.querySelector(`#normalizado-page section[data-tracker="${cfg.id}"]`);
+    const fieldWrap = section.querySelector('.field-wrap');
+    fieldWrap.querySelectorAll('.marker').forEach(m => m.remove());
+    const points = (data || []).filter(p => p.tracker_id === cfg.id);
+    points.forEach(p => {
+      const marker = document.createElement('div');
+      marker.className = 'marker ' + p.tipo;
+      marker.style.left = p.x_pct_normalizado + '%';
+      marker.style.top = p.y_pct_normalizado + '%';
+      marker.textContent = p.tipo;
+      fieldWrap.appendChild(marker);
+    });
+    section.querySelector('[data-count="X"]').textContent = points.filter(p => p.tipo === 'X').length;
+    section.querySelector('[data-count="Y"]').textContent = points.filter(p => p.tipo === 'Y').length;
+  });
 }
 
 // ---------- Descarregar jogo atual (CSV) ----------
@@ -689,13 +771,13 @@ async function init() {
   currentMatch = match;
 
   updateIndicators();
+  wireTopBar();
+  wireTabs();
   wirePeriodo();
   wireOrientacao();
   updatePeriodoUI();
   startPeriodoTimer();
 
-  wireTopBar();
-  wireTabs();
   wireConvocatoria();
   buildTrackerSections();
   wireDownloadSession();

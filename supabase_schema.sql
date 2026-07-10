@@ -4,7 +4,8 @@
 -- supabase_schema_teams.sql, supabase_schema_team_logos.sql,
 -- supabase_schema_substituicao.sql, supabase_schema_amarelo2.sql,
 -- supabase_schema_player_events.sql, supabase_schema_partes.sql,
--- supabase_schema_orientacao.sql e supabase_schema_events_parte.sql.)
+-- supabase_schema_orientacao.sql, supabase_schema_events_parte.sql
+-- e supabase_schema_events_normalizado.sql.)
 
 create extension if not exists "pgcrypto";
 
@@ -157,6 +158,40 @@ create policy "player_events_team_member" on player_events
   for all
   using (exists (select 1 from team_members tm where tm.team_id = player_events.team_id and tm.user_id = auth.uid()))
   with check (exists (select 1 from team_members tm where tm.team_id = player_events.team_id and tm.user_id = auth.uid()));
+
+-- View: Registo de Jogo normalizado (1ª + 2ª parte juntas, rodadas 180º
+-- conforme a orientação de ataque escolhida nas setas para cada parte)
+create or replace view events_normalizado as
+select
+  e.id,
+  e.team_id,
+  e.match_id,
+  e.tracker_id,
+  e.parte,
+  e.tipo,
+  e.created_at,
+  e.x_pct,
+  e.y_pct,
+  case
+    when (e.parte = 1 and coalesce(m.orientacao_parte1, 'E-D') = 'D-E')
+      or (e.parte = 2 and coalesce(m.orientacao_parte1, 'E-D') = 'E-D')
+    then round(100 - e.x_pct, 2)
+    else e.x_pct
+  end as x_pct_normalizado,
+  case
+    when (e.parte = 1 and coalesce(m.orientacao_parte1, 'E-D') = 'D-E')
+      or (e.parte = 2 and coalesce(m.orientacao_parte1, 'E-D') = 'E-D')
+    then round(100 - e.y_pct, 2)
+    else e.y_pct
+  end as y_pct_normalizado
+from events e
+join matches m on m.id = e.match_id;
+
+-- A view corre com as permissões de quem a consulta, não do dono,
+-- para respeitar a RLS já definida em "events" e "matches".
+alter view events_normalizado set (security_invoker = true);
+
+grant select on events_normalizado to authenticated;
 
 -- Criar uma equipa: cria a equipa e torna o criador "owner", numa operação atómica
 create or replace function create_team(p_nome text)
