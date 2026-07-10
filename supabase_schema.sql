@@ -3,8 +3,8 @@
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
 -- supabase_schema_teams.sql, supabase_schema_team_logos.sql,
 -- supabase_schema_substituicao.sql, supabase_schema_amarelo2.sql,
--- supabase_schema_player_events.sql, supabase_schema_partes.sql
--- e supabase_schema_orientacao.sql.)
+-- supabase_schema_player_events.sql, supabase_schema_partes.sql,
+-- supabase_schema_orientacao.sql e supabase_schema_events_parte.sql.)
 
 create extension if not exists "pgcrypto";
 
@@ -77,6 +77,7 @@ create table if not exists events (
   team_id uuid not null references teams(id) on delete cascade,
   match_id uuid not null references matches(id) on delete cascade,
   tracker_id text not null check (tracker_id in ('faltas', 'cantos', 'perdas', 'remates')),
+  parte int not null default 1 check (parte in (1, 2)),
   tipo text not null check (tipo in ('X', 'Y')),
   x_pct numeric not null,
   y_pct numeric not null,

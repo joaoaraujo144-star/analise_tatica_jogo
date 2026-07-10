@@ -50,6 +50,10 @@ function isLocked() {
   return !!(currentMatch && currentMatch.parte2_fim);
 }
 
+function currentParte() {
+  return currentMatch && currentMatch.parte2_inicio ? 2 : 1;
+}
+
 let periodoTimerInterval = null;
 
 function startPeriodoTimer() {
@@ -117,6 +121,7 @@ function updatePeriodoUI() {
 
   updatePeriodoTimer();
   updateOrientacaoUI();
+  el('registo-parte-indicator').textContent = currentParte() === 2 ? '2ª Parte' : '1ª Parte';
 
   pill.classList.toggle('part-2', p2Running || !!m.parte2_fim);
   pill.classList.toggle('part-1', !(p2Running || m.parte2_fim));
@@ -188,6 +193,7 @@ function wirePeriodo() {
     if (error) { alert(error.message); return; }
     currentMatch.parte2_inicio = now;
     updatePeriodoUI();
+    reloadAllTrackers();
   });
 
   el('btn-recomecar-jogo').addEventListener('click', async () => {
@@ -197,6 +203,7 @@ function wirePeriodo() {
     if (error) { alert(error.message); return; }
     Object.assign(currentMatch, reset);
     updatePeriodoUI();
+    reloadAllTrackers();
   });
 }
 
@@ -500,6 +507,7 @@ function initTracker(cfg, root) {
       .select('*')
       .eq('match_id', currentMatchId)
       .eq('tracker_id', cfg.id)
+      .eq('parte', currentParte())
       .order('created_at', { ascending: true });
     if (error) { console.error(error); return; }
     clicks = data || [];
@@ -513,6 +521,7 @@ function initTracker(cfg, root) {
       team_id: currentTeamId,
       match_id: currentMatchId,
       tracker_id: cfg.id,
+      parte: currentParte(),
       tipo: mode,
       x_pct: Number(x_pct.toFixed(2)),
       y_pct: Number(y_pct.toFixed(2))
@@ -551,7 +560,7 @@ function initTracker(cfg, root) {
   root.querySelector('[data-action="undo"]').addEventListener('click', undoLast);
   root.querySelector('[data-action="clear"]').addEventListener('click', async () => {
     if (isLocked() || !clicks.length) return;
-    if (!confirm(`Apagar todos os pontos registados de "${cfg.title}" neste jogo?`)) return;
+    if (!confirm(`Apagar todos os pontos registados de "${cfg.title}" nesta parte do jogo?`)) return;
     const ids = clicks.map(c => c.id);
     clicks = [];
     renderAll();
@@ -609,7 +618,7 @@ function wireDownloadSession() {
     for (const cfg of TRACKERS) {
       lines.push('');
       lines.push(`=== ${cfg.title.toUpperCase()} ===`);
-      lines.push(['Tipo', 'X (%)', 'Y (%)', 'Hora'].join(','));
+      lines.push(['Parte', 'Tipo', 'X (%)', 'Y (%)', 'Hora'].join(','));
       const { data } = await supabase
         .from('events')
         .select('*')
@@ -618,7 +627,7 @@ function wireDownloadSession() {
         .order('created_at', { ascending: true });
       (data || []).forEach(c => {
         const hora = new Date(c.created_at).toLocaleTimeString('pt-PT');
-        lines.push([c.tipo, c.x_pct, c.y_pct, csvField(hora)].join(','));
+        lines.push([c.parte, c.tipo, c.x_pct, c.y_pct, csvField(hora)].join(','));
       });
     }
 
