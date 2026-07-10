@@ -12,7 +12,7 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/l
   - **Partilhável por código de convite**: cada equipa tem um código único; quem tiver o código pode juntar-se e passa a ver e editar os mesmos dados dessa equipa.
 - **Plantel**: tab no dashboard da equipa — lista reutilizável de jogadores (Nº + Nome), gerida uma única vez e partilhada por todos os jogos da equipa.
 - **Jogos**: dentro de uma equipa, cria e guarda um histórico de jogos (adversário + data). Abrir um jogo leva à sua própria página, com três tabs só disponíveis aí (Jogadores, Registo de Jogo, Relatórios) e um botão "Trocar de jogo" para voltar à lista.
-- **Jogadores** (dentro de um jogo): *Convocatória* — escolhe jogadores do plantel para o jogo atual, define Titular/Suplente, e regista por jogador: cartão amarelo, cartão vermelho, assistências, golos e substituição (tudo clicável diretamente na tabela). O badge de substituição adapta-se ao Estado: um Titular só alterna entre `—` e `Saiu`; um Suplente só entre `—` e `Entrou`.
+- **Jogadores** (dentro de um jogo): *Convocatória* — escolhe jogadores do plantel para o jogo atual, define Titular/Suplente, e regista por jogador: 2 cartões amarelos, cartão vermelho, assistências, golos e substituição (tudo clicável diretamente na tabela). Marcar os 2 cartões amarelos marca automaticamente o vermelho. O badge de substituição adapta-se ao Estado: um Titular só alterna entre `—` e `Saiu`; um Suplente só entre `—` e `Entrou`.
 - **Registo de Jogo**: 4 campos de futebol clicáveis — Faltas (Realizadas/Sofridas), Cantos, Perdas de Bola e Remates (A Favor/Contra) — cada clique marca um ponto no campo com o tipo selecionado. Atalhos de teclado `X`/`Y` trocam de modo no campo onde o rato está; clique direito ou Ctrl+clique desfaz o último ponto.
 - **Relatórios**, em dois níveis:
   - Na página de um jogo: estatísticas só dos convocados desse jogo.
@@ -38,6 +38,7 @@ Site 100% estático (sem servidor próprio), hospedado no GitHub Pages, com [Sup
 | `supabase_schema_teams.sql` | Migração incremental que introduziu as equipas (histórico; só necessária em projetos criados antes desta funcionalidade). |
 | `supabase_schema_team_logos.sql` | Migração incremental que introduziu o emblema da equipa (histórico; idem). |
 | `supabase_schema_substituicao.sql` | Migração incremental que trocou o minuto de substituição por um badge Saiu/Entrou (histórico; idem). |
+| `supabase_schema_amarelo2.sql` | Migração incremental que adicionou o segundo cartão amarelo (histórico; idem). |
 | `faltas.html` | Redirecionamento automático para `login.html`, mantido só para não quebrar o link antigo que já tinha sido partilhado. |
 | `campo.png` / `campo.jpeg` | Imagem do campo de futebol usada nos 4 trackers (`campo.png` é a versão rodada para horizontal). |
 
@@ -49,7 +50,7 @@ Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`tea
 - **`team_members`** — quem pertence a que equipa (`role`: `owner` ou `membro`).
 - **`players`** — plantel reutilizável de uma equipa (`numero`, `nome`).
 - **`matches`** — jogos de uma equipa (`adversario`, `data`).
-- **`match_players`** — convocatória e estatísticas de um jogador num jogo específico (`estado`, `amarelo`, `vermelho`, `assistencias`, `golo`, `substituicao`: vazio, `Saiu` ou `Entrou`).
+- **`match_players`** — convocatória e estatísticas de um jogador num jogo específico (`estado`, `amarelo`, `amarelo2`, `vermelho`, `assistencias`, `golo`, `substituicao`: vazio, `Saiu` ou `Entrou`).
 - **`events`** — cliques nos 4 campos (`tracker_id`, `tipo`, `x_pct`, `y_pct`).
 
 Criar/entrar numa equipa passa por duas funções Postgres (`create_team`, `join_team_by_code`) chamadas via RPC, que tratam a criação da equipa + associação do utilizador de forma atómica. Os emblemas ficam num bucket público do Supabase Storage (`team-logos`), com upload restrito a membros da equipa correspondente.

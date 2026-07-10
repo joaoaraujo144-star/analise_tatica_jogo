@@ -153,7 +153,7 @@ function renderRoster() {
 async function loadReports() {
   const { data, error } = await supabase
     .from('match_players')
-    .select('golo, assistencias, amarelo, vermelho, players(id, numero, nome)')
+    .select('golo, assistencias, amarelo, amarelo2, vermelho, players(id, numero, nome)')
     .eq('team_id', currentTeamId);
   if (error) { console.error(error); return; }
 
@@ -168,7 +168,7 @@ async function loadReports() {
     agg.jogos += 1;
     agg.golo += row.golo || 0;
     agg.assistencias += row.assistencias || 0;
-    agg.amarelo += row.amarelo || 0;
+    agg.amarelo += (row.amarelo || 0) + (row.amarelo2 || 0);
     agg.vermelho += row.vermelho || 0;
   });
 

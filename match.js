@@ -123,6 +123,9 @@ function wireConvocatoria() {
       case 'toggle-amarelo':
         patch.amarelo = mp.amarelo ? 0 : 1;
         break;
+      case 'toggle-amarelo2':
+        patch.amarelo2 = mp.amarelo2 ? 0 : 1;
+        break;
       case 'toggle-vermelho':
         patch.vermelho = mp.vermelho ? 0 : 1;
         break;
@@ -139,6 +142,12 @@ function wireConvocatoria() {
       }
       default:
         return;
+    }
+
+    if (cell.dataset.action === 'toggle-amarelo' || cell.dataset.action === 'toggle-amarelo2') {
+      const newAmarelo = patch.amarelo ?? mp.amarelo;
+      const newAmarelo2 = patch.amarelo2 ?? mp.amarelo2;
+      if (newAmarelo && newAmarelo2) patch.vermelho = 1;
     }
 
     Object.assign(mp, patch);
@@ -200,6 +209,7 @@ function renderMatchPlayers() {
       <td>${mp.players?.nome || ''}</td>
       <td><span class="badge-estado ${estado === 'Titular' ? 'titular' : ''}" data-action="toggle-estado" data-id="${mp.id}">${estado}</span></td>
       <td class="stat-cell stat-toggle ${mp.amarelo ? 'on' : ''}" data-action="toggle-amarelo" data-id="${mp.id}">🟨</td>
+      <td class="stat-cell stat-toggle ${mp.amarelo2 ? 'on' : ''}" data-action="toggle-amarelo2" data-id="${mp.id}">🟨</td>
       <td class="stat-cell stat-toggle ${mp.vermelho ? 'on' : ''}" data-action="toggle-vermelho" data-id="${mp.id}">🟥</td>
       <td class="stat-cell stat-counter ${mp.assistencias ? 'has-count' : ''}" data-action="count-assistencias" data-id="${mp.id}">${mp.assistencias || 0}</td>
       <td class="stat-cell stat-counter ${mp.golo ? 'has-count' : ''}" data-action="count-golo" data-id="${mp.id}">${mp.golo || 0}</td>
@@ -384,7 +394,7 @@ function renderReports(rows) {
   body.innerHTML = '';
   rows.forEach(mp => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${mp.players?.numero || ''}</td><td>${mp.players?.nome || ''}</td><td>${mp.estado || 'Suplente'}</td><td>${mp.golo || 0}</td><td>${mp.assistencias || 0}</td><td>${mp.amarelo || 0}</td><td>${mp.vermelho || 0}</td>`;
+    tr.innerHTML = `<td>${mp.players?.numero || ''}</td><td>${mp.players?.nome || ''}</td><td>${mp.estado || 'Suplente'}</td><td>${mp.golo || 0}</td><td>${mp.assistencias || 0}</td><td>${(mp.amarelo || 0) + (mp.amarelo2 || 0)}</td><td>${mp.vermelho || 0}</td>`;
     body.appendChild(tr);
   });
   el('reports-empty').hidden = rows.length > 0;
@@ -397,13 +407,13 @@ function wireDownloadSession() {
     const lines = [];
 
     lines.push('=== JOGADORES ===');
-    lines.push(['Número', 'Nome', 'Estado', 'Amarelo', 'Vermelho', 'Assistências', 'Golos', 'Substituição'].join(','));
+    lines.push(['Número', 'Nome', 'Estado', 'Amarelos', 'Vermelho', 'Assistências', 'Golos', 'Substituição'].join(','));
     matchPlayersCache.forEach(mp => {
       lines.push([
         csvField(mp.players?.numero || ''),
         csvField(mp.players?.nome || ''),
         csvField(mp.estado || 'Suplente'),
-        mp.amarelo || 0,
+        (mp.amarelo || 0) + (mp.amarelo2 || 0),
         mp.vermelho || 0,
         mp.assistencias || 0,
         mp.golo || 0,
