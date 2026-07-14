@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match).
  *
- * Versão: 1.7 (2026-07-14)
+ * Versão: 1.8 (2026-07-15)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -12,6 +12,7 @@
  *   1.5 (2026-07-10) — temporizador grande (min:seg).
  *   1.6 (2026-07-10) — seta de orientação do campo.
  *   1.7 (2026-07-14) — movido de raiz para css/, sem alterações de lógica.
+ *   1.8 (2026-07-15) — popup de escolha de jogador após o clique, e select de jogador na tabela de log.
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -174,6 +175,46 @@ button.action:disabled { opacity: 0.4; cursor: not-allowed; }
 .log tr:last-child td { font-weight: bold; }
 .log td.tipo-X { color: var(--x-color); }
 .log td.tipo-Y { color: var(--y-color); }
+.log-player-select {
+  background: #10151a;
+  border: 1px solid #333;
+  color: #eee;
+  border-radius: 6px;
+  padding: 3px 4px;
+  font-size: 0.95em;
+  max-width: 120px;
+}
+
+.jogador-popup {
+  position: fixed;
+  z-index: 50;
+  background: #151b21;
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 10px;
+  max-width: min(260px, calc(100vw - 16px));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.jogador-popup-title { font-size: 0.75em; color: #888; text-align: center; margin-bottom: 8px; }
+.jogador-popup-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.jogador-num-chip {
+  background: #1c242c;
+  border: 2px solid #333;
+  color: #eee;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  font-size: 0.95em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.jogador-num-chip:hover { border-color: #4a7fd6; background: #263b5c; }
 
 /* ---------- Tabs ---------- */
 

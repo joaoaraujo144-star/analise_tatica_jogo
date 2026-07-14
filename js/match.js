@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.17 (2026-07-14)
+ * Versão: 1.18 (2026-07-15)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -27,6 +27,10 @@
  *                        a usar os rótulos Ganhos/Perdas.
  *   1.16 (2026-07-14) — nova secção Cruzamentos no Registo de Jogo.
  *   1.17 (2026-07-14) — movido de raiz para js/, sem alterações de lógica.
+ *   1.18 (2026-07-15) — popup opcional para escolher o jogador em campo logo após
+ *                        cada clique do Registo de Jogo (números de camisola apenas,
+ *                        filtrado a quem está em campo); editável na tabela de log
+ *                        e no registo normalizado para quem ficar por atribuir.
  */
 
 import { supabase } from './supabase-client.js';
@@ -446,10 +450,8 @@ async function loadMatchPlayers() {
   renderConvocarOptions();
 }
 
-function renderMatchPlayers() {
-  const body = el('players-body');
-  body.innerHTML = '';
-  const sorted = [...matchPlayersCache].sort((a, b) => {
+function sortedMatchPlayers() {
+  return [...matchPlayersCache].sort((a, b) => {
     const na = parseInt(a.players?.numero, 10);
     const nb = parseInt(b.players?.numero, 10);
     if (isNaN(na) && isNaN(nb)) return 0;
@@ -457,6 +459,12 @@ function renderMatchPlayers() {
     if (isNaN(nb)) return -1;
     return na - nb;
   });
+}
+
+function renderMatchPlayers() {
+  const body = el('players-body');
+  body.innerHTML = '';
+  const sorted = sortedMatchPlayers();
   sorted.forEach(mp => {
     const estado = mp.estado || 'Suplente';
     const tr = document.createElement('tr');
@@ -475,6 +483,82 @@ function renderMatchPlayers() {
     body.appendChild(tr);
   });
   el('players-empty').hidden = matchPlayersCache.length > 0;
+}
+
+// ---------- Jogador (liga, opcionalmente, cada clique do Registo de Jogo a um jogador) ----------
+
+function playerLabel(mp) {
+  return `${mp.players?.numero ? mp.players.numero + ' ' : ''}${mp.players?.nome || ''}`.trim();
+}
+
+function playerLabelById(playerId) {
+  if (!playerId) return '';
+  const mp = matchPlayersCache.find(x => x.player_id === playerId);
+  return mp ? playerLabel(mp) : '';
+}
+
+function playerOptionsHtml(selectedId) {
+  const options = sortedMatchPlayers().map(mp =>
+    `<option value="${mp.player_id}" ${selectedId === mp.player_id ? 'selected' : ''}>${playerLabel(mp)}</option>`
+  ).join('');
+  return `<option value="" ${!selectedId ? 'selected' : ''}>—</option>${options}`;
+}
+
+let jogadorPopupEl = null;
+let jogadorPopupOutsideHandler = null;
+
+function closeJogadorPopup() {
+  if (jogadorPopupEl) { jogadorPopupEl.remove(); jogadorPopupEl = null; }
+  if (jogadorPopupOutsideHandler) {
+    document.removeEventListener('pointerdown', jogadorPopupOutsideHandler, true);
+    jogadorPopupOutsideHandler = null;
+  }
+}
+
+// Quem está em campo neste momento: titulares que não saíram, mais
+// suplentes que já entraram — mantém a lista do popup à volta de 11,
+// em vez dos convocados todos (banco incluído).
+function onFieldMatchPlayers() {
+  const sorted = sortedMatchPlayers();
+  const onField = sorted.filter(mp =>
+    mp.estado === 'Titular' ? mp.substituicao !== 'Saiu' : mp.substituicao === 'Entrou'
+  );
+  return onField.length ? onField : sorted;
+}
+
+// Mostra, junto ao ponto clicado, um popup para (opcionalmente) escolher
+// quem fez a ação; onPick(playerId) só é chamado se se tocar num jogador.
+function showJogadorPopup(clientX, clientY, onPick) {
+  closeJogadorPopup();
+  const players = onFieldMatchPlayers();
+  if (!players.length) return;
+
+  const popup = document.createElement('div');
+  popup.className = 'jogador-popup';
+  const chips = players.map(mp =>
+    `<button type="button" class="jogador-num-chip" data-player-id="${mp.player_id}" title="${playerLabel(mp)}" aria-label="${playerLabel(mp)}">${mp.players?.numero || '?'}</button>`
+  ).join('');
+  popup.innerHTML = `<div class="jogador-popup-title">Quem fez?</div><div class="jogador-popup-chips">${chips}</div>`;
+  document.body.appendChild(popup);
+
+  const rect = popup.getBoundingClientRect();
+  const left = Math.min(Math.max(8, clientX - rect.width / 2), window.innerWidth - rect.width - 8);
+  const top = Math.min(Math.max(8, clientY + 16), window.innerHeight - rect.height - 8);
+  popup.style.left = `${left}px`;
+  popup.style.top = `${top}px`;
+
+  popup.addEventListener('click', (e) => {
+    const btn = e.target.closest('.jogador-num-chip');
+    if (!btn) return;
+    onPick(btn.dataset.playerId);
+    closeJogadorPopup();
+  });
+
+  jogadorPopupEl = popup;
+  jogadorPopupOutsideHandler = (e) => {
+    if (!popup.contains(e.target)) closeJogadorPopup();
+  };
+  setTimeout(() => document.addEventListener('pointerdown', jogadorPopupOutsideHandler, true), 0);
 }
 
 // ---------- Campos (Faltas, Cantos, Perdas de Bola, Remates) ----------
@@ -505,7 +589,7 @@ function buildTrackerSections() {
       <div class="log">
         <table>
           <thead>
-            <tr><th>#</th><th>Tipo</th><th>X (%)</th><th>Y (%)</th><th>Minuto</th><th>Hora</th></tr>
+            <tr><th>#</th><th>Tipo</th><th>X (%)</th><th>Y (%)</th><th>Minuto</th><th>Hora</th><th>Jogador</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -562,11 +646,22 @@ function initTracker(cfg, root) {
       const tr = document.createElement('tr');
       const hora = new Date(c.created_at).toLocaleTimeString('pt-PT');
       const minuto = c.minuto != null ? `${c.minuto}'` : '—';
-      tr.innerHTML = `<td>${i + 1}</td><td class="tipo-${c.tipo}">${c.tipo}</td><td>${c.x_pct}</td><td>${c.y_pct}</td><td>${minuto}</td><td>${hora}</td>`;
+      tr.innerHTML = `<td>${i + 1}</td><td class="tipo-${c.tipo}">${c.tipo}</td><td>${c.x_pct}</td><td>${c.y_pct}</td><td>${minuto}</td><td>${hora}</td><td><select class="log-player-select" data-event-id="${c.id}">${playerOptionsHtml(c.player_id)}</select></td>`;
       logBody.appendChild(tr);
     });
     logBody.parentElement.parentElement.scrollTop = logBody.parentElement.parentElement.scrollHeight;
   }
+
+  logBody.addEventListener('change', async (e) => {
+    const select = e.target.closest('.log-player-select');
+    if (!select) return;
+    const eventId = select.dataset.eventId;
+    const click = clicks.find(c => c.id === eventId);
+    if (!click) return;
+    const newPlayerId = select.value || null;
+    click.player_id = newPlayerId;
+    await supabase.from('events').update({ player_id: newPlayerId }).eq('id', eventId);
+  });
 
   async function reload() {
     const { data, error } = await supabase
@@ -581,7 +676,7 @@ function initTracker(cfg, root) {
     renderAll();
   }
 
-  async function addClick(x_pct, y_pct) {
+  async function addClick(x_pct, y_pct, clientX, clientY) {
     if (isLocked() || !isPeriodoRunning()) return;
     const row = {
       user_id: currentUser.id,
@@ -598,6 +693,14 @@ function initTracker(cfg, root) {
     if (error) { alert(error.message); return; }
     clicks.push(data);
     renderAll();
+
+    if (clientX != null && clientY != null) {
+      showJogadorPopup(clientX, clientY, async (playerId) => {
+        data.player_id = playerId;
+        renderAll();
+        await supabase.from('events').update({ player_id: playerId }).eq('id', data.id);
+      });
+    }
   }
 
   async function undoLast() {
@@ -614,7 +717,7 @@ function initTracker(cfg, root) {
     const rect = fieldImg.getBoundingClientRect();
     const x_pct = ((e.clientX - rect.left) / rect.width) * 100;
     const y_pct = ((e.clientY - rect.top) / rect.height) * 100;
-    addClick(x_pct, y_pct);
+    addClick(x_pct, y_pct, e.clientX, e.clientY);
   });
 
   fieldImg.addEventListener('contextmenu', (e) => {
@@ -682,8 +785,24 @@ function buildNormalizadoSections() {
       <div class="field-wrap">
         <img src="../assets/campo.png" alt="Campo de futebol" class="field-img" draggable="false">
       </div>
+      <div class="log">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Parte</th><th>Tipo</th><th>Minuto</th><th>Hora</th><th>Jogador</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     `;
     page.appendChild(section);
+
+    section.querySelector('tbody').addEventListener('change', async (e) => {
+      const select = e.target.closest('.log-player-select');
+      if (!select) return;
+      const eventId = select.dataset.eventId;
+      const newPlayerId = select.value || null;
+      await supabase.from('events').update({ player_id: newPlayerId }).eq('id', eventId);
+    });
   });
   normalizadoBuilt = true;
 }
@@ -697,7 +816,8 @@ async function loadNormalizadoReport() {
   const { data, error } = await supabase
     .from('events_normalizado')
     .select('*')
-    .eq('match_id', currentMatchId);
+    .eq('match_id', currentMatchId)
+    .order('created_at', { ascending: true });
   el('normalizado-error').hidden = !error;
   if (error) { console.error(error); return; }
 
@@ -716,6 +836,16 @@ async function loadNormalizadoReport() {
     });
     section.querySelector('[data-count="X"]').textContent = points.filter(p => p.tipo === 'X').length;
     section.querySelector('[data-count="Y"]').textContent = points.filter(p => p.tipo === 'Y').length;
+
+    const logBody = section.querySelector('tbody');
+    logBody.innerHTML = '';
+    points.forEach((p, i) => {
+      const tr = document.createElement('tr');
+      const hora = new Date(p.created_at).toLocaleTimeString('pt-PT');
+      const minuto = p.minuto != null ? `${p.minuto}'` : '—';
+      tr.innerHTML = `<td>${i + 1}</td><td>${p.parte}ª</td><td class="tipo-${p.tipo}">${p.tipo}</td><td>${minuto}</td><td>${hora}</td><td><select class="log-player-select" data-event-id="${p.id}">${playerOptionsHtml(p.player_id)}</select></td>`;
+      logBody.appendChild(tr);
+    });
   });
 }
 
@@ -743,7 +873,7 @@ function wireDownloadSession() {
     for (const cfg of TRACKERS) {
       lines.push('');
       lines.push(`=== ${cfg.title.toUpperCase()} ===`);
-      lines.push(['Parte', 'Minuto', 'Tipo', 'X (%)', 'Y (%)', 'Hora'].join(','));
+      lines.push(['Parte', 'Minuto', 'Tipo', 'X (%)', 'Y (%)', 'Hora', 'Jogador'].join(','));
       const { data } = await supabase
         .from('events')
         .select('*')
@@ -752,7 +882,7 @@ function wireDownloadSession() {
         .order('created_at', { ascending: true });
       (data || []).forEach(c => {
         const hora = new Date(c.created_at).toLocaleTimeString('pt-PT');
-        lines.push([c.parte, c.minuto ?? '', c.tipo, c.x_pct, c.y_pct, csvField(hora)].join(','));
+        lines.push([c.parte, c.minuto ?? '', c.tipo, c.x_pct, c.y_pct, csvField(hora), csvField(playerLabelById(c.player_id))].join(','));
       });
     }
 

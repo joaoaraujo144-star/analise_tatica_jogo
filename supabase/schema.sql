@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 011.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 012.)
 --
--- Versão: 1.10 (2026-07-14) — reflete sempre o estado final cumulativo,
+-- Versão: 1.11 (2026-07-15) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -17,6 +17,7 @@
 --   1.8  (2026-07-10) — view events_normalizado (1ª+2ª parte combinadas).
 --   1.9  (2026-07-14) — events ganha "minuto"; tracker_id passa a aceitar "cruzamentos".
 --   1.10 (2026-07-14) — movido de raiz para supabase/schema.sql.
+--   1.11 (2026-07-15) — events ganha "player_id" (jogador que fez a ação, opcional).
 
 create extension if not exists "pgcrypto";
 
@@ -94,6 +95,7 @@ create table if not exists events (
   tipo text not null check (tipo in ('X', 'Y')),
   x_pct numeric not null,
   y_pct numeric not null,
+  player_id uuid references players(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -118,6 +120,7 @@ create index if not exists idx_match_players_player on match_players(player_id);
 create index if not exists idx_match_players_team on match_players(team_id);
 create index if not exists idx_events_match_tracker on events(match_id, tracker_id);
 create index if not exists idx_events_team on events(team_id);
+create index if not exists idx_events_player on events(player_id);
 create index if not exists idx_player_events_match on player_events(match_id);
 create index if not exists idx_player_events_player on player_events(player_id);
 create index if not exists idx_player_events_team on player_events(team_id);
@@ -196,7 +199,8 @@ select
     then round(100 - e.y_pct, 2)
     else e.y_pct
   end as y_pct_normalizado,
-  e.minuto
+  e.minuto,
+  e.player_id
 from events e
 join matches m on m.id = e.match_id;
 

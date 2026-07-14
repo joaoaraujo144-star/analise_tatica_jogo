@@ -7,9 +7,10 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.0 (2026-07-14)
+  Versão: 1.1 (2026-07-15)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
+    1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -33,6 +34,7 @@ erDiagram
   MATCHES ||--o{ PLAYER_EVENTS : "match_id"
   PLAYERS ||--o{ MATCH_PLAYERS : "player_id"
   PLAYERS ||--o{ PLAYER_EVENTS : "player_id"
+  PLAYERS ||--o{ EVENTS : "player_id (opcional)"
 
   USERS {
     uuid id PK
@@ -104,6 +106,7 @@ erDiagram
     text tipo
     numeric x_pct
     numeric y_pct
+    uuid player_id FK
     timestamptz created_at
   }
 
@@ -204,6 +207,7 @@ Cliques nos 5 campos do Registo de Jogo (Faltas, Cantos, Cruzamentos, Perdas de 
 | `minuto` | int | não | minuto do jogo, relativo ao início da parte em que foi marcado |
 | `tipo` | text | sim | `X` ou `Y` (significado depende do `tracker_id`, ex: Realizadas/Sofridas) |
 | `x_pct` / `y_pct` | numeric | sim | posição do clique no campo, em percentagem |
+| `player_id` | uuid | não (FK → `players`) | jogador que fez a ação; opcional — pode ficar por atribuir e corrigir-se depois |
 | `created_at` | timestamptz | sim | |
 
 ### `player_events`
@@ -225,7 +229,7 @@ Junta `events` com `matches` e roda 180º (`100 - x_pct`, `100 - y_pct`) os pont
 
 | Coluna | Origem | Notas |
 |---|---|---|
-| `id`, `team_id`, `match_id`, `tracker_id`, `parte`, `minuto`, `tipo`, `created_at`, `x_pct`, `y_pct` | `events` | valores originais, sem alteração |
+| `id`, `team_id`, `match_id`, `tracker_id`, `parte`, `minuto`, `tipo`, `created_at`, `x_pct`, `y_pct`, `player_id` | `events` | valores originais, sem alteração |
 | `x_pct_normalizado` / `y_pct_normalizado` | calculado | `100 - x_pct` / `100 - y_pct` quando a parte atacou "ao contrário"; senão, igual ao original |
 
 ## Convenções gerais
