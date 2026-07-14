@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.18 (2026-07-15)
+ * Versão: 1.19 (2026-07-15)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -31,6 +31,8 @@
  *                        cada clique do Registo de Jogo (números de camisola apenas,
  *                        filtrado a quem está em campo); editável na tabela de log
  *                        e no registo normalizado para quem ficar por atribuir.
+ *   1.19 (2026-07-15) — remove a coluna "Hora" das tabelas de registo (ao vivo e
+ *                        normalizada), mantendo só o "Minuto".
  */
 
 import { supabase } from './supabase-client.js';
@@ -589,7 +591,7 @@ function buildTrackerSections() {
       <div class="log">
         <table>
           <thead>
-            <tr><th>#</th><th>Tipo</th><th>X (%)</th><th>Y (%)</th><th>Minuto</th><th>Hora</th><th>Jogador</th></tr>
+            <tr><th>#</th><th>Tipo</th><th>X (%)</th><th>Y (%)</th><th>Minuto</th><th>Jogador</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -644,9 +646,8 @@ function initTracker(cfg, root) {
     logBody.innerHTML = '';
     clicks.forEach((c, i) => {
       const tr = document.createElement('tr');
-      const hora = new Date(c.created_at).toLocaleTimeString('pt-PT');
       const minuto = c.minuto != null ? `${c.minuto}'` : '—';
-      tr.innerHTML = `<td>${i + 1}</td><td class="tipo-${c.tipo}">${c.tipo}</td><td>${c.x_pct}</td><td>${c.y_pct}</td><td>${minuto}</td><td>${hora}</td><td><select class="log-player-select" data-event-id="${c.id}">${playerOptionsHtml(c.player_id)}</select></td>`;
+      tr.innerHTML = `<td>${i + 1}</td><td class="tipo-${c.tipo}">${c.tipo}</td><td>${c.x_pct}</td><td>${c.y_pct}</td><td>${minuto}</td><td><select class="log-player-select" data-event-id="${c.id}">${playerOptionsHtml(c.player_id)}</select></td>`;
       logBody.appendChild(tr);
     });
     logBody.parentElement.parentElement.scrollTop = logBody.parentElement.parentElement.scrollHeight;
@@ -788,7 +789,7 @@ function buildNormalizadoSections() {
       <div class="log">
         <table>
           <thead>
-            <tr><th>#</th><th>Parte</th><th>Tipo</th><th>Minuto</th><th>Hora</th><th>Jogador</th></tr>
+            <tr><th>#</th><th>Parte</th><th>Tipo</th><th>Minuto</th><th>Jogador</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -841,9 +842,8 @@ async function loadNormalizadoReport() {
     logBody.innerHTML = '';
     points.forEach((p, i) => {
       const tr = document.createElement('tr');
-      const hora = new Date(p.created_at).toLocaleTimeString('pt-PT');
       const minuto = p.minuto != null ? `${p.minuto}'` : '—';
-      tr.innerHTML = `<td>${i + 1}</td><td>${p.parte}ª</td><td class="tipo-${p.tipo}">${p.tipo}</td><td>${minuto}</td><td>${hora}</td><td><select class="log-player-select" data-event-id="${p.id}">${playerOptionsHtml(p.player_id)}</select></td>`;
+      tr.innerHTML = `<td>${i + 1}</td><td>${p.parte}ª</td><td class="tipo-${p.tipo}">${p.tipo}</td><td>${minuto}</td><td><select class="log-player-select" data-event-id="${p.id}">${playerOptionsHtml(p.player_id)}</select></td>`;
       logBody.appendChild(tr);
     });
   });
