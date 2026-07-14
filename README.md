@@ -28,6 +28,8 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/*
 
 Site 100% estático (sem servidor próprio), hospedado no GitHub Pages, com [Supabase](https://supabase.com) (Postgres + Auth + Storage) como backend, acedido diretamente do browser via `@supabase/supabase-js` (importado de um CDN, sem build step).
 
+Ver `docs/architecture.md` para o documento técnico completo: mapa de navegação entre páginas, fluxo de autenticação/sessão, estado guardado em `localStorage`, modelo de segurança (RLS) e padrões de código usados em várias páginas.
+
 ### Estrutura de pastas
 
 ```
@@ -47,6 +49,7 @@ css/
 assets/
   campo.png, campo.jpeg    Imagem do campo de futebol usada nos trackers (campo.png = horizontal).
 docs/
+  architecture.md            Arquitetura: navegação, sessão, localStorage, modelo de segurança.
   Ficha de analise-observação.pdf, coordenadas_X_O.csv   Ficheiros de referência anteriores ao site.
 supabase/
   schema.sql                Esquema completo — para configurar um projeto Supabase novo de raiz.
