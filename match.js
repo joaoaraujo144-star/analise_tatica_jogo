@@ -3,6 +3,7 @@ import { supabase } from './supabase-client.js';
 const TRACKERS = [
   { id: 'faltas', title: 'Faltas', xLabel: 'Realizadas', yLabel: 'Sofridas' },
   { id: 'cantos', title: 'Cantos', xLabel: 'A Favor', yLabel: 'Contra' },
+  { id: 'cruzamentos', title: 'Cruzamentos', xLabel: 'A Favor', yLabel: 'Contra' },
   { id: 'perdas', title: 'Perdas de Bola', xLabel: 'Ganhos', yLabel: 'Perdas' },
   { id: 'remates', title: 'Remates', xLabel: 'A Favor', yLabel: 'Contra' },
 ];

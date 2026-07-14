@@ -5,7 +5,8 @@
 -- supabase_schema_substituicao.sql, supabase_schema_amarelo2.sql,
 -- supabase_schema_player_events.sql, supabase_schema_partes.sql,
 -- supabase_schema_orientacao.sql, supabase_schema_events_parte.sql,
--- supabase_schema_events_normalizado.sql e supabase_schema_events_minuto.sql.)
+-- supabase_schema_events_normalizado.sql, supabase_schema_events_minuto.sql
+-- e supabase_schema_cruzamentos.sql.)
 
 create extension if not exists "pgcrypto";
 
@@ -77,7 +78,7 @@ create table if not exists events (
   user_id uuid not null references auth.users(id) on delete cascade,
   team_id uuid not null references teams(id) on delete cascade,
   match_id uuid not null references matches(id) on delete cascade,
-  tracker_id text not null check (tracker_id in ('faltas', 'cantos', 'perdas', 'remates')),
+  tracker_id text not null check (tracker_id in ('faltas', 'cantos', 'cruzamentos', 'perdas', 'remates')),
   parte int not null default 1 check (parte in (1, 2)),
   minuto int,
   tipo text not null check (tipo in ('X', 'Y')),
