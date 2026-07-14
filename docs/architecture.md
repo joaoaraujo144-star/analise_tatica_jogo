@@ -9,10 +9,11 @@
   (tabelas/colunas), ver supabase/data-model.md; para funcionalidades e
   setup, ver o README.md.
 
-  Versão: 1.1 (2026-07-15)
+  Versão: 1.2 (2026-07-15)
   Histórico:
     1.0 (2026-07-14) — criação.
     1.1 (2026-07-15) — popup de escolha de jogador após o clique, no Registo de Jogo.
+    1.2 (2026-07-15) — mapa de calor por zonas (zona calculada em SQL, não no browser).
 -->
 
 # Arquitetura — Análise de Jogo
@@ -102,6 +103,7 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 - **Estado de "parte a decorrer"** (`isPeriodoRunning()`, `isLocked()`, `currentParte()` em `js/match.js`): três perguntas simples sobre os timestamps de `matches` (`parteN_inicio`/`parteN_fim`) que controlam, em cascata, o que pode ser editado em cada tab — sem guardar um "estado" separado, é sempre derivado desses timestamps.
 - **Exportação CSV**: `wireDownloadSession()` em `js/match.js` gera um único ficheiro com várias secções (`=== NOME ===`), uma por tabela relevante — sem dependências externas, só `Blob` + `URL.createObjectURL`.
 - **Popup pós-clique (jogador)**: depois de marcar um ponto no Registo de Jogo, `showJogadorPopup()` (`js/match.js`) mostra um popup junto ao clique, para (opcionalmente) dizer quem fez a ação — sem bloquear o registo em si, que já foi gravado antes do popup aparecer. A lista de jogadores é filtrada por `onFieldMatchPlayers()` (titulares que não saíram + suplentes que já entraram, com fallback para todos os convocados se essa lista estiver vazia), mostrados só pelo número da camisola, para caber ~11 opções num popup pequeno sem ficar visualmente pesado. Fecha ao tocar num número, ao clicar fora, ou automaticamente ao início do clique seguinte (o novo `pointerdown` fecha o popup antigo antes do novo `click` disparar). Um clique sem jogador escolhido fica com `player_id` a `null`, e pode ser corrigido depois na tabela de registo (ao vivo) ou no registo normalizado (pós-jogo).
+- **Mapa de calor por zonas**: a "zona" (grelha 6×4) de cada ponto é calculada em SQL, como colunas `zona_col`/`zona_row` da view `events_normalizado` (ver `supabase/migrations/013_events_zona.sql`) — não no browser — para essa definição viver num único sítio e poder ser consultada diretamente por SQL ou outras ferramentas no futuro, sem reimplementar a lógica de "binning". `buildHeatGrid()`/`renderHeatGrid()` (`js/match.js`) só agregam essas colunas já calculadas numa grelha visual; os nomes `HEATMAP_COLS`/`HEATMAP_ROWS` em JS têm de ficar sincronizados com os `6`/`4` hardcoded na view SQL. Cada secção do registo normalizado tem um toggle Pontos/Mapa de Calor, e — só na vista de mapa de calor — um segundo toggle para escolher o tipo (X/Y, ex: "A Favor"/"Contra"), porque misturar os dois tipos no mesmo mapa não faz sentido tacticamente. `normalizadoPointsCache` guarda os pontos já filtrados por tracker, para trocar de vista/tipo sem nova consulta ao Supabase.
 
 ## Onde encontrar cada coisa
 

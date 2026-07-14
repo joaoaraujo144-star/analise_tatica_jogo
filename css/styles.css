@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match).
  *
- * Versão: 1.8 (2026-07-15)
+ * Versão: 1.9 (2026-07-15)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -13,6 +13,7 @@
  *   1.6 (2026-07-10) — seta de orientação do campo.
  *   1.7 (2026-07-14) — movido de raiz para css/, sem alterações de lógica.
  *   1.8 (2026-07-15) — popup de escolha de jogador após o clique, e select de jogador na tabela de log.
+ *   1.9 (2026-07-15) — mapa de calor por zonas no registo normalizado.
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -140,6 +141,20 @@ h2.tracker-title {
 .marker.X { background: var(--x-color); }
 .marker.Y { background: var(--y-color); }
 
+.heat-grid {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.heat-cell {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.2s ease;
+}
+
 .actions {
   display: flex;
   gap: 10px;
@@ -158,6 +173,7 @@ button.action {
 button.action:hover { background: #263038; }
 button.action.danger:hover { background: #4a2020; border-color: #e53935; }
 button.action:disabled { opacity: 0.4; cursor: not-allowed; }
+button.action.active { background: #263b5c; border-color: #4a7fd6; }
 
 .log {
   width: 100%;

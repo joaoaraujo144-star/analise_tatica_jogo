@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 012.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 013.)
 --
--- Versão: 1.11 (2026-07-15) — reflete sempre o estado final cumulativo,
+-- Versão: 1.12 (2026-07-15) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -18,6 +18,8 @@
 --   1.9  (2026-07-14) — events ganha "minuto"; tracker_id passa a aceitar "cruzamentos".
 --   1.10 (2026-07-14) — movido de raiz para supabase/schema.sql.
 --   1.11 (2026-07-15) — events ganha "player_id" (jogador que fez a ação, opcional).
+--   1.12 (2026-07-15) — events_normalizado ganha "zona_col"/"zona_row" (grelha 6×4,
+--                        para o mapa de calor por zonas ser calculável em SQL).
 
 create extension if not exists "pgcrypto";
 
@@ -175,7 +177,9 @@ create policy "player_events_team_member" on player_events
   with check (exists (select 1 from team_members tm where tm.team_id = player_events.team_id and tm.user_id = auth.uid()));
 
 -- View: Registo de Jogo normalizado (1ª + 2ª parte juntas, rodadas 180º
--- conforme a orientação de ataque escolhida nas setas para cada parte)
+-- conforme a orientação de ataque escolhida nas setas para cada parte).
+-- zona_col/zona_row: grelha 6×4 para o mapa de calor por zonas (tem de
+-- ficar igual a HEATMAP_COLS/HEATMAP_ROWS em js/match.js).
 create or replace view events_normalizado as
 select
   e.id,
@@ -200,7 +204,23 @@ select
     else e.y_pct
   end as y_pct_normalizado,
   e.minuto,
-  e.player_id
+  e.player_id,
+  least(5, greatest(0, floor(
+    (case
+      when (e.parte = 1 and coalesce(m.orientacao_parte1, 'E-D') = 'D-E')
+        or (e.parte = 2 and coalesce(m.orientacao_parte1, 'E-D') = 'E-D')
+      then 100 - e.x_pct
+      else e.x_pct
+    end) / 100.0 * 6
+  )::int)) as zona_col,
+  least(3, greatest(0, floor(
+    (case
+      when (e.parte = 1 and coalesce(m.orientacao_parte1, 'E-D') = 'D-E')
+        or (e.parte = 2 and coalesce(m.orientacao_parte1, 'E-D') = 'E-D')
+      then 100 - e.y_pct
+      else e.y_pct
+    end) / 100.0 * 4
+  )::int)) as zona_row
 from events e
 join matches m on m.id = e.match_id;
 

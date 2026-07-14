@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.19 (2026-07-15)
+ * Versão: 1.20 (2026-07-15)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -33,6 +33,9 @@
  *                        e no registo normalizado para quem ficar por atribuir.
  *   1.19 (2026-07-15) — remove a coluna "Hora" das tabelas de registo (ao vivo e
  *                        normalizada), mantendo só o "Minuto".
+ *   1.20 (2026-07-15) — mapa de calor por zonas (grelha 6×4) no registo normalizado,
+ *                        com toggle Pontos/Mapa de Calor e separado por tipo (X/Y) por
+ *                        campo; a zona de cada ponto vem da view events_normalizado.
  */
 
 import { supabase } from './supabase-client.js';
@@ -769,6 +772,50 @@ function renderReports(rows) {
 // ---------- Registo de Jogo normalizado (1ª + 2ª parte juntas, fim de jogo) ----------
 
 let normalizadoBuilt = false;
+let normalizadoPointsCache = {};
+
+// Mapa de calor por zonas: usa zona_col/zona_row já calculados pela view
+// events_normalizado (grelha 6×4, definida em SQL — ver
+// supabase/migrations/013_events_zona.sql) em vez de recalcular no
+// browser, para a definição de "zona" viver num único sítio.
+const HEATMAP_COLS = 6;
+const HEATMAP_ROWS = 4;
+
+function buildHeatGrid(points) {
+  const counts = Array.from({ length: HEATMAP_ROWS }, () => Array(HEATMAP_COLS).fill(0));
+  points.forEach(p => { counts[p.zona_row][p.zona_col]++; });
+  return counts;
+}
+
+function renderHeatGrid(container, counts) {
+  container.innerHTML = '';
+  const max = Math.max(1, ...counts.flat());
+  counts.forEach((rowArr, row) => {
+    rowArr.forEach((count, col) => {
+      const cell = document.createElement('div');
+      cell.className = 'heat-cell';
+      cell.style.left = `${(col / HEATMAP_COLS) * 100}%`;
+      cell.style.top = `${(row / HEATMAP_ROWS) * 100}%`;
+      cell.style.width = `${100 / HEATMAP_COLS}%`;
+      cell.style.height = `${100 / HEATMAP_ROWS}%`;
+      if (count > 0) {
+        const intensity = count / max;
+        cell.style.background = `rgba(229, 57, 53, ${(0.15 + intensity * 0.65).toFixed(2)})`;
+        cell.title = `${count} ponto${count === 1 ? '' : 's'}`;
+      }
+      container.appendChild(cell);
+    });
+  });
+}
+
+// Recalcula e mostra o mapa de calor de uma secção, filtrado ao tipo
+// (X/Y) atualmente selecionado — cantos "A Favor" e "Contra", por
+// exemplo, não podem ser misturados no mesmo mapa, ou perde o sentido.
+function renderSectionHeat(section, cfg) {
+  const tipo = section.dataset.heatTipo || 'X';
+  const points = (normalizadoPointsCache[cfg.id] || []).filter(p => p.tipo === tipo);
+  renderHeatGrid(section.querySelector('.heat-grid'), buildHeatGrid(points));
+}
 
 function buildNormalizadoSections() {
   const page = el('normalizado-page');
@@ -777,14 +824,24 @@ function buildNormalizadoSections() {
     const section = document.createElement('section');
     section.className = 'tracker';
     section.dataset.tracker = cfg.id;
+    section.dataset.heatTipo = 'X';
     section.innerHTML = `
       <h2 class="tracker-title">${cfg.title}</h2>
+      <div class="toolbar">
+        <button class="action view-btn active" data-view="pontos">Pontos</button>
+        <button class="action view-btn" data-view="calor">Mapa de Calor</button>
+      </div>
+      <div class="toolbar heat-tipo-toolbar" hidden>
+        <button class="action heat-tipo-btn active" data-tipo="X">${cfg.xLabel}</button>
+        <button class="action heat-tipo-btn" data-tipo="Y">${cfg.yLabel}</button>
+      </div>
       <div class="counters">
         <div class="counter x"><span class="num" data-count="X">0</span>${cfg.xLabel}</div>
         <div class="counter y"><span class="num" data-count="Y">0</span>${cfg.yLabel}</div>
       </div>
       <div class="field-wrap">
         <img src="../assets/campo.png" alt="Campo de futebol" class="field-img" draggable="false">
+        <div class="heat-grid" hidden></div>
       </div>
       <div class="log">
         <table>
@@ -796,6 +853,25 @@ function buildNormalizadoSections() {
       </div>
     `;
     page.appendChild(section);
+
+    section.querySelector('.toolbar').addEventListener('click', (e) => {
+      const btn = e.target.closest('.view-btn');
+      if (!btn) return;
+      section.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b === btn));
+      const showHeat = btn.dataset.view === 'calor';
+      section.querySelectorAll('.marker').forEach(m => { m.style.display = showHeat ? 'none' : ''; });
+      section.querySelector('.heat-grid').hidden = !showHeat;
+      section.querySelector('.heat-tipo-toolbar').hidden = !showHeat;
+      if (showHeat) renderSectionHeat(section, cfg);
+    });
+
+    section.querySelector('.heat-tipo-toolbar').addEventListener('click', (e) => {
+      const btn = e.target.closest('.heat-tipo-btn');
+      if (!btn) return;
+      section.querySelectorAll('.heat-tipo-btn').forEach(b => b.classList.toggle('active', b === btn));
+      section.dataset.heatTipo = btn.dataset.tipo;
+      renderSectionHeat(section, cfg);
+    });
 
     section.querySelector('tbody').addEventListener('change', async (e) => {
       const select = e.target.closest('.log-player-select');
@@ -822,21 +898,27 @@ async function loadNormalizadoReport() {
   el('normalizado-error').hidden = !error;
   if (error) { console.error(error); return; }
 
+  normalizadoPointsCache = {};
+
   TRACKERS.forEach(cfg => {
     const section = document.querySelector(`#normalizado-page section[data-tracker="${cfg.id}"]`);
     const fieldWrap = section.querySelector('.field-wrap');
+    const showHeat = section.querySelector('.view-btn[data-view="calor"]').classList.contains('active');
     fieldWrap.querySelectorAll('.marker').forEach(m => m.remove());
     const points = (data || []).filter(p => p.tracker_id === cfg.id);
+    normalizadoPointsCache[cfg.id] = points;
     points.forEach(p => {
       const marker = document.createElement('div');
       marker.className = 'marker ' + p.tipo;
       marker.style.left = p.x_pct_normalizado + '%';
       marker.style.top = p.y_pct_normalizado + '%';
+      marker.style.display = showHeat ? 'none' : '';
       marker.textContent = p.tipo;
       fieldWrap.appendChild(marker);
     });
     section.querySelector('[data-count="X"]').textContent = points.filter(p => p.tipo === 'X').length;
     section.querySelector('[data-count="Y"]').textContent = points.filter(p => p.tipo === 'Y').length;
+    if (showHeat) renderSectionHeat(section, cfg);
 
     const logBody = section.querySelector('tbody');
     logBody.innerHTML = '';
