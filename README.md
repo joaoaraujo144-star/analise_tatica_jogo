@@ -50,6 +50,7 @@ docs/
   Ficha de analise-observação.pdf, coordenadas_X_O.csv   Ficheiros de referência anteriores ao site.
 supabase/
   schema.sql                Esquema completo — para configurar um projeto Supabase novo de raiz.
+  data-model.md             Logical Data Model: diagrama de entidades/relações + dicionário de dados.
   migrations/               Migrações incrementais, por ordem (001 a 011) — só necessárias em
                              projetos já existentes, correr uma vez cada uma, por esta ordem:
                              001_teams, 002_team_logos, 003_substituicao, 004_amarelo2,
@@ -64,6 +65,8 @@ Cada página em `pages/` só referencia o seu próprio ficheiro em `js/` (mesmo 
 Cada ficheiro de código (`.js`, `.html`, `.css`, `supabase/schema.sql` e migrações) tem, no topo, um bloco com uma descrição curta, um número de versão e um histórico de alterações — atualizado manualmente sempre que esse ficheiro é editado de forma significativa. Dentro dos ficheiros maiores, comentários de secção (`// ---------- Nome ----------` em JS, `/* ---------- Nome ---------- */` em CSS) marcam os blocos de funcionalidade.
 
 ### Base de dados (Supabase / Postgres)
+
+Ver `supabase/data-model.md` para o Logical Data Model completo (diagrama de entidades/relações + dicionário de dados) — mantém-se atualizado a par de `supabase/schema.sql`.
 
 Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`team_members`) — só quem for membro de uma equipa vê ou edita os dados dessa equipa:
 
