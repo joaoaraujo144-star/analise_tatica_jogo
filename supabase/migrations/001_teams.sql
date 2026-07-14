@@ -2,6 +2,8 @@
 -- Corre este script uma vez no SQL Editor do teu projeto Supabase (depois de já teres
 -- corrido o supabase/schema.sql original).
 --
+-- Versão: 1.0 (2026-07-08)
+--
 -- AVISO: este script APAGA todos os jogadores, jogos, convocatórias e cliques nos campos
 -- que já existam (não têm equipa associada e o dono confirmou que podem ser descartados).
 

@@ -1,4 +1,20 @@
 <!DOCTYPE html>
+<!--
+  Análise de Jogo — pages/dashboard.html
+  Página de uma equipa: tabs Jogos (criar/abrir/importar), Plantel
+  (jogadores reutilizáveis) e Relatórios (agregado de todos os jogos).
+  Lógica em ../js/dashboard.js.
+
+  Versão: 1.5 (2026-07-14)
+  Histórico:
+    1.0 (2026-07-08) — criação, ao separar o dashboard do login.
+    1.1 (2026-07-08) — passa a ser específico de uma equipa (troca de equipa).
+    1.2 (2026-07-09) — a tab Registo de Jogo/Jogadores sai daqui: cada jogo
+                        passa a ter a sua própria página (match.html).
+    1.3 (2026-07-09) — ganha a tab Relatórios com o agregado de todos os jogos.
+    1.4 (2026-07-09) — ganha a tab Plantel (antes vivia dentro de cada jogo).
+    1.5 (2026-07-14) — movida de raiz para pages/, caminhos de css/js atualizados.
+-->
 <html lang="pt">
 <head>
 <meta charset="UTF-8">
@@ -24,6 +40,7 @@
       <button class="tab-btn" data-tab="relatorios">Relatórios</button>
     </div>
 
+    <!-- Tab Jogos: criar/listar jogos da equipa e importar dados locais antigos -->
     <div class="tab-panel" id="tab-jogos">
       <div class="players-card">
         <h2 class="tracker-title">Novo Jogo</h2>
@@ -50,6 +67,7 @@
       </div>
     </div>
 
+    <!-- Tab Plantel: lista reutilizável de jogadores da equipa -->
     <div class="tab-panel" id="tab-plantel" hidden>
       <div class="players-card">
         <h2 class="tracker-title">Plantel</h2>
@@ -67,6 +85,7 @@
       </div>
     </div>
 
+    <!-- Tab Relatórios: agregado por jogador ao longo de todos os jogos da equipa -->
     <div class="tab-panel" id="tab-relatorios" hidden>
       <div class="players-card">
         <h2 class="tracker-title">Relatórios da Equipa</h2>

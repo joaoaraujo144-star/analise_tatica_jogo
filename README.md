@@ -59,6 +59,10 @@ supabase/
 
 Cada página em `pages/` só referencia o seu próprio ficheiro em `js/` (mesmo nome) e o `css/styles.css` partilhado; a navegação entre páginas usa caminhos relativos dentro da própria pasta `pages/`.
 
+### Versão e comentários
+
+Cada ficheiro de código (`.js`, `.html`, `.css`, `supabase/schema.sql` e migrações) tem, no topo, um bloco com uma descrição curta, um número de versão e um histórico de alterações — atualizado manualmente sempre que esse ficheiro é editado de forma significativa. Dentro dos ficheiros maiores, comentários de secção (`// ---------- Nome ----------` em JS, `/* ---------- Nome ---------- */` em CSS) marcam os blocos de funcionalidade.
+
 ### Base de dados (Supabase / Postgres)
 
 Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`team_members`) — só quem for membro de uma equipa vê ou edita os dados dessa equipa:

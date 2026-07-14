@@ -2,6 +2,8 @@
 -- Corre isto uma vez no SQL Editor de um projeto já existente
 -- (depois de 007_orientacao.sql).
 --
+-- Versão: 1.0 (2026-07-10)
+--
 -- Cliques já existentes ficam todos marcados como 1ª parte.
 
 alter table events

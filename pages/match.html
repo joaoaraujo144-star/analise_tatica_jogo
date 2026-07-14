@@ -1,4 +1,23 @@
 <!DOCTYPE html>
+<!--
+  Análise de Jogo — pages/match.html
+  Página de um jogo específico: cronómetro de 1ª/2ª parte com orientação
+  de ataque, convocatória (Jogadores), Registo de Jogo (5 campos
+  clicáveis, por parte) e Relatórios (só deste jogo, com registo
+  normalizado ao terminar). Lógica em ../js/match.js.
+
+  Versão: 1.7 (2026-07-14)
+  Histórico:
+    1.0 (2026-07-08) — criação, ao separar o dashboard do login.
+    1.1 (2026-07-09) — cada jogo passa a ter esta página própria (fora do dashboard).
+    1.2 (2026-07-09) — ganha a tab Relatórios (só deste jogo).
+    1.3 (2026-07-10) — cronómetro de jogo (1ª/2ª parte) com bloqueio no fim.
+    1.4 (2026-07-10) — temporizador grande e seta de orientação do campo.
+    1.5 (2026-07-10) — Registo de Jogo passa a ser por parte (1ª/2ª separadas).
+    1.6 (2026-07-10) — registo normalizado de fim de jogo; tab Registo esconde-se
+                        ao terminar; edição só com o jogo a decorrer.
+    1.7 (2026-07-14) — movida de raiz para pages/, caminhos de css/js atualizados.
+-->
 <html lang="pt">
 <head>
 <meta charset="UTF-8">
@@ -12,6 +31,7 @@
 
   <div id="app-root">
 
+    <!-- Topo: equipa/jogo atual e navegação -->
     <div class="top-bar">
       <div class="match-indicator" id="team-indicator">Equipa</div>
       <div class="match-indicator" id="match-indicator">Jogo</div>
@@ -20,6 +40,7 @@
       <button class="action" id="btn-sign-out">Sair</button>
     </div>
 
+    <!-- Cronómetro de jogo (1ª/2ª parte) e orientação de ataque -->
     <div class="players-card" id="periodo-card">
       <div class="periodo-timer" id="periodo-timer">00:00</div>
       <div class="orientacao-row">
@@ -49,6 +70,7 @@
       <button class="tab-btn" data-tab="relatorios">Relatórios</button>
     </div>
 
+    <!-- Tab Jogadores: convocatória e estatísticas por jogador -->
     <div class="tab-panel" id="tab-jogadores">
       <p class="hint" id="jogadores-locked-hint" hidden>Jogo terminado — já não é possível fazer alterações.</p>
       <p class="hint" id="jogadores-paused-hint" hidden>O jogo não está a decorrer — só podes alterar quem está convocado e o Estado (Titular/Suplente). Cartões, assistências, golos e substituição só se editam com uma parte em curso.</p>
@@ -73,6 +95,7 @@
       </div>
     </div>
 
+    <!-- Tab Registo de Jogo: campos clicáveis, preenchidos via JS por initTracker() -->
     <div class="tab-panel" id="tab-registo" hidden>
       <p class="hint" id="registo-locked-hint" hidden>Jogo terminado — já não é possível fazer alterações.</p>
       <p class="hint" id="registo-paused-hint" hidden>O jogo não está a decorrer — só podes marcar novos pontos enquanto uma parte está em curso (podes continuar a usar "Desfazer último" / "Limpar tudo").</p>
@@ -81,6 +104,7 @@
       <div class="page" id="page"></div>
     </div>
 
+    <!-- Tab Relatórios: estatísticas deste jogo + registo normalizado (visível só no fim) -->
     <div class="tab-panel" id="tab-relatorios" hidden>
       <div class="players-card">
         <h2 class="tracker-title">Relatório deste Jogo</h2>

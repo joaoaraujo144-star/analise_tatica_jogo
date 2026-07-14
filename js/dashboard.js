@@ -1,3 +1,22 @@
+/**
+ * Análise de Jogo — dashboard.js
+ * Lógica do dashboard de uma equipa (pages/dashboard.html): tabs Jogos
+ * (criar/abrir/importar), Plantel (jogadores reutilizáveis da equipa) e
+ * Relatórios (totais agregados por jogador ao longo de todos os jogos).
+ *
+ * Versão: 1.8 (2026-07-14)
+ * Histórico:
+ *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
+ *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
+ *   1.2 (2026-07-08) — renomeado de app.js para dashboard.js.
+ *   1.3 (2026-07-08) — passa a filtrar tudo por equipa (team_id), com troca de equipa.
+ *   1.4 (2026-07-09) — separado o dashboard da página de um jogo específico (match.html).
+ *   1.5 (2026-07-09) — relatório agregado de todos os jogos passa a viver aqui (por jogo fica em match.html).
+ *   1.6 (2026-07-09) — a tab Plantel passa a viver aqui, em vez de dentro de cada jogo.
+ *   1.7 (2026-07-10) — relatório agregado passa a somar também o 2º cartão amarelo.
+ *   1.8 (2026-07-14) — movido de raiz para js/, sem alterações de lógica.
+ */
+
 import { supabase } from './supabase-client.js';
 
 const TRACKERS = [
@@ -14,6 +33,8 @@ let currentTeamId = localStorage.getItem('current_team_id') || null;
 let currentTeam = null;
 let matchesCache = [];
 let rosterCache = [];
+
+// ---------- Topo (indicador de equipa, sair, trocar de equipa) ----------
 
 function updateTeamIndicator() {
   el('team-indicator').textContent = currentTeam ? `Equipa: ${currentTeam.nome}` : 'Equipa';

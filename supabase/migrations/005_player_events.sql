@@ -1,6 +1,8 @@
 -- Análise de Jogo — migração incremental: histórico de ações por jogador
 -- Corre este script uma vez no SQL Editor do teu projeto Supabase.
 --
+-- Versão: 1.0 (2026-07-10)
+--
 -- Cada clique na convocatória (cartões, assistências, golos, estado,
 -- substituição) passa a ficar registado aqui com data/hora, além de
 -- atualizar os totais em match_players como já acontecia.

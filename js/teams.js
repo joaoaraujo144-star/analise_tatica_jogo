@@ -1,6 +1,21 @@
+/**
+ * Análise de Jogo — teams.js
+ * Lógica da página de equipas (pages/teams.html): listar, criar, entrar
+ * por código de convite, e editar nome/emblema das equipas do utilizador.
+ * Passo obrigatório entre o login e o dashboard de uma equipa.
+ *
+ * Versão: 1.2 (2026-07-14)
+ * Histórico:
+ *   1.0 (2026-07-08) — criação, com equipas partilháveis (join_code) e emblema.
+ *   1.1 (2026-07-09) — edição inline do nome e emblema em cada cartão de equipa.
+ *   1.2 (2026-07-14) — movido de raiz para js/, sem alterações de lógica.
+ */
+
 import { supabase } from './supabase-client.js';
 
 const el = (id) => document.getElementById(id);
+
+// ---------- Sessão e navegação ----------
 
 async function requireSession() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -13,6 +28,8 @@ function openTeam(teamId) {
   window.location.href = 'dashboard.html';
 }
 
+// ---------- Emblema / avatar de fallback ----------
+
 const AVATAR_COLORS = ['#e53935', '#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#00897b', '#c0ca33', '#5e35b1'];
 
 function colorForName(name) {
@@ -20,6 +37,8 @@ function colorForName(name) {
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
+
+// ---------- Listagem e edição de equipas ----------
 
 let editingTeamId = null;
 
@@ -138,6 +157,8 @@ function wireTeamGrid() {
   });
 }
 
+// ---------- Criar equipa ----------
+
 function wireCreateTeam() {
   el('team-logo').addEventListener('change', () => {
     const file = el('team-logo').files[0];
@@ -171,6 +192,8 @@ function wireCreateTeam() {
   });
 }
 
+// ---------- Juntar a uma equipa por código de convite ----------
+
 function wireJoinTeam() {
   el('btn-join-team').addEventListener('click', async () => {
     const code = el('team-code').value.trim();
@@ -193,6 +216,8 @@ function wireSignOut() {
     window.location.href = 'login.html';
   });
 }
+
+// ---------- Init ----------
 
 async function init() {
   const session = await requireSession();

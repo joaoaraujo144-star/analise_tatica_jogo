@@ -2,6 +2,21 @@
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
 -- todos os ficheiros em supabase/migrations/, do 001 ao 011.)
+--
+-- Versão: 1.10 (2026-07-14) — reflete sempre o estado final cumulativo,
+-- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
+-- Histórico:
+--   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
+--   1.1  (2026-07-08) — team_members e RLS por equipa (create_team, join_team_by_code).
+--   1.2  (2026-07-10) — substituicao: minuto numérico -> badge Saiu/Entrou.
+--   1.3  (2026-07-10) — segundo cartão amarelo (amarelo2).
+--   1.4  (2026-07-10) — tabela player_events (histórico de ações da convocatória).
+--   1.5  (2026-07-10) — matches ganha parte1_inicio/fim, parte2_inicio/fim.
+--   1.6  (2026-07-10) — matches ganha orientacao_parte1 (direção de ataque).
+--   1.7  (2026-07-10) — events ganha "parte" (Registo de Jogo por parte).
+--   1.8  (2026-07-10) — view events_normalizado (1ª+2ª parte combinadas).
+--   1.9  (2026-07-14) — events ganha "minuto"; tracker_id passa a aceitar "cruzamentos".
+--   1.10 (2026-07-14) — movido de raiz para supabase/schema.sql.
 
 create extension if not exists "pgcrypto";
 

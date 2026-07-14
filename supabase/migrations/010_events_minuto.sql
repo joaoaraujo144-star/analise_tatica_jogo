@@ -2,6 +2,8 @@
 -- parte em curso) em cada ponto marcado no Registo de Jogo.
 -- Corre isto uma vez no SQL Editor de um projeto já existente
 -- (depois de 009_events_normalizado.sql).
+--
+-- Versão: 1.0 (2026-07-14)
 
 alter table events
   add column if not exists minuto int;

@@ -3,6 +3,8 @@
 -- ataque, com base na orientação escolhida nas setas para cada parte).
 -- Corre isto uma vez no SQL Editor de um projeto já existente
 -- (depois de 008_events_parte.sql).
+--
+-- Versão: 1.0 (2026-07-10)
 
 create or replace view events_normalizado as
 select

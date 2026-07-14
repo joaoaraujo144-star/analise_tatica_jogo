@@ -1,3 +1,34 @@
+/**
+ * Análise de Jogo — match.js
+ * Lógica da página de um jogo específico (pages/match.html): cronómetro
+ * de 1ª/2ª parte com orientação de ataque, convocatória e estatísticas
+ * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
+ * normalizado de fim de jogo, e exportação CSV do jogo atual.
+ *
+ * Versão: 1.17 (2026-07-14)
+ * Histórico:
+ *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
+ *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
+ *   1.2  (2026-07-08) — renomeado de app.js para o nome atual.
+ *   1.3  (2026-07-08) — passa a filtrar tudo por equipa (team_id).
+ *   1.4  (2026-07-09) — separado do dashboard: cada jogo ganha a sua própria página.
+ *   1.5  (2026-07-09) — relatório fica só com os dados deste jogo (agregado vai para o dashboard).
+ *   1.6  (2026-07-09) — a tab Plantel sai daqui, passa a viver no dashboard da equipa.
+ *   1.7  (2026-07-10) — substituição passa de minuto numérico a badge Saiu/Entrou.
+ *   1.8  (2026-07-10) — segundo cartão amarelo, com vermelho automático.
+ *   1.9  (2026-07-10) — histórico de ações (player_events) e inclusão no CSV.
+ *   1.10 (2026-07-10) — cronómetro de jogo (1ª/2ª parte) com bloqueio de edição no fim.
+ *   1.11 (2026-07-10) — temporizador grande (minutos:segundos) da parte em curso.
+ *   1.12 (2026-07-10) — seta de orientação do campo (direção de ataque por parte).
+ *   1.13 (2026-07-10) — Registo de Jogo passa a ser por parte (1ª/2ª separadas).
+ *   1.14 (2026-07-10) — registo normalizado de fim de jogo, tab Registo esconde-se
+ *                        ao terminar, e edição só é possível com o jogo a decorrer.
+ *   1.15 (2026-07-14) — grava o minuto do jogo em cada ponto; "Perdas de Bola" passa
+ *                        a usar os rótulos Ganhos/Perdas.
+ *   1.16 (2026-07-14) — nova secção Cruzamentos no Registo de Jogo.
+ *   1.17 (2026-07-14) — movido de raiz para js/, sem alterações de lógica.
+ */
+
 import { supabase } from './supabase-client.js';
 
 const TRACKERS = [
@@ -234,6 +265,8 @@ function wirePeriodo() {
     el('normalizado-card').hidden = true;
   });
 }
+
+// ---------- Topo (equipa/jogo atual, sair, trocar de jogo/equipa) ----------
 
 function wireTopBar() {
   el('btn-sign-out').addEventListener('click', async () => {

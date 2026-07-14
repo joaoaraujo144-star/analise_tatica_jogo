@@ -1,6 +1,8 @@
 -- Análise de Jogo — migração incremental: emblema/símbolo da equipa
 -- Corre este script uma vez no SQL Editor do teu projeto Supabase (depois de já
 -- teres corrido o 001_teams.sql).
+--
+-- Versão: 1.0 (2026-07-08)
 
 alter table teams add column if not exists logo_url text;
 
