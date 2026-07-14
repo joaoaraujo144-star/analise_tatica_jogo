@@ -3,7 +3,7 @@ import { supabase } from './supabase-client.js';
 const TRACKERS = [
   { id: 'faltas', title: 'Faltas', xLabel: 'Realizadas', yLabel: 'Sofridas' },
   { id: 'cantos', title: 'Cantos', xLabel: 'A Favor', yLabel: 'Contra' },
-  { id: 'perdas', title: 'Perdas de Bola', xLabel: 'A Favor', yLabel: 'Contra' },
+  { id: 'perdas', title: 'Perdas de Bola', xLabel: 'Ganhos', yLabel: 'Perdas' },
   { id: 'remates', title: 'Remates', xLabel: 'A Favor', yLabel: 'Contra' },
 ];
 
@@ -57,6 +57,13 @@ function currentParte() {
 function isPeriodoRunning() {
   const m = currentMatch;
   return !!(m && ((m.parte1_inicio && !m.parte1_fim) || (m.parte2_inicio && !m.parte2_fim)));
+}
+
+function currentMinutoNoJogo() {
+  const m = currentMatch;
+  const start = currentParte() === 2 ? m.parte2_inicio : m.parte1_inicio;
+  if (!start) return null;
+  return Math.floor((Date.now() - new Date(start).getTime()) / 60000);
 }
 
 let periodoTimerInterval = null;
@@ -464,7 +471,7 @@ function buildTrackerSections() {
       <div class="log">
         <table>
           <thead>
-            <tr><th>#</th><th>Tipo</th><th>X (%)</th><th>Y (%)</th><th>Hora</th></tr>
+            <tr><th>#</th><th>Tipo</th><th>X (%)</th><th>Y (%)</th><th>Minuto</th><th>Hora</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -520,7 +527,8 @@ function initTracker(cfg, root) {
     clicks.forEach((c, i) => {
       const tr = document.createElement('tr');
       const hora = new Date(c.created_at).toLocaleTimeString('pt-PT');
-      tr.innerHTML = `<td>${i + 1}</td><td class="tipo-${c.tipo}">${c.tipo}</td><td>${c.x_pct}</td><td>${c.y_pct}</td><td>${hora}</td>`;
+      const minuto = c.minuto != null ? `${c.minuto}'` : '—';
+      tr.innerHTML = `<td>${i + 1}</td><td class="tipo-${c.tipo}">${c.tipo}</td><td>${c.x_pct}</td><td>${c.y_pct}</td><td>${minuto}</td><td>${hora}</td>`;
       logBody.appendChild(tr);
     });
     logBody.parentElement.parentElement.scrollTop = logBody.parentElement.parentElement.scrollHeight;
@@ -547,6 +555,7 @@ function initTracker(cfg, root) {
       match_id: currentMatchId,
       tracker_id: cfg.id,
       parte: currentParte(),
+      minuto: currentMinutoNoJogo(),
       tipo: mode,
       x_pct: Number(x_pct.toFixed(2)),
       y_pct: Number(y_pct.toFixed(2))
@@ -700,7 +709,7 @@ function wireDownloadSession() {
     for (const cfg of TRACKERS) {
       lines.push('');
       lines.push(`=== ${cfg.title.toUpperCase()} ===`);
-      lines.push(['Parte', 'Tipo', 'X (%)', 'Y (%)', 'Hora'].join(','));
+      lines.push(['Parte', 'Minuto', 'Tipo', 'X (%)', 'Y (%)', 'Hora'].join(','));
       const { data } = await supabase
         .from('events')
         .select('*')
@@ -709,7 +718,7 @@ function wireDownloadSession() {
         .order('created_at', { ascending: true });
       (data || []).forEach(c => {
         const hora = new Date(c.created_at).toLocaleTimeString('pt-PT');
-        lines.push([c.parte, c.tipo, c.x_pct, c.y_pct, csvField(hora)].join(','));
+        lines.push([c.parte, c.minuto ?? '', c.tipo, c.x_pct, c.y_pct, csvField(hora)].join(','));
       });
     }
 

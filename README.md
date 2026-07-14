@@ -16,7 +16,7 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/l
 - **Edição só com o jogo a decorrer**: enquanto nenhuma parte está em curso (antes de começar, no intervalo, ou depois de terminar uma parte), só é possível convocar/remover jogadores e mudar o Estado (Titular/Suplente) na tab Jogadores; cartões, assistências, golos, substituição e os cliques no Registo de Jogo ficam bloqueados até haver uma parte a decorrer.
 - **Orientação do campo**: uma seta clicável define a direção de ataque da equipa na 1ª parte; fica bloqueada assim que "Iniciar 1ª Parte" é premido e inverte automaticamente ao iniciar a 2ª parte. Fica guardada na base de dados (`matches.orientacao_parte1`).
 - **Jogadores** (dentro de um jogo): *Convocatória* — escolhe jogadores do plantel para o jogo atual, define Titular/Suplente, e regista por jogador: 2 cartões amarelos, cartão vermelho, assistências, golos e substituição (tudo clicável diretamente na tabela). Marcar os 2 cartões amarelos marca automaticamente o vermelho. O badge de substituição adapta-se ao Estado: um Titular só alterna entre `—` e `Saiu`; um Suplente só entre `—` e `Entrou`.
-- **Registo de Jogo**: 4 campos de futebol clicáveis — Faltas (Realizadas/Sofridas), Cantos, Perdas de Bola e Remates (A Favor/Contra) — cada clique marca um ponto no campo com o tipo selecionado. Atalhos de teclado `X`/`Y` trocam de modo no campo onde o rato está; clique direito ou Ctrl+clique desfaz o último ponto. **O registo é por parte**: ao iniciar a 2ª parte (ou ao "Recomeçar Jogo"), os campos mostram-se vazios como um novo registo, mas os pontos da 1ª parte não são apagados — voltam a aparecer ao regressar a essa parte. Só afeta esta tab; a convocatória em Jogadores mantém-se para o jogo todo.
+- **Registo de Jogo**: 4 campos de futebol clicáveis — Faltas (Realizadas/Sofridas), Cantos, Ganhos/Perdas de Bola e Remates (A Favor/Contra) — cada clique marca um ponto no campo com o tipo selecionado, com o minuto do jogo (relativo ao início da parte em curso) e a hora exata. Atalhos de teclado `X`/`Y` trocam de modo no campo onde o rato está; clique direito ou Ctrl+clique desfaz o último ponto. **O registo é por parte**: ao iniciar a 2ª parte (ou ao "Recomeçar Jogo"), os campos mostram-se vazios como um novo registo, mas os pontos da 1ª parte não são apagados — voltam a aparecer ao regressar a essa parte. Só afeta esta tab; a convocatória em Jogadores mantém-se para o jogo todo.
 - **Relatórios**, em dois níveis:
   - Na página de um jogo: estatísticas só dos convocados desse jogo. Quando o jogo termina, aparece também o **Registo de Jogo normalizado**: os pontos da 1ª e 2ª parte juntos, rodados 180º conforme a orientação de ataque de cada parte, para ficarem representados no mesmo sentido de ataque.
   - No dashboard da equipa: totais agregados por jogador (jogos, golos, assistências, cartões) ao longo de **todos** os jogos da equipa.
@@ -48,6 +48,7 @@ Site 100% estático (sem servidor próprio), hospedado no GitHub Pages, com [Sup
 | `supabase_schema_orientacao.sql` | Migração incremental que adicionou a orientação do campo (histórico; idem). |
 | `supabase_schema_events_parte.sql` | Migração incremental que separou o Registo de Jogo por parte (histórico; idem). |
 | `supabase_schema_events_normalizado.sql` | Migração incremental que criou a view do Registo de Jogo normalizado (histórico; idem). |
+| `supabase_schema_events_minuto.sql` | Migração incremental que adicionou o minuto do jogo a cada ponto do Registo de Jogo (histórico; idem). |
 | `faltas.html` | Redirecionamento automático para `login.html`, mantido só para não quebrar o link antigo que já tinha sido partilhado. |
 | `campo.png` / `campo.jpeg` | Imagem do campo de futebol usada nos 4 trackers (`campo.png` é a versão rodada para horizontal). |
 
@@ -60,7 +61,7 @@ Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`tea
 - **`players`** — plantel reutilizável de uma equipa (`numero`, `nome`).
 - **`matches`** — jogos de uma equipa (`adversario`, `data`, `parte1_inicio`, `parte1_fim`, `parte2_inicio`, `parte2_fim`, `orientacao_parte1`: `E-D` ou `D-E`).
 - **`match_players`** — convocatória e estatísticas de um jogador num jogo específico (`estado`, `amarelo`, `amarelo2`, `vermelho`, `assistencias`, `golo`, `substituicao`: vazio, `Saiu` ou `Entrou`).
-- **`events`** — cliques nos 4 campos (`tracker_id`, `parte`: 1 ou 2, `tipo`, `x_pct`, `y_pct`).
+- **`events`** — cliques nos 4 campos (`tracker_id`, `parte`: 1 ou 2, `minuto`, `tipo`, `x_pct`, `y_pct`).
 - **`player_events`** — histórico de cada ação clicada na convocatória (`tipo`, `valor`, `created_at`), um registo por clique.
 - **`events_normalizado`** — view sobre `events` que junta a 1ª e 2ª parte, rodando 180º os pontos da parte cuja orientação não é a de referência (`x_pct_normalizado`, `y_pct_normalizado`).
 
