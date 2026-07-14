@@ -2,7 +2,7 @@
 
 Ferramenta web para registar dados táticos de um jogo de futebol num campo clicável, gerir o plantel e a convocatória, e obter relatórios por jogador ao longo de vários jogos — organizada por equipas, partilhável com outras contas (ex: um adjunto).
 
-Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/login.html**
+Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/** (o link antigo `.../login.html` continua a funcionar, redireciona automaticamente).
 
 ## Funcionalidades
 
@@ -28,30 +28,36 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/l
 
 Site 100% estático (sem servidor próprio), hospedado no GitHub Pages, com [Supabase](https://supabase.com) (Postgres + Auth + Storage) como backend, acedido diretamente do browser via `@supabase/supabase-js` (importado de um CDN, sem build step).
 
-### Ficheiros
+### Estrutura de pastas
 
-| Ficheiro | Descrição |
-|---|---|
-| `login.html` / `login.js` | Página de login e registo de conta. |
-| `teams.html` / `teams.js` | Escolher, criar, entrar (por código de convite) ou editar uma equipa (nome + emblema). Passo obrigatório entre o login e o dashboard. |
-| `dashboard.html` / `dashboard.js` | Tabs "Jogos" (criar, abrir, importar dados locais), "Plantel" (lista de jogadores da equipa) e "Relatórios" (agregado de todos os jogos da equipa). |
-| `match.html` / `match.js` | Página de um jogo específico (aberto a partir do dashboard): tabs Jogadores (convocatória para este jogo), Registo de Jogo e Relatórios (só deste jogo), com botão "Trocar de jogo" para voltar ao dashboard. |
-| `supabase-client.js` | Inicializa o cliente Supabase (URL + chave pública) — partilhado por todas as páginas. |
-| `styles.css` | Estilos partilhados entre todas as páginas. |
-| `supabase_schema.sql` | Esquema completo (tabelas, RLS, funções, storage) — para configurar um projeto Supabase novo de raiz. |
-| `supabase_schema_teams.sql` | Migração incremental que introduziu as equipas (histórico; só necessária em projetos criados antes desta funcionalidade). |
-| `supabase_schema_team_logos.sql` | Migração incremental que introduziu o emblema da equipa (histórico; idem). |
-| `supabase_schema_substituicao.sql` | Migração incremental que trocou o minuto de substituição por um badge Saiu/Entrou (histórico; idem). |
-| `supabase_schema_amarelo2.sql` | Migração incremental que adicionou o segundo cartão amarelo (histórico; idem). |
-| `supabase_schema_player_events.sql` | Migração incremental que criou o histórico de ações por jogador (histórico; idem). |
-| `supabase_schema_partes.sql` | Migração incremental que adicionou o cronómetro de 1ª/2ª parte (histórico; idem). |
-| `supabase_schema_orientacao.sql` | Migração incremental que adicionou a orientação do campo (histórico; idem). |
-| `supabase_schema_events_parte.sql` | Migração incremental que separou o Registo de Jogo por parte (histórico; idem). |
-| `supabase_schema_events_normalizado.sql` | Migração incremental que criou a view do Registo de Jogo normalizado (histórico; idem). |
-| `supabase_schema_events_minuto.sql` | Migração incremental que adicionou o minuto do jogo a cada ponto do Registo de Jogo (histórico; idem). |
-| `supabase_schema_cruzamentos.sql` | Migração incremental que adicionou a secção Cruzamentos ao Registo de Jogo (histórico; idem). |
-| `faltas.html` | Redirecionamento automático para `login.html`, mantido só para não quebrar o link antigo que já tinha sido partilhado. |
-| `campo.png` / `campo.jpeg` | Imagem do campo de futebol usada nos 4 trackers (`campo.png` é a versão rodada para horizontal). |
+```
+index.html              → redireciona para pages/login.html (URL raiz do site)
+login.html               → redireciona para pages/login.html (mantém o link antigo)
+faltas.html               → redireciona para pages/login.html (link ainda mais antigo)
+pages/
+  login.html              Página de login e registo de conta.
+  teams.html              Escolher, criar, entrar (por código de convite) ou editar uma equipa.
+  dashboard.html          Tabs Jogos / Plantel / Relatórios (agregado) de uma equipa.
+  match.html              Página de um jogo: Jogadores, Registo de Jogo, Relatórios (só deste jogo).
+js/
+  supabase-client.js       Inicializa o cliente Supabase — partilhado por todas as páginas.
+  login.js, teams.js, dashboard.js, match.js   Lógica de cada página em pages/.
+css/
+  styles.css                Estilos partilhados entre todas as páginas.
+assets/
+  campo.png, campo.jpeg    Imagem do campo de futebol usada nos trackers (campo.png = horizontal).
+docs/
+  Ficha de analise-observação.pdf, coordenadas_X_O.csv   Ficheiros de referência anteriores ao site.
+supabase/
+  schema.sql                Esquema completo — para configurar um projeto Supabase novo de raiz.
+  migrations/               Migrações incrementais, por ordem (001 a 011) — só necessárias em
+                             projetos já existentes, correr uma vez cada uma, por esta ordem:
+                             001_teams, 002_team_logos, 003_substituicao, 004_amarelo2,
+                             005_player_events, 006_partes, 007_orientacao, 008_events_parte,
+                             009_events_normalizado, 010_events_minuto, 011_cruzamentos.
+```
+
+Cada página em `pages/` só referencia o seu próprio ficheiro em `js/` (mesmo nome) e o `css/styles.css` partilhado; a navegação entre páginas usa caminhos relativos dentro da própria pasta `pages/`.
 
 ### Base de dados (Supabase / Postgres)
 
@@ -68,15 +74,15 @@ Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`tea
 
 Criar/entrar numa equipa passa por duas funções Postgres (`create_team`, `join_team_by_code`) chamadas via RPC, que tratam a criação da equipa + associação do utilizador de forma atómica. Os emblemas ficam num bucket público do Supabase Storage (`team-logos`), com upload restrito a membros da equipa correspondente.
 
-Ver `supabase_schema.sql` para a definição completa.
+Ver `supabase/schema.sql` para a definição completa.
 
 ## Configurar um novo ambiente Supabase (do zero)
 
 1. Criar conta e projeto grátis em [supabase.com](https://supabase.com).
-2. **SQL Editor** → colar e correr o conteúdo de `supabase_schema.sql`.
+2. **SQL Editor** → colar e correr o conteúdo de `supabase/schema.sql`.
 3. **Authentication → Providers → Email** → confirmar que o provider está ativo e que "Allow new users to sign up" está ligado.
 4. **Authentication → Providers → Email** → desligar "Confirm email" (evita depender de emails de confirmação).
-5. **Settings → API** → copiar o *Project URL* e a *anon public key* e colar em `supabase-client.js` (a anon key é pública por definição — a segurança vem das políticas RLS, não de a esconder).
+5. **Settings → API** → copiar o *Project URL* e a *anon public key* e colar em `js/supabase-client.js` (a anon key é pública por definição — a segurança vem das políticas RLS, não de a esconder).
 
 ## Desenvolvimento local
 
@@ -86,7 +92,7 @@ Como a app faz pedidos `fetch` ao Supabase, precisa de ser servida por `http://`
 python3 -m http.server 8765
 ```
 
-e abrir `http://localhost:8765/login.html`.
+e abrir `http://localhost:8765/` (redireciona para `pages/login.html`).
 
 ## Publicação
 

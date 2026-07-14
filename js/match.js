@@ -463,7 +463,7 @@ function buildTrackerSections() {
         <div class="counter y"><span class="num" data-count="Y">0</span>${cfg.yLabel}</div>
       </div>
       <div class="field-wrap">
-        <img src="campo.png" alt="Campo de futebol" class="field-img" draggable="false">
+        <img src="../assets/campo.png" alt="Campo de futebol" class="field-img" draggable="false">
       </div>
       <div class="actions">
         <button class="action" data-action="undo">Desfazer último</button>
@@ -647,7 +647,7 @@ function buildNormalizadoSections() {
         <div class="counter y"><span class="num" data-count="Y">0</span>${cfg.yLabel}</div>
       </div>
       <div class="field-wrap">
-        <img src="campo.png" alt="Campo de futebol" class="field-img" draggable="false">
+        <img src="../assets/campo.png" alt="Campo de futebol" class="field-img" draggable="false">
       </div>
     `;
     page.appendChild(section);

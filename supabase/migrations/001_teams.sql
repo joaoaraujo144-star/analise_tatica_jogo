@@ -1,6 +1,6 @@
 -- Análise de Jogo — migração incremental: equipas partilháveis
 -- Corre este script uma vez no SQL Editor do teu projeto Supabase (depois de já teres
--- corrido o supabase_schema.sql original).
+-- corrido o supabase/schema.sql original).
 --
 -- AVISO: este script APAGA todos os jogadores, jogos, convocatórias e cliques nos campos
 -- que já existam (não têm equipa associada e o dono confirmou que podem ser descartados).

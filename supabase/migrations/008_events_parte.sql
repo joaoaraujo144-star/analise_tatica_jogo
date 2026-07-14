@@ -1,6 +1,6 @@
 -- Migração incremental: registo de jogo (campos clicáveis) passa a ser por parte
 -- Corre isto uma vez no SQL Editor de um projeto já existente
--- (depois de supabase_schema_orientacao.sql).
+-- (depois de 007_orientacao.sql).
 --
 -- Cliques já existentes ficam todos marcados como 1ª parte.
 

@@ -1,7 +1,7 @@
 -- Migração incremental: guarda o minuto do jogo (relativo ao início da
 -- parte em curso) em cada ponto marcado no Registo de Jogo.
 -- Corre isto uma vez no SQL Editor de um projeto já existente
--- (depois de supabase_schema_events_normalizado.sql).
+-- (depois de 009_events_normalizado.sql).
 
 alter table events
   add column if not exists minuto int;

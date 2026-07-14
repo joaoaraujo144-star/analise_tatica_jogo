@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Análise de Jogo</title>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="../css/styles.css">
 </head>
 <body>
 
@@ -95,7 +95,7 @@
       <div class="players-card" id="normalizado-card" hidden>
         <h2 class="tracker-title">Registo de Jogo — 1ª + 2ª Parte Normalizado</h2>
         <p class="hint">Junta os pontos das duas partes no mesmo sentido de ataque: os pontos da parte que atacou "ao contrário" (segundo a orientação definida nas setas) são rodados 180º antes de se juntarem aos da outra parte.</p>
-        <p class="hint" id="normalizado-error" hidden>Não foi possível carregar os dados normalizados. Confirma que a migração <code>supabase_schema_events_normalizado.sql</code> foi corrida (incluindo o <code>notify pgrst, 'reload schema';</code> no fim).</p>
+        <p class="hint" id="normalizado-error" hidden>Não foi possível carregar os dados normalizados. Confirma que a migração <code>supabase/migrations/009_events_normalizado.sql</code> foi corrida (incluindo o <code>notify pgrst, 'reload schema';</code> no fim).</p>
         <div class="page" id="normalizado-page"></div>
       </div>
     </div>
@@ -106,6 +106,6 @@
 
   </div>
 
-<script type="module" src="match.js"></script>
+<script type="module" src="../js/match.js"></script>
 </body>
 </html>

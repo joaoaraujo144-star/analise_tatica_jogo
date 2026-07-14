@@ -2,7 +2,7 @@
 -- (1ª + 2ª parte juntas, rodadas 180º para ficarem no mesmo sentido de
 -- ataque, com base na orientação escolhida nas setas para cada parte).
 -- Corre isto uma vez no SQL Editor de um projeto já existente
--- (depois de supabase_schema_events_parte.sql e supabase_schema_orientacao.sql).
+-- (depois de 008_events_parte.sql).
 
 create or replace view events_normalizado as
 select

@@ -1,12 +1,7 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- supabase_schema_teams.sql, supabase_schema_team_logos.sql,
--- supabase_schema_substituicao.sql, supabase_schema_amarelo2.sql,
--- supabase_schema_player_events.sql, supabase_schema_partes.sql,
--- supabase_schema_orientacao.sql, supabase_schema_events_parte.sql,
--- supabase_schema_events_normalizado.sql, supabase_schema_events_minuto.sql
--- e supabase_schema_cruzamentos.sql.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 011.)
 
 create extension if not exists "pgcrypto";
 
