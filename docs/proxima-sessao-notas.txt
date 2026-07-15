@@ -1,0 +1,56 @@
+Análise de Jogo — notas para a próxima sessão
+Escrito em: 2026-07-15
+
+Isto não é documentação da app (essa está em README.md / docs/architecture.md /
+supabase/data-model.md, sempre atualizada a cada alteração). É só um ponto de
+partida informal para retomar a conversa.
+
+=== Feito nesta sessão (contexto rápido) ===
+- Mapa de calor por zonas no Registo de Jogo normalizado: grelha 6x4 calculada
+  em SQL (events_normalizado.zona_col/zona_row), toggle Pontos/Mapa de Calor,
+  e separado por tipo X/Y (ex: Ganhos/Perdas) para não misturar tacticamente.
+- Exportação do relatório em PDF (botão "Exportar relatório (PDF)" na tab
+  Relatórios) via window.print() + folha @media print — sem dependências
+  novas. Mostra sempre os dois mapas de calor (X e Y) lado a lado por campo,
+  já corrigido o problema do campo cortar a meio entre páginas.
+
+=== Em aberto — análises de dados por fazer ===
+1. Gráficos de tendência dos últimos 5 jogos (mencionado nesta sessão, ainda
+   por desenhar). Precisa de decidir: que métricas mostrar (golos, cantos,
+   perdas/ganhos de bola, etc.), e que tipo de gráfico (linha simples? sem
+   nova dependência, dá para fazer com <canvas> à mão para poucos pontos, ou
+   vale a pena trazer uma lib leve tipo Chart.js via CDN).
+2. Timeline do jogo — juntar os cliques do Registo de Jogo com os eventos de
+   player_events (cartões, golos, substituições), tudo ordenado por minuto,
+   para ver a "história" do jogo numa linha do tempo. Ideia levantada antes,
+   nunca chegámos a desenhar os detalhes.
+3. Análise de disciplina por jogador ao longo da época (cartões acumulados,
+   por jogo/época) — mencionada como possível próximo passo, não iniciada.
+
+=== Em aberto — outros temas ===
+- Ligação a fontes de dados externas (Metrica Sports, e possivelmente
+  Python/pandas, Power BI ou Tableau ligados diretamente ao Postgres do
+  Supabase): o utilizador confirmou que vai precisar disto mais à frente,
+  mas decidiu explicitamente adiar ("ainda não é o momento, vamos trabalhar
+  ainda na análise e de gráficos diferentes e depois montamos isso").
+  Decisão já tomada: isto fica como ferramenta paralela/offline, NÃO faz
+  parte da app em si (que continua sem backend próprio).
+- Exportação PDF mais avançada (jsPDF + html2canvas via CDN): só vale a pena
+  quando o relatório tiver vários gráficos diferentes para juntar num
+  documento com mais controlo de layout — o window.print() atual chega
+  perfeitamente enquanto for só o mapa de calor.
+- Performance: nada preocupante agora (índices já cobrem as colunas
+  usadas por RLS/filtros). Único ponto a vigiar daqui a uns anos, se uma
+  equipa acumular muitos jogos: paginar/limitar por época a query agregada
+  de "Relatórios da equipa" no dashboard, que hoje carrega todos os jogos
+  de uma vez.
+- Housekeeping menor: existe um ficheiro de plano antigo em
+  ~/.claude/plans/snoopy-sprouting-sifakis.md sobre "adicionar equipas
+  multi-equipa" — pelo esquema atual (teams/team_members já existem e têm
+  RLS), esse trabalho já parece estar feito; o plano pode ser arquivado/
+  ignorado da próxima vez que aparecer.
+
+=== Como retomar ===
+Basta abrir a conversa e dizer, por exemplo, "vamos continuar as análises,
+começa pelos gráficos de tendência" ou apontar para qualquer um dos pontos
+acima.
