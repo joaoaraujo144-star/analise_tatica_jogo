@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.20 (2026-07-15)
+ * Versão: 1.22 (2026-07-15)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -36,6 +36,11 @@
  *   1.20 (2026-07-15) — mapa de calor por zonas (grelha 6×4) no registo normalizado,
  *                        com toggle Pontos/Mapa de Calor e separado por tipo (X/Y) por
  *                        campo; a zona de cada ponto vem da view events_normalizado.
+ *   1.21 (2026-07-15) — botão "Exportar relatório (PDF)" na tab Relatórios: força a
+ *                        vista de Mapa de Calor em todos os campos e abre a impressão
+ *                        do browser (guardar como PDF), via folha de estilo @media print.
+ *   1.22 (2026-07-15) — o PDF passa a mostrar sempre os dois mapas de calor (X e Y)
+ *                        lado a lado por campo, em vez de só o tipo selecionado no ecrã.
  */
 
 import { supabase } from './supabase-client.js';
@@ -839,9 +844,25 @@ function buildNormalizadoSections() {
         <div class="counter x"><span class="num" data-count="X">0</span>${cfg.xLabel}</div>
         <div class="counter y"><span class="num" data-count="Y">0</span>${cfg.yLabel}</div>
       </div>
-      <div class="field-wrap">
+      <div class="field-wrap screen-field">
         <img src="../assets/campo.png" alt="Campo de futebol" class="field-img" draggable="false">
         <div class="heat-grid" hidden></div>
+      </div>
+      <div class="print-heat-pair">
+        <div class="print-heat-col">
+          <p class="print-heat-label">${cfg.xLabel}</p>
+          <div class="field-wrap">
+            <img src="../assets/campo.png" alt="Campo de futebol" class="field-img" draggable="false">
+            <div class="heat-grid print-heat-grid" data-tipo="X"></div>
+          </div>
+        </div>
+        <div class="print-heat-col">
+          <p class="print-heat-label">${cfg.yLabel}</p>
+          <div class="field-wrap">
+            <img src="../assets/campo.png" alt="Campo de futebol" class="field-img" draggable="false">
+            <div class="heat-grid print-heat-grid" data-tipo="Y"></div>
+          </div>
+        </div>
       </div>
       <div class="log">
         <table>
@@ -1003,6 +1024,30 @@ function wireDownloadSession() {
   });
 }
 
+// ---------- Exportar relatório (PDF via impressão do browser) ----------
+
+// Antes de imprimir, preenche os dois mapas de calor (X e Y) de cada
+// secção do registo normalizado — independente do que estiver escolhido
+// no ecrã, porque misturar tipos (ex: Ganhos e Perdas) no mesmo mapa não
+// faz sentido, mas o PDF deve mostrar sempre os dois lado a lado.
+function prepareReportForPrint() {
+  document.querySelectorAll('#normalizado-page section.tracker').forEach(section => {
+    const points = normalizadoPointsCache[section.dataset.tracker] || [];
+    ['X', 'Y'].forEach(tipo => {
+      const grid = section.querySelector(`.print-heat-grid[data-tipo="${tipo}"]`);
+      if (!grid) return;
+      renderHeatGrid(grid, buildHeatGrid(points.filter(p => p.tipo === tipo)));
+    });
+  });
+}
+
+function wirePrintReport() {
+  el('btn-print-report').addEventListener('click', () => {
+    prepareReportForPrint();
+    window.print();
+  });
+}
+
 // ---------- Init ----------
 
 async function init() {
@@ -1036,6 +1081,7 @@ async function init() {
   wireConvocatoria();
   buildTrackerSections();
   wireDownloadSession();
+  wirePrintReport();
   applyLockState();
 
   supabase.auth.onAuthStateChange((_event, newSession) => {

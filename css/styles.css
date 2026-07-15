@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match).
  *
- * Versão: 1.9 (2026-07-15)
+ * Versão: 1.12 (2026-07-15)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -14,6 +14,9 @@
  *   1.7 (2026-07-14) — movido de raiz para css/, sem alterações de lógica.
  *   1.8 (2026-07-15) — popup de escolha de jogador após o clique, e select de jogador na tabela de log.
  *   1.9 (2026-07-15) — mapa de calor por zonas no registo normalizado.
+ *   1.10 (2026-07-15) — folha de estilo @media print para exportar o relatório em PDF.
+ *   1.11 (2026-07-15) — corrige o campo a ser cortado a meio entre páginas na impressão.
+ *   1.12 (2026-07-15) — o PDF mostra os dois mapas de calor (X e Y) lado a lado por campo.
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -154,6 +157,12 @@ h2.tracker-title {
   border: 1px solid rgba(255, 255, 255, 0.04);
   transition: background 0.2s ease;
 }
+
+/* Par de mapas de calor (X e Y) só usado no PDF exportado — em ecrã fica
+   sempre escondido, o campo interativo (.screen-field) é que se vê. */
+.print-heat-pair { display: none; }
+.print-heat-col { flex: 1; min-width: 0; }
+.print-heat-label { text-align: center; font-weight: bold; margin: 4px 0; }
 
 .actions {
   display: flex;
@@ -461,6 +470,14 @@ button.action.active { background: #263b5c; border-color: #4a7fd6; }
   padding-bottom: 10px;
 }
 
+.relatorios-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
 /* ---------- Login / registo de conta ---------- */
 
 .auth-card {
@@ -599,3 +616,72 @@ button.action.active { background: #263b5c; border-color: #4a7fd6; }
 .periodo-pill.part-2 .periodo-slider { transform: translateX(100%); background: #1e5c2f; }
 .periodo-pill.part-1 .periodo-option[data-part="1"],
 .periodo-pill.part-2 .periodo-option[data-part="2"] { color: #fff; }
+
+/* ---------- Impressão (botão "Exportar relatório (PDF)") ---------- */
+
+/* Só a tab Relatórios sai no PDF: escondemos tudo o resto (mesmo que
+   esteja visível no ecrã) e forçamos a tab Relatórios a mostrar-se mesmo
+   que não seja a que está ativa no momento (usa o atributo "hidden"). */
+@media print {
+  .top-bar, #periodo-card, .tabs, #tab-jogadores, #tab-registo,
+  .footer-actions, .relatorios-actions, .toolbar {
+    display: none !important;
+  }
+  #tab-relatorios, #normalizado-card {
+    display: block !important;
+  }
+  body { background: #fff; color: #000; padding: 0; gap: 12px; }
+  h1.page-title, h2.tracker-title { color: #000; }
+  .hint { color: #444; }
+  /* display: grid não pagina bem na impressão (colunas lado a lado
+     confundem a quebra de página) — cada campo passa a ficar em bloco,
+     um por baixo do outro. */
+  .page { display: block; }
+  .players-card {
+    background: #fff;
+    border-color: #ccc;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .tracker {
+    background: #fff;
+    border-color: #ccc;
+    margin-bottom: 20px;
+  }
+  /* O campo interativo (com o toggle Pontos/Mapa de Calor) não sai no
+     PDF — em vez dele mostra-se sempre o par X/Y (.print-heat-pair),
+     para nunca faltar nenhum dos dois tipos no documento exportado. */
+  .screen-field { display: none !important; }
+  .print-heat-pair {
+    display: flex !important;
+    gap: 16px;
+    margin-top: 8px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* Só o campo/mapa de calor em si não pode ser cortado a meio — título,
+     contadores e tabela de log (mais compridos que uma página, com muitos
+     jogos) podem continuar na página seguinte sem problema. */
+  .field-wrap {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .tracker-title, .counters {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  .log tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* O mapa de calor usa cor de fundo (rgba) para mostrar intensidade —
+     por omissão, os browsers não imprimem cores de fundo. */
+  .heat-cell, .field-wrap {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .players-table th, .players-table td { border-color: #ccc; }
+  .players-table th { color: #666; }
+  .log th, .log td { border-color: #ccc; }
+  .log th { color: #666; }
+}

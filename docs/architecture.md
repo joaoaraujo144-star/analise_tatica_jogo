@@ -9,11 +9,12 @@
   (tabelas/colunas), ver supabase/data-model.md; para funcionalidades e
   setup, ver o README.md.
 
-  Versão: 1.2 (2026-07-15)
+  Versão: 1.3 (2026-07-15)
   Histórico:
     1.0 (2026-07-14) — criação.
     1.1 (2026-07-15) — popup de escolha de jogador após o clique, no Registo de Jogo.
     1.2 (2026-07-15) — mapa de calor por zonas (zona calculada em SQL, não no browser).
+    1.3 (2026-07-15) — exportação do relatório em PDF via impressão do browser.
 -->
 
 # Arquitetura — Análise de Jogo
@@ -104,6 +105,7 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 - **Exportação CSV**: `wireDownloadSession()` em `js/match.js` gera um único ficheiro com várias secções (`=== NOME ===`), uma por tabela relevante — sem dependências externas, só `Blob` + `URL.createObjectURL`.
 - **Popup pós-clique (jogador)**: depois de marcar um ponto no Registo de Jogo, `showJogadorPopup()` (`js/match.js`) mostra um popup junto ao clique, para (opcionalmente) dizer quem fez a ação — sem bloquear o registo em si, que já foi gravado antes do popup aparecer. A lista de jogadores é filtrada por `onFieldMatchPlayers()` (titulares que não saíram + suplentes que já entraram, com fallback para todos os convocados se essa lista estiver vazia), mostrados só pelo número da camisola, para caber ~11 opções num popup pequeno sem ficar visualmente pesado. Fecha ao tocar num número, ao clicar fora, ou automaticamente ao início do clique seguinte (o novo `pointerdown` fecha o popup antigo antes do novo `click` disparar). Um clique sem jogador escolhido fica com `player_id` a `null`, e pode ser corrigido depois na tabela de registo (ao vivo) ou no registo normalizado (pós-jogo).
 - **Mapa de calor por zonas**: a "zona" (grelha 6×4) de cada ponto é calculada em SQL, como colunas `zona_col`/`zona_row` da view `events_normalizado` (ver `supabase/migrations/013_events_zona.sql`) — não no browser — para essa definição viver num único sítio e poder ser consultada diretamente por SQL ou outras ferramentas no futuro, sem reimplementar a lógica de "binning". `buildHeatGrid()`/`renderHeatGrid()` (`js/match.js`) só agregam essas colunas já calculadas numa grelha visual; os nomes `HEATMAP_COLS`/`HEATMAP_ROWS` em JS têm de ficar sincronizados com os `6`/`4` hardcoded na view SQL. Cada secção do registo normalizado tem um toggle Pontos/Mapa de Calor, e — só na vista de mapa de calor — um segundo toggle para escolher o tipo (X/Y, ex: "A Favor"/"Contra"), porque misturar os dois tipos no mesmo mapa não faz sentido tacticamente. `normalizadoPointsCache` guarda os pontos já filtrados por tracker, para trocar de vista/tipo sem nova consulta ao Supabase.
+- **Exportação do relatório em PDF**: o botão "Exportar relatório (PDF)" chama `window.print()` — sem nenhuma dependência nova (`jsPDF`/`html2canvas` ficam como opção futura só se o relatório crescer para vários tipos de gráfico). Uma folha `@media print` em `css/styles.css` esconde tudo exceto a tab Relatórios (mesmo que não seja a tab ativa no momento, via `display: block !important` a sobrepor o atributo `hidden`). Cada secção do registo normalizado tem, em paralelo ao campo interativo (`.screen-field`, escondido na impressão), uma estrutura só para impressão (`.print-heat-pair`, escondida no ecrã) com **os dois mapas de calor sempre lado a lado** (X e Y) — preenchida por `prepareReportForPrint()` a partir do `normalizadoPointsCache`, independentemente do toggle X/Y escolhido no ecrã, porque o documento exportado não deve depender de um estado efémero da UI. `.field-wrap` tem `break-inside: avoid` para não cortar a imagem do campo a meio entre páginas; a tabela de log pode continuar naturalmente na página seguinte.
 
 ## Onde encontrar cada coisa
 

@@ -6,7 +6,7 @@
   clicáveis, por parte) e Relatórios (só deste jogo, com registo
   normalizado ao terminar). Lógica em ../js/match.js.
 
-  Versão: 1.8 (2026-07-15)
+  Versão: 1.9 (2026-07-15)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-09) — cada jogo passa a ter esta página própria (fora do dashboard).
@@ -18,6 +18,7 @@
                         ao terminar; edição só com o jogo a decorrer.
     1.7 (2026-07-14) — movida de raiz para pages/, caminhos de css/js atualizados.
     1.8 (2026-07-15) — popup opcional para escolher o jogador logo a seguir a cada clique no Registo de Jogo.
+    1.9 (2026-07-15) — botão "Exportar relatório (PDF)" na tab Relatórios (via impressão do browser).
 -->
 <html lang="pt">
 <head>
@@ -107,6 +108,10 @@
 
     <!-- Tab Relatórios: estatísticas deste jogo + registo normalizado (visível só no fim) -->
     <div class="tab-panel" id="tab-relatorios" hidden>
+      <div class="relatorios-actions">
+        <button class="action" id="btn-print-report">Exportar relatório (PDF)</button>
+        <p class="hint">Abre a vista de impressão do browser — escolhe "Guardar como PDF" no destino. O mapa de calor de cada campo é usado automaticamente.</p>
+      </div>
       <div class="players-card">
         <h2 class="tracker-title">Relatório deste Jogo</h2>
         <p class="hint">Estatísticas dos jogadores convocados só para este jogo.</p>
