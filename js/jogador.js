@@ -4,13 +4,17 @@
  * primeiro login (nome + data de nascimento) e preencher o questionário de
  * wellness do dia (ou mostrar o resumo, se já tiver respondido hoje).
  *
- * Versão: 1.2 (2026-08-05)
+ * Versão: 1.4 (2026-08-05)
  * Histórico:
  *   1.0 (2026-08-05) — criação.
  *   1.1 (2026-08-05) — cor no valor de cada pergunta (1-4 vermelho, 5-7 amarelo,
  *                       8-10 verde), no slider e no resumo de "já respondeste hoje".
  *   1.2 (2026-08-05) — a cor passa também para a bolinha (thumb) do slider, não só
  *                       para o número ao lado.
+ *   1.3 (2026-08-05) — dores/stress/fadiga passam a escala invertida (1-4 verde,
+ *                       5-7 amarelo, 8-10 vermelho — valor baixo é bom); sono mantém
+ *                       a leitura direta.
+ *   1.4 (2026-08-05) — sono passa também a escala invertida, como as outras três.
  */
 
 import { supabase } from './supabase-client.js';
@@ -19,8 +23,15 @@ const el = (id) => document.getElementById(id);
 
 let currentPlayer = null;
 
-const WELLNESS_FIELDS = ['dores', 'stress', 'fadiga', 'sono'];
-const WELLNESS_LABELS = { dores: 'Dores musculares', stress: 'Stress', fadiga: 'Fadiga', sono: 'Sono' };
+// Em todas, valor baixo é bom (pouca dor/stress/fadiga, sono "muito bom")
+// — verde no nível baixo, vermelho no alto ("invertido" em relação à
+// leitura direta do número).
+const WELLNESS_FIELDS = [
+  { id: 'dores', key: 'dores_musculares', label: 'Dores musculares', invertido: true },
+  { id: 'stress', key: 'stress', label: 'Stress', invertido: true },
+  { id: 'fadiga', key: 'fadiga', label: 'Fadiga', invertido: true },
+  { id: 'sono', key: 'sono', label: 'Sono', invertido: true },
+];
 
 function wireSignOut() {
   el('btn-sign-out').addEventListener('click', async () => {
@@ -29,19 +40,22 @@ function wireSignOut() {
   });
 }
 
-// 1-4 vermelho, 5-7 amarelo, 8-10 verde (0 conta como o nível mais baixo).
-function wellnessColorClass(value) {
-  if (value <= 4) return 'wellness-val-red';
-  if (value <= 7) return 'wellness-val-yellow';
-  return 'wellness-val-green';
+// 1-4 / 5-7 / 8-10 (0 conta como o nível mais baixo); a ordem das cores
+// inverte-se consoante "invertido" (ver WELLNESS_FIELDS acima).
+function wellnessColorClass(value, invertido) {
+  const nivel = value <= 4 ? 0 : value <= 7 ? 1 : 2;
+  const escala = invertido
+    ? ['wellness-val-green', 'wellness-val-yellow', 'wellness-val-red']
+    : ['wellness-val-red', 'wellness-val-yellow', 'wellness-val-green'];
+  return escala[nivel];
 }
 
 function wireWellnessSliders() {
-  WELLNESS_FIELDS.forEach(field => {
-    const input = el(`w-${field}`);
-    const value = el(`w-${field}-value`);
+  WELLNESS_FIELDS.forEach(({ id, invertido }) => {
+    const input = el(`w-${id}`);
+    const value = el(`w-${id}-value`);
     const update = () => {
-      const colorClass = wellnessColorClass(Number(input.value));
+      const colorClass = wellnessColorClass(Number(input.value), invertido);
       value.textContent = input.value;
       value.className = colorClass;
       input.className = colorClass;
@@ -89,7 +103,7 @@ function wireWellnessForm() {
   el('btn-enviar-wellness').addEventListener('click', async () => {
     el('wellness-error').textContent = '';
     const values = {};
-    WELLNESS_FIELDS.forEach(field => { values[field] = Number(el(`w-${field}`).value); });
+    WELLNESS_FIELDS.forEach(({ id }) => { values[id] = Number(el(`w-${id}`).value); });
 
     const { data, error } = await supabase.rpc('submit_wellness', {
       p_dores_musculares: values.dores,
@@ -104,17 +118,14 @@ function wireWellnessForm() {
   });
 }
 
-function summaryRow(label, value) {
-  return `<div class="wellness-summary-row"><span>${label}</span><b class="${wellnessColorClass(value)}">${value}/10</b></div>`;
+function summaryRow(label, value, invertido) {
+  return `<div class="wellness-summary-row"><span>${label}</span><b class="${wellnessColorClass(value, invertido)}">${value}/10</b></div>`;
 }
 
 function showWellnessDone(response) {
-  el('wellness-summary').innerHTML = [
-    summaryRow(WELLNESS_LABELS.dores, response.dores_musculares),
-    summaryRow(WELLNESS_LABELS.stress, response.stress),
-    summaryRow(WELLNESS_LABELS.fadiga, response.fadiga),
-    summaryRow(WELLNESS_LABELS.sono, response.sono),
-  ].join('');
+  el('wellness-summary').innerHTML = WELLNESS_FIELDS
+    .map(({ key, label, invertido }) => summaryRow(label, response[key], invertido))
+    .join('');
   el('wellness-done-card').hidden = false;
 }
 
