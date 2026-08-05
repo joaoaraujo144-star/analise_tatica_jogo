@@ -11,6 +11,8 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/*
   - Cada equipa tem um nome e um emblema (upload de imagem, ou um avatar colorido gerado automaticamente se não houver imagem), editáveis a qualquer momento diretamente no cartão da equipa.
   - **Partilhável por código de convite**: cada equipa tem um código único; quem tiver o código pode juntar-se e passa a ver e editar os mesmos dados dessa equipa.
 - **Plantel**: tab no dashboard da equipa — lista reutilizável de jogadores (Nº + Nome), gerida uma única vez e partilhada por todos os jogos da equipa.
+  - **Login do jogador (opcional)**: o treinador pode criar um acesso próprio para cada jogador diretamente nesta tab ("Criar login") — só define a palavra-passe; o "utilizador" (formato de email, ex: `joao-silva-x7k9@jogador.app`) é gerado automaticamente a partir do nome, e o jogador nunca precisa de ter esse email real. O jogador passa a poder entrar sozinho, mas só vê uma página própria (`jogador.html`) com o questionário de wellness, nunca o resto da equipa.
+- **Wellness**: tab no dashboard da equipa com a resposta de hoje de cada jogador — dores musculares, stress, fadiga e sono (0-10), ou ❌ se ainda não respondeu. Cada jogador só pode responder uma vez por dia, na própria conta; no primeiro login, completa o perfil (nome + data de nascimento) antes do primeiro questionário.
 - **Jogos**: dentro de uma equipa, cria e guarda um histórico de jogos (adversário + data). Abrir um jogo leva à sua própria página, com três tabs só disponíveis aí (Jogadores, Registo de Jogo, Relatórios) e um botão "Trocar de jogo" para voltar à lista.
 - **Cronómetro do jogo**: botões "Iniciar 1ª Parte", "Finalizar Parte" e "Iniciar 2ª Parte" (cada um grava a hora exata), um indicador visual (slide) da parte atual, um temporizador grande em minutos:segundos que conta a partir do início da parte em curso, e "Recomeçar Jogo" para limpar o cronómetro sem apagar dados. Quando a 2ª parte termina, a tab Registo de Jogo desaparece (troca automaticamente para Relatórios se estiver aberta) e a tab Jogadores fica bloqueada, só de leitura.
 - **Edição só com o jogo a decorrer**: enquanto nenhuma parte está em curso (antes de começar, no intervalo, ou depois de terminar uma parte), só é possível convocar/remover jogadores e mudar o Estado (Titular/Suplente) na tab Jogadores; cartões, assistências, golos, substituição e os cliques no Registo de Jogo ficam bloqueados até haver uma parte a decorrer.
@@ -38,29 +40,36 @@ index.html              → redireciona para pages/login.html (URL raiz do site)
 login.html               → redireciona para pages/login.html (mantém o link antigo)
 faltas.html               → redireciona para pages/login.html (link ainda mais antigo)
 pages/
-  login.html              Página de login e registo de conta.
+  login.html              Página de login e registo de conta (treinador) — jogadores também entram
+                           aqui, mas são redirecionados para jogador.html.
   teams.html              Escolher, criar, entrar (por código de convite) ou editar uma equipa.
-  dashboard.html          Tabs Jogos / Plantel / Relatórios (agregado) de uma equipa.
+  dashboard.html          Tabs Jogos / Plantel / Wellness / Relatórios (agregado) de uma equipa.
   match.html              Página de um jogo: Jogadores, Registo de Jogo, Relatórios (só deste jogo).
+  jogador.html            Página do jogador (login criado pelo treinador): perfil + questionário
+                           de wellness diário — nunca vê o resto da equipa.
 js/
   supabase-client.js       Inicializa o cliente Supabase — partilhado por todas as páginas.
-  login.js, teams.js, dashboard.js, match.js   Lógica de cada página em pages/.
+  login.js, teams.js, dashboard.js, match.js, jogador.js   Lógica de cada página em pages/.
 css/
   styles.css                Estilos partilhados entre todas as páginas.
 assets/
   campo.png, campo.jpeg    Imagem do campo de futebol usada nos trackers (campo.png = horizontal).
 docs/
   architecture.md            Arquitetura: navegação, sessão, localStorage, modelo de segurança.
+  proxima-sessao-notas.txt   Notas informais de continuidade (não é documentação da app).
   Ficha de analise-observação.pdf, coordenadas_X_O.csv   Ficheiros de referência anteriores ao site.
 supabase/
   schema.sql                Esquema completo — para configurar um projeto Supabase novo de raiz.
   data-model.md             Logical Data Model: diagrama de entidades/relações + dicionário de dados.
-  migrations/               Migrações incrementais, por ordem (001 a 012) — só necessárias em
+  migrations/               Migrações incrementais, por ordem (001 a 014) — só necessárias em
                              projetos já existentes, correr uma vez cada uma, por esta ordem:
                              001_teams, 002_team_logos, 003_substituicao, 004_amarelo2,
                              005_player_events, 006_partes, 007_orientacao, 008_events_parte,
                              009_events_normalizado, 010_events_minuto, 011_cruzamentos,
-                             012_events_player.
+                             012_events_player, 013_events_zona, 014_wellness.
+scripts/
+  seed-demo-match.mjs       Ferramenta de dev: preenche uma equipa + jogo completo com dados
+                             realistas para demos rápidas — ver "Ferramentas de desenvolvimento".
 ```
 
 Cada página em `pages/` só referencia o seu próprio ficheiro em `js/` (mesmo nome) e o `css/styles.css` partilhado; a navegação entre páginas usa caminhos relativos dentro da própria pasta `pages/`.
@@ -77,14 +86,15 @@ Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`tea
 
 - **`teams`** — equipas (`nome`, `join_code`, `logo_url`).
 - **`team_members`** — quem pertence a que equipa (`role`: `owner` ou `membro`).
-- **`players`** — plantel reutilizável de uma equipa (`numero`, `nome`).
+- **`players`** — plantel reutilizável de uma equipa (`numero`, `nome`, e opcionalmente `auth_user_id`/`data_nascimento`/`login_email` — login próprio de um jogador, ver Wellness abaixo).
 - **`matches`** — jogos de uma equipa (`adversario`, `data`, `parte1_inicio`, `parte1_fim`, `parte2_inicio`, `parte2_fim`, `orientacao_parte1`: `E-D` ou `D-E`).
 - **`match_players`** — convocatória e estatísticas de um jogador num jogo específico (`estado`, `amarelo`, `amarelo2`, `vermelho`, `assistencias`, `golo`, `substituicao`: vazio, `Saiu` ou `Entrou`).
 - **`events`** — cliques nos 5 campos (`tracker_id`, `parte`: 1 ou 2, `minuto`, `tipo`, `x_pct`, `y_pct`, `player_id`: opcional).
 - **`player_events`** — histórico de cada ação clicada na convocatória (`tipo`, `valor`, `created_at`), um registo por clique.
+- **`wellness_responses`** — questionário diário de um jogador (`dores_musculares`, `stress`, `fadiga`, `sono`, cada um 0-10), no máximo um por dia (`unique (player_id, data)`); só é escrita via a função `submit_wellness()`.
 - **`events_normalizado`** — view sobre `events` que junta a 1ª e 2ª parte, rodando 180º os pontos da parte cuja orientação não é a de referência (`x_pct_normalizado`, `y_pct_normalizado`).
 
-Criar/entrar numa equipa passa por duas funções Postgres (`create_team`, `join_team_by_code`) chamadas via RPC, que tratam a criação da equipa + associação do utilizador de forma atómica. Os emblemas ficam num bucket público do Supabase Storage (`team-logos`), com upload restrito a membros da equipa correspondente.
+Criar/entrar numa equipa passa por duas funções Postgres (`create_team`, `join_team_by_code`) chamadas via RPC, que tratam a criação da equipa + associação do utilizador de forma atómica. Os emblemas ficam num bucket público do Supabase Storage (`team-logos`), com upload restrito a membros da equipa correspondente. Um jogador com login próprio (`players.auth_user_id`) não é `team_member`, mas ganha policies próprias para ver/editar só a sua linha em `players` e as próprias respostas em `wellness_responses` — ver `docs/architecture.md`.
 
 Ver `supabase/schema.sql` para a definição completa.
 
@@ -105,6 +115,22 @@ python3 -m http.server 8765
 ```
 
 e abrir `http://localhost:8765/` (redireciona para `pages/login.html`).
+
+## Ferramentas de desenvolvimento
+
+`scripts/seed-demo-match.mjs` preenche rapidamente uma equipa nova com dados realistas para
+demos ou testes — 25 jogadores, um jogo já terminado com 11 titulares + 8 suplentes, cartões
+amarelos/vermelho, 2 golos com assistência, e os 5 campos do Registo de Jogo com pontos
+tacticamente plausíveis (cantos junto à bandeirola, remates perto da baliza, cruzamentos nas
+zonas laterais — sempre a respeitar a orientação de ataque de cada parte). Fala diretamente
+com a REST API do Supabase via `fetch` nativo do Node, sem nenhuma dependência nova:
+
+```bash
+node scripts/seed-demo-match.mjs <email> <password>
+```
+
+Usa uma conta já existente na app (ex: a conta de teste); a palavra-passe também pode vir das
+variáveis de ambiente `SEED_EMAIL`/`SEED_PASSWORD`, para não ficar no histórico do terminal.
 
 ## Publicação
 

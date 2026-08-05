@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 013.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 014.)
 --
--- Versão: 1.12 (2026-07-15) — reflete sempre o estado final cumulativo,
+-- Versão: 1.13 (2026-08-05) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -20,6 +20,9 @@
 --   1.11 (2026-07-15) — events ganha "player_id" (jogador que fez a ação, opcional).
 --   1.12 (2026-07-15) — events_normalizado ganha "zona_col"/"zona_row" (grelha 6×4,
 --                        para o mapa de calor por zonas ser calculável em SQL).
+--   1.13 (2026-08-05) — questionário de wellness diário dos jogadores: players ganha
+--                        login próprio (auth_user_id, data_nascimento, login_email),
+--                        tabela wellness_responses, e a função submit_wellness().
 
 create extension if not exists "pgcrypto";
 
@@ -50,6 +53,12 @@ create table if not exists players (
   team_id uuid not null references teams(id) on delete cascade,
   numero text,
   nome text not null,
+  -- Login próprio do jogador (opcional, criado pelo treinador na tab
+  -- Plantel) — permite-lhe entrar na app e preencher o próprio wellness,
+  -- sem ter acesso a mais nada da equipa (ver policies mais abaixo).
+  auth_user_id uuid unique references auth.users(id) on delete set null,
+  data_nascimento date,
+  login_email text,
   created_at timestamptz not null default now()
 );
 
@@ -114,6 +123,21 @@ create table if not exists player_events (
   created_at timestamptz not null default now()
 );
 
+-- Questionário de wellness diário, preenchido pelo próprio jogador (login
+-- próprio, ver "auth_user_id" em "players") — no máximo um por dia.
+create table if not exists wellness_responses (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references teams(id) on delete cascade,
+  player_id uuid not null references players(id) on delete cascade,
+  data date not null default current_date,
+  dores_musculares int not null check (dores_musculares between 0 and 10),
+  stress int not null check (stress between 0 and 10),
+  fadiga int not null check (fadiga between 0 and 10),
+  sono int not null check (sono between 0 and 10),
+  created_at timestamptz not null default now(),
+  unique (player_id, data)
+);
+
 -- Índices para as queries mais comuns
 create index if not exists idx_players_team on players(team_id);
 create index if not exists idx_matches_team on matches(team_id);
@@ -125,6 +149,8 @@ create index if not exists idx_events_team on events(team_id);
 create index if not exists idx_events_player on events(player_id);
 create index if not exists idx_player_events_match on player_events(match_id);
 create index if not exists idx_player_events_player on player_events(player_id);
+create index if not exists idx_wellness_team_data on wellness_responses(team_id, data);
+create index if not exists idx_wellness_player on wellness_responses(player_id);
 create index if not exists idx_player_events_team on player_events(team_id);
 
 -- Row Level Security
@@ -135,6 +161,7 @@ alter table matches enable row level security;
 alter table match_players enable row level security;
 alter table events enable row level security;
 alter table player_events enable row level security;
+alter table wellness_responses enable row level security;
 
 -- Só é possível ver uma equipa (ou dados dela) se se for membro dessa equipa
 create policy "teams_member_select" on teams
@@ -156,6 +183,16 @@ create policy "players_team_member" on players
   using (exists (select 1 from team_members tm where tm.team_id = players.team_id and tm.user_id = auth.uid()))
   with check (exists (select 1 from team_members tm where tm.team_id = players.team_id and tm.user_id = auth.uid()));
 
+-- Um jogador com login próprio (auth_user_id) vê/edita só a sua própria
+-- linha em "players" (ex: para completar a data de nascimento no primeiro
+-- login) — junta-se por OR à policy acima, que continua a dar acesso
+-- total ao treinador (team_members) a todos os jogadores da equipa.
+create policy "players_self_select" on players
+  for select using (auth_user_id = auth.uid());
+
+create policy "players_self_update" on players
+  for update using (auth_user_id = auth.uid()) with check (auth_user_id = auth.uid());
+
 create policy "matches_team_member" on matches
   for all
   using (exists (select 1 from team_members tm where tm.team_id = matches.team_id and tm.user_id = auth.uid()))
@@ -175,6 +212,20 @@ create policy "player_events_team_member" on player_events
   for all
   using (exists (select 1 from team_members tm where tm.team_id = player_events.team_id and tm.user_id = auth.uid()))
   with check (exists (select 1 from team_members tm where tm.team_id = player_events.team_id and tm.user_id = auth.uid()));
+
+-- O jogador vê as próprias respostas de wellness...
+create policy "wellness_player_select" on wellness_responses
+  for select using (
+    exists (select 1 from players p where p.id = wellness_responses.player_id and p.auth_user_id = auth.uid())
+  );
+
+-- ...e o treinador vê as respostas de todos os jogadores da sua equipa.
+-- Não há policy de insert direta: a escrita só acontece via a função
+-- submit_wellness (mais abaixo), que identifica o jogador pelo próprio login.
+create policy "wellness_team_member_select" on wellness_responses
+  for select using (
+    exists (select 1 from team_members tm where tm.team_id = wellness_responses.team_id and tm.user_id = auth.uid())
+  );
 
 -- View: Registo de Jogo normalizado (1ª + 2ª parte juntas, rodadas 180º
 -- conforme a orientação de ataque escolhida nas setas para cada parte).
@@ -273,6 +324,38 @@ $$;
 grant execute on function create_team(text) to authenticated;
 grant execute on function join_team_by_code(text) to authenticated;
 
+-- Submissão do questionário de wellness: identifica o jogador pelo
+-- próprio auth.uid() (nunca recebe o player_id do cliente), e usa a
+-- unique (player_id, data) para impedir mais de uma resposta por dia,
+-- com mensagem amigável em vez do erro de constraint em bruto.
+create or replace function submit_wellness(p_dores_musculares int, p_stress int, p_fadiga int, p_sono int)
+returns wellness_responses
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_player players;
+  v_row wellness_responses;
+begin
+  select * into v_player from players where auth_user_id = auth.uid();
+  if not found then
+    raise exception 'Conta não associada a nenhum jogador.';
+  end if;
+
+  insert into wellness_responses (team_id, player_id, dores_musculares, stress, fadiga, sono)
+  values (v_player.team_id, v_player.id, p_dores_musculares, p_stress, p_fadiga, p_sono)
+  returning * into v_row;
+
+  return v_row;
+exception
+  when unique_violation then
+    raise exception 'Já respondeste ao questionário hoje.';
+end;
+$$;
+
+grant execute on function submit_wellness(int, int, int, int) to authenticated;
+
 -- ---------- Emblema da equipa (Supabase Storage) ----------
 
 insert into storage.buckets (id, name, public)
@@ -306,3 +389,5 @@ create policy "team_logos_member_update" on storage.objects
       and tm.user_id = auth.uid()
     )
   );
+
+notify pgrst, 'reload schema';

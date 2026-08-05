@@ -9,12 +9,16 @@
   (tabelas/colunas), ver supabase/data-model.md; para funcionalidades e
   setup, ver o README.md.
 
-  Versão: 1.3 (2026-07-15)
+  Versão: 1.5 (2026-08-05)
   Histórico:
     1.0 (2026-07-14) — criação.
     1.1 (2026-07-15) — popup de escolha de jogador após o clique, no Registo de Jogo.
     1.2 (2026-07-15) — mapa de calor por zonas (zona calculada em SQL, não no browser).
     1.3 (2026-07-15) — exportação do relatório em PDF via impressão do browser.
+    1.4 (2026-08-05) — jogadores com login próprio (questionário de wellness diário),
+                        segundo tipo de utilizador além do treinador.
+    1.5 (2026-08-05) — "utilizador" do jogador passa a ser gerado automaticamente a
+                        partir do nome (o treinador só define a password).
 -->
 
 # Arquitetura — Análise de Jogo
@@ -42,10 +46,12 @@ Não há backend próprio, API intermédia, nem variáveis de ambiente secretas 
 flowchart LR
   L["pages/login.html<br/>(entrar / criar conta)"]
   T["pages/teams.html<br/>(escolher / criar / entrar numa equipa)"]
-  D["pages/dashboard.html<br/>(Jogos · Plantel · Relatórios da equipa)"]
+  D["pages/dashboard.html<br/>(Jogos · Plantel · Wellness · Relatórios da equipa)"]
   M["pages/match.html<br/>(Jogadores · Registo de Jogo · Relatórios do jogo)"]
+  J["pages/jogador.html<br/>(perfil + questionário de wellness)"]
 
-  L -->|sessão válida| T
+  L -->|"sessão válida (treinador)"| T
+  L -->|"sessão válida (jogador)"| J
   T -->|abrir equipa| D
   D -->|abrir jogo| M
   M -->|"Trocar de jogo"| D
@@ -54,13 +60,18 @@ flowchart LR
   T -->|"Sair"| L
   D -->|"Sair"| L
   M -->|"Sair"| L
+  J -->|"Sair"| L
 ```
 
-Cada página valida os pré-requisitos antes de se mostrar, e redireciona "para trás" se algum faltar — ver [Guardas de navegação](#guardas-de-navegação-por-página).
+Cada página valida os pré-requisitos antes de se mostrar, e redireciona "para trás" se algum faltar — ver [Guardas de navegação](#guardas-de-navegação-por-página). `jogador.html` fica completamente à parte do resto (nunca leva a `teams.html`/`dashboard.html`/`match.html`) — é a única página pensada para outro tipo de utilizador, não o treinador.
 
 ## Autenticação e sessão
 
-- **Login/registo** (`js/login.js`): `supabase.auth.signInWithPassword` / `supabase.auth.signUp`, com validação simples de campos não vazios no cliente (evita cair no fluxo de login anónimo do Supabase quando os campos ficam em branco). Em caso de sucesso, redireciona sempre para `teams.html`.
+Há **dois tipos de utilizador**, ambos autenticados da mesma forma (Supabase Auth, email + palavra-passe), mas com vistas completamente diferentes:
+- **Treinador/adjunto**: cria a própria conta em `login.html`, junta-se a uma equipa (`team_members`) e usa `teams.html`/`dashboard.html`/`match.html`.
+- **Jogador**: não cria a própria conta — o treinador cria o login por ele, na tab Plantel de `dashboard.html` (ver [Padrões de código](#padrões-de-código-usados-em-várias-páginas)). Fica associado a uma linha em `players` via `auth_user_id`, e só vê `jogador.html`.
+
+- **Login/registo** (`js/login.js`): `supabase.auth.signInWithPassword` / `supabase.auth.signUp`, com validação simples de campos não vazios no cliente (evita cair no fluxo de login anónimo do Supabase quando os campos ficam em branco). Depois de entrar, verifica se a conta está associada a um jogador (`players.auth_user_id`) — se estiver, redireciona para `jogador.html`; senão, para `teams.html` (fluxo do treinador).
 - **Persistência de sessão**: gerida inteiramente pelo `supabase-js` (guarda o token no `localStorage` do browser, sob as suas próprias chaves — não confundir com as chaves de estado da app descritas abaixo). Não há gestão manual de tokens no código da app.
 - **Verificação de sessão por página**: todas as páginas exceto `login.html` chamam `supabase.auth.getSession()` no arranque (`init()`); se não houver sessão, redirecionam para `login.html`.
 - **Reação a logout noutra aba/dispositivo**: `dashboard.js` e `match.js` subscrevem `supabase.auth.onAuthStateChange`, e redirecionam para `login.html` assim que a sessão desaparece (ex: se fizeres logout noutra aba). `teams.js` só verifica a sessão uma vez no arranque, sem subscrição contínua.
@@ -86,12 +97,15 @@ Cada página faz uma cadeia de verificações no arranque (`init()`), na ordem i
 1. **`teams.html`**: sessão válida → senão `login.html`.
 2. **`dashboard.html`**: sessão válida → `current_team_id` existe → a equipa existe e o utilizador é membro dela (a própria query já filtra por RLS) → senão `login.html` ou `teams.html`, consoante o que falhou.
 3. **`match.html`**: sessão válida → `current_team_id`/equipa válidos → `current_match_id` existe → o jogo existe e pertence a essa equipa → senão `login.html`, `teams.html` ou `dashboard.html`.
+4. **`jogador.html`**: sessão válida → existe uma linha em `players` com `auth_user_id` igual ao utilizador atual → senão `login.html` (com aviso — conta não associada a nenhum jogador). Não depende de `current_team_id`/`current_match_id`: a equipa do jogador vem sempre da própria linha em `players`.
 
 Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-se em `dashboard.js` e `match.js` de forma quase idêntica — ver a função `init()` em cada ficheiro.
 
 ## Modelo de segurança
 
 - **Row Level Security (RLS)** em todas as tabelas de dados da app, baseada em pertença a uma equipa: uma linha só é visível/editável por quem tem uma entrada correspondente em `team_members`. O `user_id` gravado em cada linha serve só de registo de autoria, **não** é usado para controlo de acesso — dois membros da mesma equipa veem e editam sempre os mesmos dados. Ver `supabase/data-model.md` para o detalhe de cada política.
+- **Acesso do jogador (sem ser `team_member`)**: um jogador com login próprio (`players.auth_user_id`) não pertence a `team_members`, mas ganha duas policies adicionais (que se juntam por OR às de cima): vê/edita só a própria linha em `players` (`players_self_select`/`players_self_update` — usadas para completar a data de nascimento no primeiro login), e vê só as próprias linhas em `wellness_responses` (`wellness_player_select`). Nunca vê jogos, plantel de outros jogadores, ou qualquer outra tabela.
+- **Escrita do wellness só via função**: `wellness_responses` não tem política de `insert` — a única forma de escrever é a função `submit_wellness()` (`security definer`), que identifica o jogador pelo próprio `auth.uid()` (nunca recebe um `player_id` do cliente) e usa a restrição `unique (player_id, data)` para impedir mais de uma resposta por dia.
 - **Funções RPC `security definer`** (`create_team`, `join_team_by_code`): usadas quando uma operação precisa de escrever em mais do que uma tabela de forma atómica (criar equipa + inserir o "owner" em `team_members`), contornando a RLS só dentro da própria função, de forma controlada.
 - **Storage** (bucket `team-logos`, público para leitura): upload/substituição de um emblema só é permitido a membros da equipa dona desse emblema, validado pelo caminho do ficheiro (`<team_id>/...`) contra `team_members`.
 - **Chave anon pública**: é suposto ser pública (fica no código-fonte, em `js/supabase-client.js`); a segurança nunca depende de a esconder, só das políticas RLS acima.
@@ -106,6 +120,8 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 - **Popup pós-clique (jogador)**: depois de marcar um ponto no Registo de Jogo, `showJogadorPopup()` (`js/match.js`) mostra um popup junto ao clique, para (opcionalmente) dizer quem fez a ação — sem bloquear o registo em si, que já foi gravado antes do popup aparecer. A lista de jogadores é filtrada por `onFieldMatchPlayers()` (titulares que não saíram + suplentes que já entraram, com fallback para todos os convocados se essa lista estiver vazia), mostrados só pelo número da camisola, para caber ~11 opções num popup pequeno sem ficar visualmente pesado. Fecha ao tocar num número, ao clicar fora, ou automaticamente ao início do clique seguinte (o novo `pointerdown` fecha o popup antigo antes do novo `click` disparar). Um clique sem jogador escolhido fica com `player_id` a `null`, e pode ser corrigido depois na tabela de registo (ao vivo) ou no registo normalizado (pós-jogo).
 - **Mapa de calor por zonas**: a "zona" (grelha 6×4) de cada ponto é calculada em SQL, como colunas `zona_col`/`zona_row` da view `events_normalizado` (ver `supabase/migrations/013_events_zona.sql`) — não no browser — para essa definição viver num único sítio e poder ser consultada diretamente por SQL ou outras ferramentas no futuro, sem reimplementar a lógica de "binning". `buildHeatGrid()`/`renderHeatGrid()` (`js/match.js`) só agregam essas colunas já calculadas numa grelha visual; os nomes `HEATMAP_COLS`/`HEATMAP_ROWS` em JS têm de ficar sincronizados com os `6`/`4` hardcoded na view SQL. Cada secção do registo normalizado tem um toggle Pontos/Mapa de Calor, e — só na vista de mapa de calor — um segundo toggle para escolher o tipo (X/Y, ex: "A Favor"/"Contra"), porque misturar os dois tipos no mesmo mapa não faz sentido tacticamente. `normalizadoPointsCache` guarda os pontos já filtrados por tracker, para trocar de vista/tipo sem nova consulta ao Supabase.
 - **Exportação do relatório em PDF**: o botão "Exportar relatório (PDF)" chama `window.print()` — sem nenhuma dependência nova (`jsPDF`/`html2canvas` ficam como opção futura só se o relatório crescer para vários tipos de gráfico). Uma folha `@media print` em `css/styles.css` esconde tudo exceto a tab Relatórios (mesmo que não seja a tab ativa no momento, via `display: block !important` a sobrepor o atributo `hidden`). Cada secção do registo normalizado tem, em paralelo ao campo interativo (`.screen-field`, escondido na impressão), uma estrutura só para impressão (`.print-heat-pair`, escondida no ecrã) com **os dois mapas de calor sempre lado a lado** (X e Y) — preenchida por `prepareReportForPrint()` a partir do `normalizadoPointsCache`, independentemente do toggle X/Y escolhido no ecrã, porque o documento exportado não deve depender de um estado efémero da UI. `.field-wrap` tem `break-inside: avoid` para não cortar a imagem do campo a meio entre páginas; a tabela de log pode continuar naturalmente na página seguinte.
+- **Criar o login de um jogador sem perder a sessão do treinador**: `supabase.auth.signUp()` substitui a sessão ativa do cliente que o chama — se o treinador o chamasse no cliente principal (`js/supabase-client.js`), ficava automaticamente com a sessão trocada para a conta nova, desligado da própria. Em vez disso, `dashboard.js` (tab Plantel, "Criar login") cria uma **segunda instância do cliente Supabase**, só para esse passo, com `{ auth: { persistSession: false, autoRefreshToken: false } }` — a conta é criada nesse cliente à parte, sem tocar na sessão principal; de seguida, um `update` normal em `players` (no cliente principal, sessão do treinador intacta) associa `auth_user_id`/`login_email` a esse jogador — já permitido pela RLS existente, porque o treinador é `team_member`. `SUPABASE_URL`/`SUPABASE_ANON_KEY` são exportadas por `supabase-client.js` precisamente para este segundo cliente as poder reutilizar.
+- **"Utilizador" do jogador gerado automaticamente**: o Supabase Auth exige sempre um campo com formato de email, mas o jogador não precisa de ter um email real — `generateLoginUsername()` (`dashboard.js`) gera um a partir do nome (slug sem acentos + sufixo aleatório, ex: `joao-silva-x7k9@jogador.app`), mostrado num campo `readonly` para o treinador copiar. O treinador só escolhe/edita a palavra-passe.
 
 ## Onde encontrar cada coisa
 

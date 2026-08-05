@@ -1,10 +1,11 @@
 /**
  * Análise de Jogo — dashboard.js
  * Lógica do dashboard de uma equipa (pages/dashboard.html): tabs Jogos
- * (criar/abrir/importar), Plantel (jogadores reutilizáveis da equipa) e
- * Relatórios (totais agregados por jogador ao longo de todos os jogos).
+ * (criar/abrir/importar), Plantel (jogadores reutilizáveis da equipa),
+ * Wellness (vista do treinador sobre o questionário diário dos jogadores)
+ * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.8 (2026-07-14)
+ * Versão: 1.10 (2026-08-05)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -15,9 +16,14 @@
  *   1.6 (2026-07-09) — a tab Plantel passa a viver aqui, em vez de dentro de cada jogo.
  *   1.7 (2026-07-10) — relatório agregado passa a somar também o 2º cartão amarelo.
  *   1.8 (2026-07-14) — movido de raiz para js/, sem alterações de lógica.
+ *   1.9 (2026-08-05) — Plantel ganha "Criar login" por jogador (conta própria para o
+ *                       questionário de wellness); nova tab Wellness com quem respondeu hoje.
+ *   1.10 (2026-08-05) — "Criar login" passa a gerar o utilizador automaticamente a partir
+ *                        do nome (@jogador.local) — o treinador só define a password.
  */
 
-import { supabase } from './supabase-client.js';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase-client.js';
 
 const TRACKERS = [
   { id: 'faltas', title: 'Faltas', xLabel: 'Realizadas', yLabel: 'Sofridas' },
@@ -33,6 +39,7 @@ let currentTeamId = localStorage.getItem('current_team_id') || null;
 let currentTeam = null;
 let matchesCache = [];
 let rosterCache = [];
+let creatingLoginForId = null;
 
 // ---------- Topo (indicador de equipa, sair, trocar de equipa) ----------
 
@@ -63,6 +70,7 @@ function wireTabs() {
         panel.hidden = panel.id !== `tab-${btn.dataset.tab}`;
       });
       if (btn.dataset.tab === 'relatorios') loadReports();
+      if (btn.dataset.tab === 'wellness') loadWellness();
     });
   });
 }
@@ -139,11 +147,52 @@ function wireRoster() {
   });
 
   el('roster-body').addEventListener('click', async (e) => {
-    const btn = e.target.closest('.btn-remove-player');
-    if (!btn) return;
-    if (!confirm('Remover este jogador do plantel? Isto remove também as suas convocatórias em todos os jogos.')) return;
-    await supabase.from('players').delete().eq('id', btn.dataset.id);
-    await loadRoster();
+    const removeBtn = e.target.closest('.btn-remove-player');
+    if (removeBtn) {
+      if (!confirm('Remover este jogador do plantel? Isto remove também as suas convocatórias em todos os jogos.')) return;
+      await supabase.from('players').delete().eq('id', removeBtn.dataset.id);
+      await loadRoster();
+      return;
+    }
+
+    const startBtn = e.target.closest('[data-action="start-login"]');
+    if (startBtn) {
+      creatingLoginForId = startBtn.dataset.id;
+      renderRoster();
+      return;
+    }
+
+    const cancelBtn = e.target.closest('[data-action="cancel-login"]');
+    if (cancelBtn) {
+      creatingLoginForId = null;
+      renderRoster();
+      return;
+    }
+
+    const confirmBtn = e.target.closest('[data-action="confirm-login"]');
+    if (confirmBtn) {
+      const row = confirmBtn.closest('tr');
+      const email = row.querySelector('.roster-access-email').value.trim();
+      const password = row.querySelector('.roster-access-password').value;
+      if (!password) { alert('Preenche a password.'); return; }
+
+      // Cliente à parte, sem guardar sessão — signUp() troca a sessão ativa
+      // do cliente que a chama, e não podemos perder a sessão do treinador.
+      const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      });
+      const { data, error } = await authClient.auth.signUp({ email, password });
+      if (error) { alert(error.message); return; }
+
+      const { error: linkError } = await supabase
+        .from('players')
+        .update({ auth_user_id: data.user.id, login_email: email })
+        .eq('id', confirmBtn.dataset.id);
+      if (linkError) { alert(linkError.message); return; }
+
+      creatingLoginForId = null;
+      await loadRoster();
+    }
   });
 }
 
@@ -158,12 +207,54 @@ async function loadRoster() {
   renderRoster();
 }
 
+function randomPassword() {
+  return Math.random().toString(36).slice(-8);
+}
+
+// O Supabase Auth exige sempre algo com formato de email, mas o jogador
+// nunca precisa de o receber nem de lhe aceder — funciona como um simples
+// "username", gerado a partir do nome para o treinador não ter de inventar
+// nada (só define a password). O sufixo aleatório evita colisões entre
+// jogadores com nomes iguais/parecidos.
+function slugifyNome(nome) {
+  return nome
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'jogador';
+}
+
+function generateLoginUsername(nome) {
+  // Domínio ".app" de propósito — TLDs reservados como ".local"/".test"
+  // são rejeitados pelo validador de email do Supabase Auth ("Email
+  // address is invalid"), mesmo sem nenhum email real ser enviado.
+  const suffix = Math.random().toString(36).slice(-4);
+  return `${slugifyNome(nome)}-${suffix}@jogador.app`;
+}
+
+function accessCellHtml(p) {
+  if (p.auth_user_id) {
+    return `<span class="access-badge" title="Login criado">🔑 ${p.login_email || ''}</span>`;
+  }
+  if (creatingLoginForId === p.id) {
+    return `
+      <div class="roster-access-form">
+        <input type="text" class="roster-access-email" value="${generateLoginUsername(p.nome)}" readonly title="Utilizador (gerado automaticamente)">
+        <input type="text" class="roster-access-password" value="${randomPassword()}" title="Password">
+        <button class="action small" data-action="confirm-login" data-id="${p.id}">Criar</button>
+        <button class="action small" data-action="cancel-login" title="Cancelar">✕</button>
+      </div>
+    `;
+  }
+  return `<button class="action small" data-action="start-login" data-id="${p.id}">Criar login</button>`;
+}
+
 function renderRoster() {
   const body = el('roster-body');
   body.innerHTML = '';
   rosterCache.forEach(p => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td><button class="btn-remove-player" data-id="${p.id}" title="Remover">✕</button></td>`;
+    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td class="roster-access">${accessCellHtml(p)}</td><td><button class="btn-remove-player" data-id="${p.id}" title="Remover">✕</button></td>`;
     body.appendChild(tr);
   });
   el('roster-empty').hidden = rosterCache.length > 0;
@@ -206,6 +297,32 @@ function renderReports(rows) {
     body.appendChild(tr);
   });
   el('reports-empty').hidden = rows.length > 0;
+}
+
+// ---------- Wellness (vista do treinador: quem respondeu hoje) ----------
+
+async function loadWellness() {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('wellness_responses')
+    .select('player_id, dores_musculares, stress, fadiga, sono')
+    .eq('team_id', currentTeamId)
+    .eq('data', hoje);
+  if (error) { console.error(error); return; }
+  const byPlayer = new Map((data || []).map(r => [r.player_id, r]));
+  renderWellness(byPlayer);
+}
+
+function renderWellness(byPlayer) {
+  const body = el('wellness-body');
+  body.innerHTML = '';
+  rosterCache.forEach(p => {
+    const r = byPlayer.get(p.id);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td>${r ? '✅' : '❌'}</td><td>${r ? r.dores_musculares : '—'}</td><td>${r ? r.stress : '—'}</td><td>${r ? r.fadiga : '—'}</td><td>${r ? r.sono : '—'}</td>`;
+    body.appendChild(tr);
+  });
+  el('wellness-empty').hidden = rosterCache.length > 0;
 }
 
 // ---------- Importar dados locais (localStorage -> Supabase) ----------

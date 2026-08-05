@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<!--
+  Análise de Jogo — pages/jogador.html
+  Página própria para jogadores com login (criado pelo treinador na tab
+  Plantel do dashboard.html): no primeiro login, completa o perfil (nome +
+  data de nascimento); depois disso, mostra o questionário de wellness do
+  dia (ou o resumo, se já tiver respondido hoje). Não dá acesso a mais
+  nada da equipa — nem jogos, nem plantel de outros jogadores.
+  Lógica em ../js/jogador.js.
+
+  Versão: 1.0 (2026-08-05)
+  Histórico:
+    1.0 (2026-08-05) — criação.
+-->
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise de Jogo — Wellness</title>
+<link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+  <h1 class="page-title">Análise de Jogo</h1>
+
+  <div class="top-bar">
+    <div class="match-indicator" id="jogador-indicator">Jogador</div>
+    <button class="action" id="btn-sign-out">Sair</button>
+  </div>
+
+  <!-- Primeiro login: completar nome + data de nascimento -->
+  <div class="auth-card" id="perfil-card" hidden>
+    <h2 class="tracker-title">Completa o teu perfil</h2>
+    <p class="hint">É só a primeira vez — depois disto, é só o questionário do dia.</p>
+    <div class="auth-form">
+      <input type="text" id="perfil-nome" placeholder="O teu nome">
+      <label class="hint" for="perfil-nascimento">Data de nascimento</label>
+      <input type="date" id="perfil-nascimento">
+      <div class="auth-actions">
+        <button class="action" id="btn-guardar-perfil">Guardar e continuar</button>
+      </div>
+      <p class="hint" id="perfil-error"></p>
+    </div>
+  </div>
+
+  <!-- Questionário de wellness do dia -->
+  <div class="players-card" id="wellness-form-card" hidden>
+    <h2 class="tracker-title">Como te sentes hoje?</h2>
+    <p class="hint">Respondes uma vez por dia — sê sincero, isto ajuda a equipa técnica a cuidar de ti.</p>
+
+    <div class="wellness-field">
+      <label for="w-dores">Como estão as dores musculares?</label>
+      <div class="wellness-scale">
+        <span class="wellness-scale-label">Nenhuma</span>
+        <input type="range" id="w-dores" min="0" max="10" step="1" value="5">
+        <span class="wellness-scale-label">Muito fortes</span>
+      </div>
+      <div class="wellness-scale-value"><span id="w-dores-value">5</span>/10</div>
+    </div>
+
+    <div class="wellness-field">
+      <label for="w-stress">Como te sentes hoje em termos de stress?</label>
+      <div class="wellness-scale">
+        <span class="wellness-scale-label">Muito relaxado</span>
+        <input type="range" id="w-stress" min="0" max="10" step="1" value="5">
+        <span class="wellness-scale-label">Muito stressado</span>
+      </div>
+      <div class="wellness-scale-value"><span id="w-stress-value">5</span>/10</div>
+    </div>
+
+    <div class="wellness-field">
+      <label for="w-fadiga">Como está o teu nível de fadiga?</label>
+      <div class="wellness-scale">
+        <span class="wellness-scale-label">Muito fresco</span>
+        <input type="range" id="w-fadiga" min="0" max="10" step="1" value="5">
+        <span class="wellness-scale-label">Extremamente cansado</span>
+      </div>
+      <div class="wellness-scale-value"><span id="w-fadiga-value">5</span>/10</div>
+    </div>
+
+    <div class="wellness-field">
+      <label for="w-sono">Como classificas o teu sono?</label>
+      <div class="wellness-scale">
+        <span class="wellness-scale-label">Muito bom</span>
+        <input type="range" id="w-sono" min="0" max="10" step="1" value="5">
+        <span class="wellness-scale-label">Muito mau</span>
+      </div>
+      <div class="wellness-scale-value"><span id="w-sono-value">5</span>/10</div>
+    </div>
+
+    <button class="action" id="btn-enviar-wellness">Enviar</button>
+    <p class="hint" id="wellness-error"></p>
+  </div>
+
+  <!-- Já respondeu hoje -->
+  <div class="players-card" id="wellness-done-card" hidden>
+    <h2 class="tracker-title">✅ Já respondeste hoje</h2>
+    <p class="hint">Obrigado! Volta amanhã para o próximo questionário.</p>
+    <div class="wellness-summary" id="wellness-summary"></div>
+  </div>
+
+<script type="module" src="../js/jogador.js"></script>
+</body>
+</html>
