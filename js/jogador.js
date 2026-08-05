@@ -4,9 +4,13 @@
  * primeiro login (nome + data de nascimento) e preencher o questionário de
  * wellness do dia (ou mostrar o resumo, se já tiver respondido hoje).
  *
- * Versão: 1.0 (2026-08-05)
+ * Versão: 1.2 (2026-08-05)
  * Histórico:
  *   1.0 (2026-08-05) — criação.
+ *   1.1 (2026-08-05) — cor no valor de cada pergunta (1-4 vermelho, 5-7 amarelo,
+ *                       8-10 verde), no slider e no resumo de "já respondeste hoje".
+ *   1.2 (2026-08-05) — a cor passa também para a bolinha (thumb) do slider, não só
+ *                       para o número ao lado.
  */
 
 import { supabase } from './supabase-client.js';
@@ -25,11 +29,25 @@ function wireSignOut() {
   });
 }
 
+// 1-4 vermelho, 5-7 amarelo, 8-10 verde (0 conta como o nível mais baixo).
+function wellnessColorClass(value) {
+  if (value <= 4) return 'wellness-val-red';
+  if (value <= 7) return 'wellness-val-yellow';
+  return 'wellness-val-green';
+}
+
 function wireWellnessSliders() {
   WELLNESS_FIELDS.forEach(field => {
     const input = el(`w-${field}`);
     const value = el(`w-${field}-value`);
-    input.addEventListener('input', () => { value.textContent = input.value; });
+    const update = () => {
+      const colorClass = wellnessColorClass(Number(input.value));
+      value.textContent = input.value;
+      value.className = colorClass;
+      input.className = colorClass;
+    };
+    update();
+    input.addEventListener('input', update);
   });
 }
 
@@ -86,13 +104,17 @@ function wireWellnessForm() {
   });
 }
 
+function summaryRow(label, value) {
+  return `<div class="wellness-summary-row"><span>${label}</span><b class="${wellnessColorClass(value)}">${value}/10</b></div>`;
+}
+
 function showWellnessDone(response) {
-  el('wellness-summary').innerHTML = `
-    <div class="wellness-summary-row"><span>${WELLNESS_LABELS.dores}</span><b>${response.dores_musculares}/10</b></div>
-    <div class="wellness-summary-row"><span>${WELLNESS_LABELS.stress}</span><b>${response.stress}/10</b></div>
-    <div class="wellness-summary-row"><span>${WELLNESS_LABELS.fadiga}</span><b>${response.fadiga}/10</b></div>
-    <div class="wellness-summary-row"><span>${WELLNESS_LABELS.sono}</span><b>${response.sono}/10</b></div>
-  `;
+  el('wellness-summary').innerHTML = [
+    summaryRow(WELLNESS_LABELS.dores, response.dores_musculares),
+    summaryRow(WELLNESS_LABELS.stress, response.stress),
+    summaryRow(WELLNESS_LABELS.fadiga, response.fadiga),
+    summaryRow(WELLNESS_LABELS.sono, response.sono),
+  ].join('');
   el('wellness-done-card').hidden = false;
 }
 

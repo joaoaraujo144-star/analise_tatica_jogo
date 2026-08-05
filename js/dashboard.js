@@ -5,7 +5,7 @@
  * Wellness (vista do treinador sobre o questionário diário dos jogadores)
  * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.10 (2026-08-05)
+ * Versão: 1.12 (2026-08-05)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -20,9 +20,14 @@
  *                       questionário de wellness); nova tab Wellness com quem respondeu hoje.
  *   1.10 (2026-08-05) — "Criar login" passa a gerar o utilizador automaticamente a partir
  *                        do nome (@jogador.local) — o treinador só define a password.
+ *   1.11 (2026-08-05) — tab Wellness ganha as médias do dia por métrica (dores, stress,
+ *                        fadiga, sono), calculadas só sobre quem já respondeu.
+ *   1.12 (2026-08-05) — exportação da tab Wellness para Excel (.xlsx), diária e semanal
+ *                        (semana civil, segunda a domingo), via SheetJS (CDN).
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase-client.js';
 
 const TRACKERS = [
@@ -323,6 +328,126 @@ function renderWellness(byPlayer) {
     body.appendChild(tr);
   });
   el('wellness-empty').hidden = rosterCache.length > 0;
+  renderWellnessAverages(Array.from(byPlayer.values()), rosterCache.length);
+}
+
+function average(values) {
+  if (!values.length) return null;
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+// Média do dia, só sobre quem já respondeu (não conta os que faltam como 0).
+function renderWellnessAverages(responses, totalJogadores) {
+  const fields = [['dores', 'dores_musculares'], ['stress', 'stress'], ['fadiga', 'fadiga'], ['sono', 'sono']];
+  fields.forEach(([id, key]) => {
+    const avg = average(responses.map(r => r[key]));
+    el(`avg-${id}`).textContent = avg === null ? '—' : avg.toFixed(1);
+  });
+  el('wellness-averages-hint').textContent = responses.length
+    ? `Médias com base em ${responses.length} de ${totalJogadores} jogador(es) que já responderam hoje.`
+    : 'Ainda ninguém respondeu hoje.';
+}
+
+// ---------- Wellness: exportação para Excel (.xlsx) ----------
+
+const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+const WELLNESS_METRICAS = ['dores_musculares', 'stress', 'fadiga', 'sono'];
+
+function isoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+// Segunda-feira da semana civil que contém "date".
+function startOfWeek(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 = domingo, 1 = segunda, ...
+  const diffParaSegunda = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diffParaSegunda);
+  return d;
+}
+
+function currentWeekDates() {
+  const segunda = startOfWeek(new Date());
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(segunda);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+}
+
+function mediasRow(responses) {
+  return WELLNESS_METRICAS.map(k => {
+    const avg = average(responses.map(r => r[k]));
+    return avg === null ? '' : Number(avg.toFixed(1));
+  });
+}
+
+function downloadWorkbook(sheets, filename) {
+  const wb = XLSX.utils.book_new();
+  sheets.forEach(({ name, rows }) => {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name);
+  });
+  XLSX.writeFile(wb, filename);
+}
+
+async function exportWellnessDaily() {
+  const hojeIso = isoDate(new Date());
+  const { data, error } = await supabase
+    .from('wellness_responses')
+    .select('player_id, dores_musculares, stress, fadiga, sono')
+    .eq('team_id', currentTeamId)
+    .eq('data', hojeIso);
+  if (error) { alert(error.message); return; }
+
+  const byPlayer = new Map((data || []).map(r => [r.player_id, r]));
+  const rows = [['Nº', 'Nome', 'Respondeu', 'Dores', 'Stress', 'Fadiga', 'Sono']];
+  rosterCache.forEach(p => {
+    const r = byPlayer.get(p.id);
+    rows.push([p.numero || '', p.nome, r ? 'Sim' : 'Não', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '']);
+  });
+  rows.push(['', '', 'Média', ...mediasRow(Array.from(byPlayer.values()))]);
+
+  downloadWorkbook([{ name: 'Wellness', rows }], `wellness-diario-${hojeIso}.xlsx`);
+}
+
+async function exportWellnessWeekly() {
+  const dates = currentWeekDates();
+  const inicioIso = isoDate(dates[0]);
+  const fimIso = isoDate(dates[6]);
+
+  const { data, error } = await supabase
+    .from('wellness_responses')
+    .select('player_id, data, dores_musculares, stress, fadiga, sono')
+    .eq('team_id', currentTeamId)
+    .gte('data', inicioIso)
+    .lte('data', fimIso);
+  if (error) { alert(error.message); return; }
+
+  const byPlayerDay = new Map((data || []).map(r => [`${r.player_id}_${r.data}`, r]));
+
+  const respostasRows = [['Data', 'Dia', 'Nº', 'Nome', 'Respondeu', 'Dores', 'Stress', 'Fadiga', 'Sono']];
+  const mediasRows = [['Data', 'Dia', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Nº respostas']];
+
+  dates.forEach((date, i) => {
+    const diaIso = isoDate(date);
+    const respostasDoDia = [];
+    rosterCache.forEach(p => {
+      const r = byPlayerDay.get(`${p.id}_${diaIso}`);
+      if (r) respostasDoDia.push(r);
+      respostasRows.push([diaIso, DIAS_SEMANA[i], p.numero || '', p.nome, r ? 'Sim' : 'Não', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '']);
+    });
+    mediasRows.push([diaIso, DIAS_SEMANA[i], ...mediasRow(respostasDoDia), respostasDoDia.length]);
+  });
+
+  downloadWorkbook(
+    [{ name: 'Respostas', rows: respostasRows }, { name: 'Médias diárias', rows: mediasRows }],
+    `wellness-semanal-${inicioIso}-a-${fimIso}.xlsx`
+  );
+}
+
+function wireWellnessExports() {
+  el('btn-export-wellness-daily').addEventListener('click', exportWellnessDaily);
+  el('btn-export-wellness-weekly').addEventListener('click', exportWellnessWeekly);
 }
 
 // ---------- Importar dados locais (localStorage -> Supabase) ----------
@@ -401,6 +526,7 @@ async function init() {
   wireTabs();
   wireMatches();
   wireRoster();
+  wireWellnessExports();
   wireImport();
 
   supabase.auth.onAuthStateChange((_event, newSession) => {

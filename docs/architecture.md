@@ -9,7 +9,7 @@
   (tabelas/colunas), ver supabase/data-model.md; para funcionalidades e
   setup, ver o README.md.
 
-  Versão: 1.5 (2026-08-05)
+  Versão: 1.6 (2026-08-05)
   Histórico:
     1.0 (2026-07-14) — criação.
     1.1 (2026-07-15) — popup de escolha de jogador após o clique, no Registo de Jogo.
@@ -19,6 +19,8 @@
                         segundo tipo de utilizador além do treinador.
     1.5 (2026-08-05) — "utilizador" do jogador passa a ser gerado automaticamente a
                         partir do nome (o treinador só define a password).
+    1.6 (2026-08-05) — exportação da tab Wellness para Excel (.xlsx) via SheetJS —
+                        primeira dependência externa além do supabase-js.
 -->
 
 # Arquitetura — Análise de Jogo
@@ -122,6 +124,7 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 - **Exportação do relatório em PDF**: o botão "Exportar relatório (PDF)" chama `window.print()` — sem nenhuma dependência nova (`jsPDF`/`html2canvas` ficam como opção futura só se o relatório crescer para vários tipos de gráfico). Uma folha `@media print` em `css/styles.css` esconde tudo exceto a tab Relatórios (mesmo que não seja a tab ativa no momento, via `display: block !important` a sobrepor o atributo `hidden`). Cada secção do registo normalizado tem, em paralelo ao campo interativo (`.screen-field`, escondido na impressão), uma estrutura só para impressão (`.print-heat-pair`, escondida no ecrã) com **os dois mapas de calor sempre lado a lado** (X e Y) — preenchida por `prepareReportForPrint()` a partir do `normalizadoPointsCache`, independentemente do toggle X/Y escolhido no ecrã, porque o documento exportado não deve depender de um estado efémero da UI. `.field-wrap` tem `break-inside: avoid` para não cortar a imagem do campo a meio entre páginas; a tabela de log pode continuar naturalmente na página seguinte.
 - **Criar o login de um jogador sem perder a sessão do treinador**: `supabase.auth.signUp()` substitui a sessão ativa do cliente que o chama — se o treinador o chamasse no cliente principal (`js/supabase-client.js`), ficava automaticamente com a sessão trocada para a conta nova, desligado da própria. Em vez disso, `dashboard.js` (tab Plantel, "Criar login") cria uma **segunda instância do cliente Supabase**, só para esse passo, com `{ auth: { persistSession: false, autoRefreshToken: false } }` — a conta é criada nesse cliente à parte, sem tocar na sessão principal; de seguida, um `update` normal em `players` (no cliente principal, sessão do treinador intacta) associa `auth_user_id`/`login_email` a esse jogador — já permitido pela RLS existente, porque o treinador é `team_member`. `SUPABASE_URL`/`SUPABASE_ANON_KEY` são exportadas por `supabase-client.js` precisamente para este segundo cliente as poder reutilizar.
 - **"Utilizador" do jogador gerado automaticamente**: o Supabase Auth exige sempre um campo com formato de email, mas o jogador não precisa de ter um email real — `generateLoginUsername()` (`dashboard.js`) gera um a partir do nome (slug sem acentos + sufixo aleatório, ex: `joao-silva-x7k9@jogador.app`), mostrado num campo `readonly` para o treinador copiar. O treinador só escolhe/edita a palavra-passe.
+- **Exportação Excel (.xlsx) do Wellness**: única exceção à filosofia "zero dependências" do resto da app — `dashboard.js` importa [SheetJS](https://sheetjs.com) (`xlsx`, via CDN `esm.sh`, tal como o `@supabase/supabase-js`) porque um `.xlsx` real (múltiplas folhas, tal como o Excel o entende) não é razoável de gerar à mão como o CSV existente. Cada exportação (`exportWellnessDaily()`/`exportWellnessWeekly()`) monta as folhas como arrays-de-arrays (`XLSX.utils.aoa_to_sheet`) e descarrega com `XLSX.writeFile()` — sem passar por Blob/`<a download>` manual, a biblioteca trata disso. A exportação semanal usa sempre a semana civil (segunda a domingo) que contém a data de hoje, calculada em `startOfWeek()`.
 
 ## Onde encontrar cada coisa
 

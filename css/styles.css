@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.14 (2026-08-05)
+ * Versão: 1.16 (2026-08-05)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -20,6 +20,9 @@
  *   1.13 (2026-08-05) — coluna "Acesso" na tab Plantel (criar login de jogador) e
  *                        estilos do questionário de wellness (pages/jogador.html).
  *   1.14 (2026-08-05) — estilo para o campo de utilizador gerado automaticamente (readonly).
+ *   1.15 (2026-08-05) — cor no valor do questionário de wellness (vermelho/amarelo/verde).
+ *   1.16 (2026-08-05) — a cor passa também para a bolinha do slider (reset do estilo
+ *                        nativo do input range, com thumb custom em -webkit-/-moz-).
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -713,10 +716,45 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
 .wellness-field { width: 100%; max-width: 420px; margin: 0 auto 20px; text-align: center; }
 .wellness-field label { display: block; margin-bottom: 8px; font-weight: bold; }
 .wellness-scale { display: flex; align-items: center; gap: 10px; }
-.wellness-scale input[type="range"] { flex: 1; }
+.wellness-scale input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: #333;
+  outline: none;
+}
+/* A cor da bolinha (thumb) segue o nível do valor atual — ver
+   wellnessColorClass() em jogador.js, que aplica a classe ao próprio
+   input (não só ao número ao lado). Repetido para -webkit-/-moz- porque
+   não há uma propriedade CSS única para o "thumb" de um range. */
+.wellness-scale input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #10151a;
+  cursor: pointer;
+  background: #4a7fd6;
+}
+.wellness-scale input[type="range"]::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #10151a;
+  cursor: pointer;
+  background: #4a7fd6;
+}
+.wellness-scale input[type="range"].wellness-val-red::-webkit-slider-thumb,
+.wellness-scale input[type="range"].wellness-val-red::-moz-range-thumb { background: var(--x-color); }
+.wellness-scale input[type="range"].wellness-val-yellow::-webkit-slider-thumb,
+.wellness-scale input[type="range"].wellness-val-yellow::-moz-range-thumb { background: #fbc02d; }
+.wellness-scale input[type="range"].wellness-val-green::-webkit-slider-thumb,
+.wellness-scale input[type="range"].wellness-val-green::-moz-range-thumb { background: #43a047; }
 .wellness-scale-label { font-size: 0.75em; color: #888; width: 90px; }
 .wellness-scale-label:last-child { text-align: right; }
-.wellness-scale-value { margin-top: 4px; font-size: 0.85em; color: #4a7fd6; font-weight: bold; }
+.wellness-scale-value { margin-top: 4px; font-size: 0.85em; font-weight: bold; }
 .wellness-summary { width: 100%; max-width: 320px; margin: 0 auto; }
 .wellness-summary-row {
   display: flex;
@@ -724,3 +762,7 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
   padding: 8px 0;
   border-bottom: 1px solid #232b33;
 }
+/* Nível do valor (1-10, 0 conta como o mais baixo): vermelho/amarelo/verde. */
+.wellness-val-red { color: var(--x-color); }
+.wellness-val-yellow { color: #fbc02d; }
+.wellness-val-green { color: #43a047; }
