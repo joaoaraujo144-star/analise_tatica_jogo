@@ -5,7 +5,7 @@
  * Wellness (vista do treinador sobre o questionário diário dos jogadores)
  * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.12 (2026-08-05)
+ * Versão: 1.13 (2026-08-05)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -24,6 +24,8 @@
  *                        fadiga, sono), calculadas só sobre quem já respondeu.
  *   1.12 (2026-08-05) — exportação da tab Wellness para Excel (.xlsx), diária e semanal
  *                        (semana civil, segunda a domingo), via SheetJS (CDN).
+ *   1.13 (2026-08-05) — cor (verde/amarelo/vermelho) nos valores da tabela e nas médias
+ *                        da tab Wellness, igual à escala usada em jogador.html.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -318,13 +320,26 @@ async function loadWellness() {
   renderWellness(byPlayer);
 }
 
+// Em todas as métricas, valor baixo é bom (pouca dor/stress/fadiga, sono
+// "muito bom") — verde no nível baixo, vermelho no alto. Mesma escala
+// usada em jogador.js (1-4 verde, 5-7 amarelo, 8-10 vermelho).
+function wellnessColorClass(value) {
+  if (value <= 4) return 'wellness-val-green';
+  if (value <= 7) return 'wellness-val-yellow';
+  return 'wellness-val-red';
+}
+
+function wellnessCell(value) {
+  return value == null ? '—' : `<span class="${wellnessColorClass(value)}">${value}</span>`;
+}
+
 function renderWellness(byPlayer) {
   const body = el('wellness-body');
   body.innerHTML = '';
   rosterCache.forEach(p => {
     const r = byPlayer.get(p.id);
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td>${r ? '✅' : '❌'}</td><td>${r ? r.dores_musculares : '—'}</td><td>${r ? r.stress : '—'}</td><td>${r ? r.fadiga : '—'}</td><td>${r ? r.sono : '—'}</td>`;
+    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td>${r ? '✅' : '❌'}</td><td>${wellnessCell(r?.dores_musculares)}</td><td>${wellnessCell(r?.stress)}</td><td>${wellnessCell(r?.fadiga)}</td><td>${wellnessCell(r?.sono)}</td>`;
     body.appendChild(tr);
   });
   el('wellness-empty').hidden = rosterCache.length > 0;
@@ -341,7 +356,9 @@ function renderWellnessAverages(responses, totalJogadores) {
   const fields = [['dores', 'dores_musculares'], ['stress', 'stress'], ['fadiga', 'fadiga'], ['sono', 'sono']];
   fields.forEach(([id, key]) => {
     const avg = average(responses.map(r => r[key]));
-    el(`avg-${id}`).textContent = avg === null ? '—' : avg.toFixed(1);
+    const span = el(`avg-${id}`);
+    span.textContent = avg === null ? '—' : avg.toFixed(1);
+    span.className = avg === null ? 'num' : `num ${wellnessColorClass(avg)}`;
   });
   el('wellness-averages-hint').textContent = responses.length
     ? `Médias com base em ${responses.length} de ${totalJogadores} jogador(es) que já responderam hoje.`
