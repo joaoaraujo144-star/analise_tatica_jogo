@@ -9,7 +9,7 @@
   (tabelas/colunas), ver supabase/data-model.md; para funcionalidades e
   setup, ver o README.md.
 
-  Versão: 1.6 (2026-08-05)
+  Versão: 1.7 (2026-08-07)
   Histórico:
     1.0 (2026-07-14) — criação.
     1.1 (2026-07-15) — popup de escolha de jogador após o clique, no Registo de Jogo.
@@ -21,6 +21,8 @@
                         partir do nome (o treinador só define a password).
     1.6 (2026-08-05) — exportação da tab Wellness para Excel (.xlsx) via SheetJS —
                         primeira dependência externa além do supabase-js.
+    1.7 (2026-08-07) — jogador.html deixa de ter o passo "Completa o teu perfil"
+                        no primeiro login; entra logo no questionário do dia.
 -->
 
 # Arquitetura — Análise de Jogo
@@ -50,7 +52,7 @@ flowchart LR
   T["pages/teams.html<br/>(escolher / criar / entrar numa equipa)"]
   D["pages/dashboard.html<br/>(Jogos · Plantel · Wellness · Relatórios da equipa)"]
   M["pages/match.html<br/>(Jogadores · Registo de Jogo · Relatórios do jogo)"]
-  J["pages/jogador.html<br/>(perfil + questionário de wellness)"]
+  J["pages/jogador.html<br/>(questionário de wellness)"]
 
   L -->|"sessão válida (treinador)"| T
   L -->|"sessão válida (jogador)"| J
@@ -106,7 +108,7 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 ## Modelo de segurança
 
 - **Row Level Security (RLS)** em todas as tabelas de dados da app, baseada em pertença a uma equipa: uma linha só é visível/editável por quem tem uma entrada correspondente em `team_members`. O `user_id` gravado em cada linha serve só de registo de autoria, **não** é usado para controlo de acesso — dois membros da mesma equipa veem e editam sempre os mesmos dados. Ver `supabase/data-model.md` para o detalhe de cada política.
-- **Acesso do jogador (sem ser `team_member`)**: um jogador com login próprio (`players.auth_user_id`) não pertence a `team_members`, mas ganha duas policies adicionais (que se juntam por OR às de cima): vê/edita só a própria linha em `players` (`players_self_select`/`players_self_update` — usadas para completar a data de nascimento no primeiro login), e vê só as próprias linhas em `wellness_responses` (`wellness_player_select`). Nunca vê jogos, plantel de outros jogadores, ou qualquer outra tabela.
+- **Acesso do jogador (sem ser `team_member`)**: um jogador com login próprio (`players.auth_user_id`) não pertence a `team_members`, mas ganha duas policies adicionais (que se juntam por OR às de cima): vê/edita só a própria linha em `players` (`players_self_select`, usada em `jogador.js` para ler o próprio nome; `players_self_update` fica disponível, mas nenhum fluxo atual a usa — o perfil deixou de ser editável pelo jogador), e vê só as próprias linhas em `wellness_responses` (`wellness_player_select`). Nunca vê jogos, plantel de outros jogadores, ou qualquer outra tabela.
 - **Escrita do wellness só via função**: `wellness_responses` não tem política de `insert` — a única forma de escrever é a função `submit_wellness()` (`security definer`), que identifica o jogador pelo próprio `auth.uid()` (nunca recebe um `player_id` do cliente) e usa a restrição `unique (player_id, data)` para impedir mais de uma resposta por dia.
 - **Funções RPC `security definer`** (`create_team`, `join_team_by_code`): usadas quando uma operação precisa de escrever em mais do que uma tabela de forma atómica (criar equipa + inserir o "owner" em `team_members`), contornando a RLS só dentro da própria função, de forma controlada.
 - **Storage** (bucket `team-logos`, público para leitura): upload/substituição de um emblema só é permitido a membros da equipa dona desse emblema, validado pelo caminho do ficheiro (`<team_id>/...`) contra `team_members`.

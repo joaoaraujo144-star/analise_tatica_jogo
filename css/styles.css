@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.16 (2026-08-05)
+ * Versão: 1.18 (2026-08-07)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -23,6 +23,11 @@
  *   1.15 (2026-08-05) — cor no valor do questionário de wellness (vermelho/amarelo/verde).
  *   1.16 (2026-08-05) — a cor passa também para a bolinha do slider (reset do estilo
  *                        nativo do input range, com thumb custom em -webkit-/-moz-).
+ *   1.17 (2026-08-07) — estilo do campo de peso (kg) no questionário de wellness.
+ *   1.18 (2026-08-07) — corrige ".players-card"/".auth-card" com o atributo "hidden" a
+ *                        ficarem visíveis na mesma (regra de autor "display: flex" vencia
+ *                        sempre a regra do browser) — bug real por trás do questionário
+ *                        de wellness continuar a aparecer depois de já ter sido respondido.
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -284,6 +289,13 @@ button.action.active { background: #263b5c; border-color: #4a7fd6; }
 
 /* ---------- Cartões genéricos, formulários, jogadores/convocatória ---------- */
 
+/* "display: flex" abaixo é uma regra de autor — vence sempre a regra
+   "[hidden] { display: none }" do browser, mesmo sem !important e
+   independentemente de especificidade (regras de autor batem sempre
+   regras por omissão do browser). Sem esta linha, um .players-card com
+   o atributo "hidden" continua visível — foi isto que aconteceu com os
+   cartões do questionário de wellness em jogador.html. */
+.players-card[hidden] { display: none; }
 .players-card {
   background: #151b21;
   border: 1px solid #232b33;
@@ -505,6 +517,7 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
 
 /* ---------- Login / registo de conta ---------- */
 
+.auth-card[hidden] { display: none; }
 .auth-card {
   background: #151b21;
   border: 1px solid #232b33;
@@ -715,6 +728,16 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
 
 .wellness-field { width: 100%; max-width: 420px; margin: 0 auto 20px; text-align: center; }
 .wellness-field label { display: block; margin-bottom: 8px; font-weight: bold; }
+.wellness-field input[type="number"] {
+  background: #1c242c;
+  border: 1px solid #333;
+  color: #eee;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.95em;
+  width: 140px;
+  text-align: center;
+}
 .wellness-scale { display: flex; align-items: center; gap: 10px; }
 .wellness-scale input[type="range"] {
   flex: 1;

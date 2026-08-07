@@ -5,7 +5,7 @@
  * Wellness (vista do treinador sobre o questionário diário dos jogadores)
  * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.13 (2026-08-05)
+ * Versão: 1.14 (2026-08-07)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -26,6 +26,8 @@
  *                        (semana civil, segunda a domingo), via SheetJS (CDN).
  *   1.13 (2026-08-05) — cor (verde/amarelo/vermelho) nos valores da tabela e nas médias
  *                        da tab Wellness, igual à escala usada em jogador.html.
+ *   1.14 (2026-08-07) — tab Wellness (tabela, médias e exportações Excel) ganha a
+ *                        coluna Peso (kg), opcional e sem cor (não é escala 0-10).
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -312,7 +314,7 @@ async function loadWellness() {
   const hoje = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from('wellness_responses')
-    .select('player_id, dores_musculares, stress, fadiga, sono')
+    .select('player_id, dores_musculares, stress, fadiga, sono, peso')
     .eq('team_id', currentTeamId)
     .eq('data', hoje);
   if (error) { console.error(error); return; }
@@ -339,7 +341,7 @@ function renderWellness(byPlayer) {
   rosterCache.forEach(p => {
     const r = byPlayer.get(p.id);
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td>${r ? '✅' : '❌'}</td><td>${wellnessCell(r?.dores_musculares)}</td><td>${wellnessCell(r?.stress)}</td><td>${wellnessCell(r?.fadiga)}</td><td>${wellnessCell(r?.sono)}</td>`;
+    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td>${r ? '✅' : '❌'}</td><td>${wellnessCell(r?.dores_musculares)}</td><td>${wellnessCell(r?.stress)}</td><td>${wellnessCell(r?.fadiga)}</td><td>${wellnessCell(r?.sono)}</td><td>${r?.peso ?? '—'}</td>`;
     body.appendChild(tr);
   });
   el('wellness-empty').hidden = rosterCache.length > 0;
@@ -347,11 +349,13 @@ function renderWellness(byPlayer) {
 }
 
 function average(values) {
-  if (!values.length) return null;
-  return values.reduce((sum, v) => sum + v, 0) / values.length;
+  const validos = values.filter(v => v != null);
+  if (!validos.length) return null;
+  return validos.reduce((sum, v) => sum + v, 0) / validos.length;
 }
 
 // Média do dia, só sobre quem já respondeu (não conta os que faltam como 0).
+// O peso não tem cor (não é uma escala 0-10) — só a média de quem o indicou.
 function renderWellnessAverages(responses, totalJogadores) {
   const fields = [['dores', 'dores_musculares'], ['stress', 'stress'], ['fadiga', 'fadiga'], ['sono', 'sono']];
   fields.forEach(([id, key]) => {
@@ -360,6 +364,8 @@ function renderWellnessAverages(responses, totalJogadores) {
     span.textContent = avg === null ? '—' : avg.toFixed(1);
     span.className = avg === null ? 'num' : `num ${wellnessColorClass(avg)}`;
   });
+  const avgPeso = average(responses.map(r => r.peso));
+  el('avg-peso').textContent = avgPeso === null ? '—' : avgPeso.toFixed(1);
   el('wellness-averages-hint').textContent = responses.length
     ? `Médias com base em ${responses.length} de ${totalJogadores} jogador(es) que já responderam hoje.`
     : 'Ainda ninguém respondeu hoje.';
@@ -368,7 +374,7 @@ function renderWellnessAverages(responses, totalJogadores) {
 // ---------- Wellness: exportação para Excel (.xlsx) ----------
 
 const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
-const WELLNESS_METRICAS = ['dores_musculares', 'stress', 'fadiga', 'sono'];
+const WELLNESS_METRICAS = ['dores_musculares', 'stress', 'fadiga', 'sono', 'peso'];
 
 function isoDate(date) {
   return date.toISOString().slice(0, 10);
@@ -411,16 +417,16 @@ async function exportWellnessDaily() {
   const hojeIso = isoDate(new Date());
   const { data, error } = await supabase
     .from('wellness_responses')
-    .select('player_id, dores_musculares, stress, fadiga, sono')
+    .select('player_id, dores_musculares, stress, fadiga, sono, peso')
     .eq('team_id', currentTeamId)
     .eq('data', hojeIso);
   if (error) { alert(error.message); return; }
 
   const byPlayer = new Map((data || []).map(r => [r.player_id, r]));
-  const rows = [['Nº', 'Nome', 'Respondeu', 'Dores', 'Stress', 'Fadiga', 'Sono']];
+  const rows = [['Nº', 'Nome', 'Respondeu', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)']];
   rosterCache.forEach(p => {
     const r = byPlayer.get(p.id);
-    rows.push([p.numero || '', p.nome, r ? 'Sim' : 'Não', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '']);
+    rows.push([p.numero || '', p.nome, r ? 'Sim' : 'Não', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '', r?.peso ?? '']);
   });
   rows.push(['', '', 'Média', ...mediasRow(Array.from(byPlayer.values()))]);
 
@@ -434,7 +440,7 @@ async function exportWellnessWeekly() {
 
   const { data, error } = await supabase
     .from('wellness_responses')
-    .select('player_id, data, dores_musculares, stress, fadiga, sono')
+    .select('player_id, data, dores_musculares, stress, fadiga, sono, peso')
     .eq('team_id', currentTeamId)
     .gte('data', inicioIso)
     .lte('data', fimIso);
@@ -442,8 +448,8 @@ async function exportWellnessWeekly() {
 
   const byPlayerDay = new Map((data || []).map(r => [`${r.player_id}_${r.data}`, r]));
 
-  const respostasRows = [['Data', 'Dia', 'Nº', 'Nome', 'Respondeu', 'Dores', 'Stress', 'Fadiga', 'Sono']];
-  const mediasRows = [['Data', 'Dia', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Nº respostas']];
+  const respostasRows = [['Data', 'Dia', 'Nº', 'Nome', 'Respondeu', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)']];
+  const mediasRows = [['Data', 'Dia', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)', 'Nº respostas']];
 
   dates.forEach((date, i) => {
     const diaIso = isoDate(date);
@@ -451,7 +457,7 @@ async function exportWellnessWeekly() {
     rosterCache.forEach(p => {
       const r = byPlayerDay.get(`${p.id}_${diaIso}`);
       if (r) respostasDoDia.push(r);
-      respostasRows.push([diaIso, DIAS_SEMANA[i], p.numero || '', p.nome, r ? 'Sim' : 'Não', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '']);
+      respostasRows.push([diaIso, DIAS_SEMANA[i], p.numero || '', p.nome, r ? 'Sim' : 'Não', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '', r?.peso ?? '']);
     });
     mediasRows.push([diaIso, DIAS_SEMANA[i], ...mediasRow(respostasDoDia), respostasDoDia.length]);
   });

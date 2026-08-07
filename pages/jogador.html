@@ -2,15 +2,17 @@
 <!--
   Análise de Jogo — pages/jogador.html
   Página própria para jogadores com login (criado pelo treinador na tab
-  Plantel do dashboard.html): no primeiro login, completa o perfil (nome +
-  data de nascimento); depois disso, mostra o questionário de wellness do
+  Plantel do dashboard.html): mostra logo o questionário de wellness do
   dia (ou o resumo, se já tiver respondido hoje). Não dá acesso a mais
   nada da equipa — nem jogos, nem plantel de outros jogadores.
   Lógica em ../js/jogador.js.
 
-  Versão: 1.0 (2026-08-05)
+  Versão: 1.2 (2026-08-07)
   Histórico:
     1.0 (2026-08-05) — criação.
+    1.1 (2026-08-07) — campo opcional de peso (kg) no questionário de wellness.
+    1.2 (2026-08-07) — remove o passo "Completa o teu perfil" do primeiro login;
+                        vai logo para o questionário.
 -->
 <html lang="pt">
 <head>
@@ -26,21 +28,6 @@
   <div class="top-bar">
     <div class="match-indicator" id="jogador-indicator">Jogador</div>
     <button class="action" id="btn-sign-out">Sair</button>
-  </div>
-
-  <!-- Primeiro login: completar nome + data de nascimento -->
-  <div class="auth-card" id="perfil-card" hidden>
-    <h2 class="tracker-title">Completa o teu perfil</h2>
-    <p class="hint">É só a primeira vez — depois disto, é só o questionário do dia.</p>
-    <div class="auth-form">
-      <input type="text" id="perfil-nome" placeholder="O teu nome">
-      <label class="hint" for="perfil-nascimento">Data de nascimento</label>
-      <input type="date" id="perfil-nascimento">
-      <div class="auth-actions">
-        <button class="action" id="btn-guardar-perfil">Guardar e continuar</button>
-      </div>
-      <p class="hint" id="perfil-error"></p>
-    </div>
   </div>
 
   <!-- Questionário de wellness do dia -->
@@ -86,6 +73,11 @@
         <span class="wellness-scale-label">Muito mau</span>
       </div>
       <div class="wellness-scale-value"><span id="w-sono-value">5</span>/10</div>
+    </div>
+
+    <div class="wellness-field">
+      <label for="w-peso">Peso (kg) — opcional</label>
+      <input type="number" id="w-peso" min="0" step="0.1" placeholder="ex: 75.5">
     </div>
 
     <button class="action" id="btn-enviar-wellness">Enviar</button>

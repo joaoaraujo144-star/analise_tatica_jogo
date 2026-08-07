@@ -6,7 +6,7 @@
   questionário diário) e Relatórios (agregado de todos os jogos).
   Lógica em ../js/dashboard.js.
 
-  Versão: 1.8 (2026-08-05)
+  Versão: 1.9 (2026-08-07)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-08) — passa a ser específico de uma equipa (troca de equipa).
@@ -19,6 +19,7 @@
                         nova tab Wellness com quem respondeu o questionário hoje.
     1.7 (2026-08-05) — tab Wellness ganha as médias do dia por métrica.
     1.8 (2026-08-05) — tab Wellness ganha exportação para Excel (.xlsx), diária e semanal.
+    1.9 (2026-08-07) — tab Wellness ganha a coluna/média de Peso (kg, opcional).
 -->
 <html lang="pt">
 <head>
@@ -95,12 +96,13 @@
     <div class="tab-panel" id="tab-wellness" hidden>
       <div class="players-card">
         <h2 class="tracker-title">Wellness de hoje</h2>
-        <p class="hint">Dores musculares, stress, fadiga e sono (0-10) que cada jogador reportou hoje, na própria conta. Para criar o acesso de um jogador, vai à tab Plantel.</p>
+        <p class="hint">Dores musculares, stress, fadiga, sono (0-10) e peso (kg, opcional) que cada jogador reportou hoje, na própria conta. Para criar o acesso de um jogador, vai à tab Plantel.</p>
         <div class="counters" id="wellness-averages">
           <div class="counter"><span class="num" id="avg-dores">—</span>Dores</div>
           <div class="counter"><span class="num" id="avg-stress">—</span>Stress</div>
           <div class="counter"><span class="num" id="avg-fadiga">—</span>Fadiga</div>
           <div class="counter"><span class="num" id="avg-sono">—</span>Sono</div>
+          <div class="counter"><span class="num" id="avg-peso">—</span>Peso (kg)</div>
         </div>
         <p class="hint" id="wellness-averages-hint"></p>
         <div class="actions">
@@ -108,7 +110,7 @@
           <button class="action" id="btn-export-wellness-weekly">Exportar semanal (.xlsx)</button>
         </div>
         <table class="players-table">
-          <thead><tr><th>Nº</th><th>Nome</th><th>Respondeu</th><th>Dores</th><th>Stress</th><th>Fadiga</th><th>Sono</th></tr></thead>
+          <thead><tr><th>Nº</th><th>Nome</th><th>Respondeu</th><th>Dores</th><th>Stress</th><th>Fadiga</th><th>Sono</th><th>Peso (kg)</th></tr></thead>
           <tbody id="wellness-body"></tbody>
         </table>
         <p class="hint" id="wellness-empty">Ainda não há jogadores no plantel.</p>

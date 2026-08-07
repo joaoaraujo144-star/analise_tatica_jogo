@@ -1,10 +1,10 @@
 /**
  * Análise de Jogo — jogador.js
- * Lógica da página do jogador (pages/jogador.html): completar o perfil no
- * primeiro login (nome + data de nascimento) e preencher o questionário de
- * wellness do dia (ou mostrar o resumo, se já tiver respondido hoje).
+ * Lógica da página do jogador (pages/jogador.html): preencher o
+ * questionário de wellness do dia (ou mostrar o resumo, se já tiver
+ * respondido hoje).
  *
- * Versão: 1.4 (2026-08-05)
+ * Versão: 1.9 (2026-08-07)
  * Histórico:
  *   1.0 (2026-08-05) — criação.
  *   1.1 (2026-08-05) — cor no valor de cada pergunta (1-4 vermelho, 5-7 amarelo,
@@ -15,6 +15,16 @@
  *                       5-7 amarelo, 8-10 vermelho — valor baixo é bom); sono mantém
  *                       a leitura direta.
  *   1.4 (2026-08-05) — sono passa também a escala invertida, como as outras três.
+ *   1.5 (2026-08-07) — campo opcional de peso (kg) no questionário, sem cor (não é
+ *                       uma escala 0-10) — mostrado no resumo só se tiver sido preenchido.
+ *   1.6 (2026-08-07) — remove o passo "Completa o teu perfil" do primeiro login; entra
+ *                       logo no questionário do dia.
+ *   1.7 (2026-08-07) — popup de confirmação ("Questionário enviado!") ao submeter, antes
+ *                       de mostrar o resumo.
+ *   1.8 (2026-08-07) — loadWellnessToday() passa a comparar com a resposta mais recente
+ *                       (em vez de filtrar direto por data), com log de diagnóstico.
+ *   1.9 (2026-08-07) — esconde/mostra os dois cartões (form/resumo) sempre de forma
+ *                       explícita nos dois ramos, para não depender do estado inicial do HTML.
  */
 
 import { supabase } from './supabase-client.js';
@@ -65,34 +75,6 @@ function wireWellnessSliders() {
   });
 }
 
-// ---------- Perfil (primeiro login) ----------
-
-function showPerfilForm() {
-  el('perfil-nome').value = currentPlayer.nome || '';
-  el('perfil-card').hidden = false;
-}
-
-function wirePerfilForm() {
-  el('btn-guardar-perfil').addEventListener('click', async () => {
-    const nome = el('perfil-nome').value.trim();
-    const dataNascimento = el('perfil-nascimento').value;
-    el('perfil-error').textContent = '';
-    if (!nome || !dataNascimento) { el('perfil-error').textContent = 'Preenche o nome e a data de nascimento.'; return; }
-
-    const { error } = await supabase
-      .from('players')
-      .update({ nome, data_nascimento: dataNascimento })
-      .eq('id', currentPlayer.id);
-    if (error) { el('perfil-error').textContent = error.message; return; }
-
-    currentPlayer.nome = nome;
-    currentPlayer.data_nascimento = dataNascimento;
-    el('perfil-card').hidden = true;
-    updateIndicator();
-    await loadWellnessToday();
-  });
-}
-
 // ---------- Wellness do dia ----------
 
 function updateIndicator() {
@@ -104,15 +86,18 @@ function wireWellnessForm() {
     el('wellness-error').textContent = '';
     const values = {};
     WELLNESS_FIELDS.forEach(({ id }) => { values[id] = Number(el(`w-${id}`).value); });
+    const pesoStr = el('w-peso').value.trim();
 
     const { data, error } = await supabase.rpc('submit_wellness', {
       p_dores_musculares: values.dores,
       p_stress: values.stress,
       p_fadiga: values.fadiga,
       p_sono: values.sono,
+      p_peso: pesoStr ? Number(pesoStr) : null,
     });
     if (error) { el('wellness-error').textContent = error.message; return; }
 
+    alert('Questionário enviado! Já respondeste por hoje — até amanhã.');
     el('wellness-form-card').hidden = true;
     showWellnessDone(data);
   });
@@ -123,25 +108,36 @@ function summaryRow(label, value, invertido) {
 }
 
 function showWellnessDone(response) {
-  el('wellness-summary').innerHTML = WELLNESS_FIELDS
-    .map(({ key, label, invertido }) => summaryRow(label, response[key], invertido))
-    .join('');
+  const linhas = WELLNESS_FIELDS.map(({ key, label, invertido }) => summaryRow(label, response[key], invertido));
+  if (response.peso != null) {
+    linhas.push(`<div class="wellness-summary-row"><span>Peso</span><b>${response.peso} kg</b></div>`);
+  }
+  el('wellness-summary').innerHTML = linhas.join('');
   el('wellness-done-card').hidden = false;
 }
 
 async function loadWellnessToday() {
   const hoje = new Date().toISOString().slice(0, 10);
+  // Vai buscar a resposta mais recente (em vez de filtrar logo por "data =
+  // hoje") e compara-se a data cá — evita rebentar se alguma vez houver
+  // mais que uma linha a corresponder, e ajuda a diagnosticar (consola)
+  // se a causa for a data não bater certo.
   const { data, error } = await supabase
     .from('wellness_responses')
     .select('*')
     .eq('player_id', currentPlayer.id)
-    .eq('data', hoje)
-    .maybeSingle();
+    .order('data', { ascending: false })
+    .limit(1);
   if (error) { console.error(error); return; }
 
-  if (data) {
-    showWellnessDone(data);
+  const ultima = data && data[0];
+  console.log('[wellness] hoje =', hoje, '| última resposta =', ultima);
+
+  if (ultima && ultima.data === hoje) {
+    el('wellness-form-card').hidden = true;
+    showWellnessDone(ultima);
   } else {
+    el('wellness-done-card').hidden = true;
     el('wellness-form-card').hidden = false;
   }
 }
@@ -167,7 +163,6 @@ async function init() {
   updateIndicator();
 
   wireSignOut();
-  wirePerfilForm();
   wireWellnessSliders();
   wireWellnessForm();
 
@@ -175,11 +170,7 @@ async function init() {
     if (!newSession) window.location.href = 'login.html';
   });
 
-  if (!currentPlayer.data_nascimento) {
-    showPerfilForm();
-  } else {
-    await loadWellnessToday();
-  }
+  await loadWellnessToday();
 }
 
 init();

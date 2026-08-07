@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 014.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 015.)
 --
--- Versão: 1.13 (2026-08-05) — reflete sempre o estado final cumulativo,
+-- Versão: 1.14 (2026-08-07) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -23,6 +23,7 @@
 --   1.13 (2026-08-05) — questionário de wellness diário dos jogadores: players ganha
 --                        login próprio (auth_user_id, data_nascimento, login_email),
 --                        tabela wellness_responses, e a função submit_wellness().
+--   1.14 (2026-08-07) — wellness_responses ganha "peso" (kg, opcional).
 
 create extension if not exists "pgcrypto";
 
@@ -134,6 +135,7 @@ create table if not exists wellness_responses (
   stress int not null check (stress between 0 and 10),
   fadiga int not null check (fadiga between 0 and 10),
   sono int not null check (sono between 0 and 10),
+  peso numeric,
   created_at timestamptz not null default now(),
   unique (player_id, data)
 );
@@ -328,7 +330,9 @@ grant execute on function join_team_by_code(text) to authenticated;
 -- próprio auth.uid() (nunca recebe o player_id do cliente), e usa a
 -- unique (player_id, data) para impedir mais de uma resposta por dia,
 -- com mensagem amigável em vez do erro de constraint em bruto.
-create or replace function submit_wellness(p_dores_musculares int, p_stress int, p_fadiga int, p_sono int)
+create or replace function submit_wellness(
+  p_dores_musculares int, p_stress int, p_fadiga int, p_sono int, p_peso numeric default null
+)
 returns wellness_responses
 language plpgsql
 security definer
@@ -343,8 +347,8 @@ begin
     raise exception 'Conta não associada a nenhum jogador.';
   end if;
 
-  insert into wellness_responses (team_id, player_id, dores_musculares, stress, fadiga, sono)
-  values (v_player.team_id, v_player.id, p_dores_musculares, p_stress, p_fadiga, p_sono)
+  insert into wellness_responses (team_id, player_id, dores_musculares, stress, fadiga, sono, peso)
+  values (v_player.team_id, v_player.id, p_dores_musculares, p_stress, p_fadiga, p_sono, p_peso)
   returning * into v_row;
 
   return v_row;
@@ -354,7 +358,7 @@ exception
 end;
 $$;
 
-grant execute on function submit_wellness(int, int, int, int) to authenticated;
+grant execute on function submit_wellness(int, int, int, int, numeric) to authenticated;
 
 -- ---------- Emblema da equipa (Supabase Storage) ----------
 

@@ -7,13 +7,14 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.3 (2026-08-05)
+  Versão: 1.4 (2026-08-07)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
     1.2 (2026-07-15) — events_normalizado ganha zona_col/zona_row (grelha 6×4, mapa de calor).
     1.3 (2026-08-05) — players ganha login próprio (auth_user_id/data_nascimento/login_email)
                         e a tabela wellness_responses (questionário diário dos jogadores).
+    1.4 (2026-08-07) — wellness_responses ganha peso (kg, opcional).
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -141,6 +142,7 @@ erDiagram
     int stress
     int fadiga
     int sono
+    numeric peso
     timestamptz created_at
   }
 ```
@@ -263,6 +265,7 @@ Questionário diário de wellness, preenchido pelo próprio jogador (login próp
 | `stress` | int (0-10) | sim | "Como te sentes hoje em termos de stress?" — 0 = muito relaxado, 10 = muito stressado |
 | `fadiga` | int (0-10) | sim | "Como está o teu nível de fadiga?" — 0 = muito fresco, 10 = extremamente cansado |
 | `sono` | int (0-10) | sim | "Como classificas o teu sono?" — 0 = muito bom, 10 = muito mau |
+| `peso` | numeric | não | peso em kg — o único campo do questionário que é mesmo opcional |
 | `created_at` | timestamptz | sim | |
 
 A escrita só acontece via a função `submit_wellness()` (identifica o jogador pelo próprio `auth.uid()`, não recebe `player_id` do cliente) — não há política de `insert` direta na tabela.
