@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<!--
+  Análise de Jogo — pages/wellness-jogador.html
+  Página do treinador para um jogador específico: evolução do wellness
+  (gráficos, Semana/Mês/Total) e tabela de respostas diárias, com
+  possibilidade de corrigir um dia (ex: o jogador enganou-se a preencher).
+  Acedida a partir do botão "Ver" na tab Wellness do dashboard.
+  Lógica em ../js/wellness-jogador.js.
+
+  Versão: 1.3 (2026-08-07)
+  Histórico:
+    1.0 (2026-08-07) — criação.
+    1.1 (2026-08-07) — separa o gráfico único de wellness em 4 gráficos, um por
+                        métrica (Dores/Stress/Fadiga/Sono), em vez de 4 linhas juntas.
+    1.2 (2026-08-07) — botões "Exportar gráficos (PDF)" e "Exportar tabela (Excel)".
+    1.3 (2026-08-07) — cabeçalho só para impressão (#print-header) com o nome do
+                        jogador e o intervalo de datas do PDF exportado.
+-->
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise de Jogo — Wellness do Jogador</title>
+<link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+  <h1 class="page-title">Análise de Jogo</h1>
+
+  <div class="top-bar">
+    <div class="match-indicator" id="team-indicator">Equipa</div>
+    <div class="match-indicator" id="jogador-indicator">Jogador</div>
+    <button class="action" id="btn-voltar">Voltar</button>
+    <button class="action" id="btn-switch-team">Trocar de equipa</button>
+    <button class="action" id="btn-sign-out">Sair</button>
+  </div>
+
+  <div class="toolbar">
+    <button class="action view-btn" data-range="7">Semana</button>
+    <button class="action view-btn" data-range="30">Mês</button>
+    <button class="action view-btn active" data-range="total">Total</button>
+  </div>
+
+  <div class="actions wellness-export-actions">
+    <button class="action" id="btn-export-charts-pdf">Exportar gráficos (PDF)</button>
+    <button class="action" id="btn-export-table-excel">Exportar tabela (Excel)</button>
+  </div>
+
+  <!-- Só aparece no PDF exportado (ver @media print) — o topo, com o
+       nome do jogador, fica escondido na impressão. -->
+  <p class="print-only-header" id="print-header"></p>
+
+  <div class="wellness-charts">
+    <div class="players-card">
+      <h2 class="tracker-title">Dores musculares</h2>
+      <canvas id="chart-dores"></canvas>
+    </div>
+
+    <div class="players-card">
+      <h2 class="tracker-title">Stress</h2>
+      <canvas id="chart-stress"></canvas>
+    </div>
+
+    <div class="players-card">
+      <h2 class="tracker-title">Fadiga</h2>
+      <canvas id="chart-fadiga"></canvas>
+    </div>
+
+    <div class="players-card">
+      <h2 class="tracker-title">Sono</h2>
+      <canvas id="chart-sono"></canvas>
+    </div>
+
+    <div class="players-card">
+      <h2 class="tracker-title">Peso</h2>
+      <p class="hint">Só os dias em que o peso foi preenchido (é opcional).</p>
+      <canvas id="chart-peso"></canvas>
+    </div>
+  </div>
+
+  <div class="players-card" id="wellness-table-card">
+    <h2 class="tracker-title">Respostas</h2>
+    <p class="hint">Clica em "Editar" para corrigir um dia (ex: o jogador enganou-se a preencher).</p>
+    <table class="players-table">
+      <thead><tr><th>Data</th><th>Dores</th><th>Stress</th><th>Fadiga</th><th>Sono</th><th>Peso (kg)</th><th></th></tr></thead>
+      <tbody id="wellness-jogador-body"></tbody>
+    </table>
+    <p class="hint" id="wellness-jogador-empty">Sem respostas neste intervalo.</p>
+  </div>
+
+<script type="module" src="../js/wellness-jogador.js"></script>
+</body>
+</html>

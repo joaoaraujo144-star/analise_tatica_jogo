@@ -9,7 +9,7 @@
   (tabelas/colunas), ver supabase/data-model.md; para funcionalidades e
   setup, ver o README.md.
 
-  Versão: 1.7 (2026-08-07)
+  Versão: 1.10 (2026-08-07)
   Histórico:
     1.0 (2026-07-14) — criação.
     1.1 (2026-07-15) — popup de escolha de jogador após o clique, no Registo de Jogo.
@@ -23,6 +23,12 @@
                         primeira dependência externa além do supabase-js.
     1.7 (2026-08-07) — jogador.html deixa de ter o passo "Completa o teu perfil"
                         no primeiro login; entra logo no questionário do dia.
+    1.8 (2026-08-07) — nova página wellness-jogador.html (gráficos Chart.js + edição
+                        de um dia pelo treinador); RLS ganha wellness_team_member_update.
+    1.9 (2026-08-07) — RLS ganha wellness_team_member_insert: o treinador também pode
+                        criar uma resposta em nome de um jogador.
+    1.10 (2026-08-07) — wellness-jogador.html ganha 5 gráficos (um por métrica, em vez
+                         de 4 linhas juntas) e exportação PDF/Excel.
 -->
 
 # Arquitetura — Análise de Jogo
@@ -53,18 +59,23 @@ flowchart LR
   D["pages/dashboard.html<br/>(Jogos · Plantel · Wellness · Relatórios da equipa)"]
   M["pages/match.html<br/>(Jogadores · Registo de Jogo · Relatórios do jogo)"]
   J["pages/jogador.html<br/>(questionário de wellness)"]
+  W["pages/wellness-jogador.html<br/>(gráficos + edição, um jogador)"]
 
   L -->|"sessão válida (treinador)"| T
   L -->|"sessão válida (jogador)"| J
   T -->|abrir equipa| D
   D -->|abrir jogo| M
+  D -->|"Ver (tab Wellness)"| W
+  W -->|"Voltar"| D
   M -->|"Trocar de jogo"| D
   D -->|"Trocar de equipa"| T
   M -->|"Trocar de equipa"| T
+  W -->|"Trocar de equipa"| T
   T -->|"Sair"| L
   D -->|"Sair"| L
   M -->|"Sair"| L
   J -->|"Sair"| L
+  W -->|"Sair"| L
 ```
 
 Cada página valida os pré-requisitos antes de se mostrar, e redireciona "para trás" se algum faltar — ver [Guardas de navegação](#guardas-de-navegação-por-página). `jogador.html` fica completamente à parte do resto (nunca leva a `teams.html`/`dashboard.html`/`match.html`) — é a única página pensada para outro tipo de utilizador, não o treinador.
@@ -89,6 +100,7 @@ A app usa duas chaves de `localStorage` para lembrar "onde estás", à parte da 
 |---|---|---|---|
 | `current_team_id` | `teams.js` (ao abrir/criar/entrar numa equipa) | `dashboard.js`, `match.js` (para saber a equipa atual) | "Sair" (todas as páginas); "Trocar de equipa" |
 | `current_match_id` | `dashboard.js` (ao abrir/criar um jogo) | `match.js` (para saber o jogo atual) | "Sair"; "Trocar de jogo"; "Trocar de equipa" (fica órfã de qualquer forma, porque sem equipa não há jogo) |
+| `current_wellness_player_id` | `dashboard.js` (botão "Ver" na tab Wellness) | `wellness-jogador.js` (para saber de que jogador é a página) | "Sair"; fica órfã ao trocar de equipa (a query seguinte falha e redireciona) |
 
 Se `dashboard.html` for aberta sem `current_team_id` válido (ou a equipa deixou de existir/o utilizador deixou de ser membro), redireciona para `teams.html`. Da mesma forma, `match.html` sem `current_match_id` válido redireciona para `dashboard.html`. Isto permite recarregar a página (F5) ou colar o link diretamente sem perder o contexto, enquanto as chaves continuarem válidas.
 
@@ -102,6 +114,7 @@ Cada página faz uma cadeia de verificações no arranque (`init()`), na ordem i
 2. **`dashboard.html`**: sessão válida → `current_team_id` existe → a equipa existe e o utilizador é membro dela (a própria query já filtra por RLS) → senão `login.html` ou `teams.html`, consoante o que falhou.
 3. **`match.html`**: sessão válida → `current_team_id`/equipa válidos → `current_match_id` existe → o jogo existe e pertence a essa equipa → senão `login.html`, `teams.html` ou `dashboard.html`.
 4. **`jogador.html`**: sessão válida → existe uma linha em `players` com `auth_user_id` igual ao utilizador atual → senão `login.html` (com aviso — conta não associada a nenhum jogador). Não depende de `current_team_id`/`current_match_id`: a equipa do jogador vem sempre da própria linha em `players`.
+5. **`wellness-jogador.html`**: sessão válida → `current_team_id`/equipa válidos → `current_wellness_player_id` existe e esse jogador pertence a essa equipa → senão `teams.html` ou `dashboard.html`.
 
 Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-se em `dashboard.js` e `match.js` de forma quase idêntica — ver a função `init()` em cada ficheiro.
 
@@ -109,7 +122,7 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 
 - **Row Level Security (RLS)** em todas as tabelas de dados da app, baseada em pertença a uma equipa: uma linha só é visível/editável por quem tem uma entrada correspondente em `team_members`. O `user_id` gravado em cada linha serve só de registo de autoria, **não** é usado para controlo de acesso — dois membros da mesma equipa veem e editam sempre os mesmos dados. Ver `supabase/data-model.md` para o detalhe de cada política.
 - **Acesso do jogador (sem ser `team_member`)**: um jogador com login próprio (`players.auth_user_id`) não pertence a `team_members`, mas ganha duas policies adicionais (que se juntam por OR às de cima): vê/edita só a própria linha em `players` (`players_self_select`, usada em `jogador.js` para ler o próprio nome; `players_self_update` fica disponível, mas nenhum fluxo atual a usa — o perfil deixou de ser editável pelo jogador), e vê só as próprias linhas em `wellness_responses` (`wellness_player_select`). Nunca vê jogos, plantel de outros jogadores, ou qualquer outra tabela.
-- **Escrita do wellness só via função**: `wellness_responses` não tem política de `insert` — a única forma de escrever é a função `submit_wellness()` (`security definer`), que identifica o jogador pelo próprio `auth.uid()` (nunca recebe um `player_id` do cliente) e usa a restrição `unique (player_id, data)` para impedir mais de uma resposta por dia.
+- **Escrita do wellness**: o jogador só pode criar a própria resposta do dia via a função `submit_wellness()` (`security definer`, identifica-o pelo próprio `auth.uid()`, nunca recebe um `player_id` do cliente, e usa a restrição `unique (player_id, data)` para impedir mais de uma resposta por dia). O treinador tem duas policies diretas na tabela (sem RPC): `wellness_team_member_insert` (criar uma resposta em nome de um jogador — ex: um dia esquecido, ou dados de teste/demo) e `wellness_team_member_update` (corrigir qualquer campo de qualquer dia). Já o jogador só pode alterar o próprio `peso` depois de enviado (função `update_wellness_peso()`) — os restantes campos ficam fixos para ele, só o treinador os pode mudar.
 - **Funções RPC `security definer`** (`create_team`, `join_team_by_code`): usadas quando uma operação precisa de escrever em mais do que uma tabela de forma atómica (criar equipa + inserir o "owner" em `team_members`), contornando a RLS só dentro da própria função, de forma controlada.
 - **Storage** (bucket `team-logos`, público para leitura): upload/substituição de um emblema só é permitido a membros da equipa dona desse emblema, validado pelo caminho do ficheiro (`<team_id>/...`) contra `team_members`.
 - **Chave anon pública**: é suposto ser pública (fica no código-fonte, em `js/supabase-client.js`); a segurança nunca depende de a esconder, só das políticas RLS acima.
@@ -126,7 +139,9 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 - **Exportação do relatório em PDF**: o botão "Exportar relatório (PDF)" chama `window.print()` — sem nenhuma dependência nova (`jsPDF`/`html2canvas` ficam como opção futura só se o relatório crescer para vários tipos de gráfico). Uma folha `@media print` em `css/styles.css` esconde tudo exceto a tab Relatórios (mesmo que não seja a tab ativa no momento, via `display: block !important` a sobrepor o atributo `hidden`). Cada secção do registo normalizado tem, em paralelo ao campo interativo (`.screen-field`, escondido na impressão), uma estrutura só para impressão (`.print-heat-pair`, escondida no ecrã) com **os dois mapas de calor sempre lado a lado** (X e Y) — preenchida por `prepareReportForPrint()` a partir do `normalizadoPointsCache`, independentemente do toggle X/Y escolhido no ecrã, porque o documento exportado não deve depender de um estado efémero da UI. `.field-wrap` tem `break-inside: avoid` para não cortar a imagem do campo a meio entre páginas; a tabela de log pode continuar naturalmente na página seguinte.
 - **Criar o login de um jogador sem perder a sessão do treinador**: `supabase.auth.signUp()` substitui a sessão ativa do cliente que o chama — se o treinador o chamasse no cliente principal (`js/supabase-client.js`), ficava automaticamente com a sessão trocada para a conta nova, desligado da própria. Em vez disso, `dashboard.js` (tab Plantel, "Criar login") cria uma **segunda instância do cliente Supabase**, só para esse passo, com `{ auth: { persistSession: false, autoRefreshToken: false } }` — a conta é criada nesse cliente à parte, sem tocar na sessão principal; de seguida, um `update` normal em `players` (no cliente principal, sessão do treinador intacta) associa `auth_user_id`/`login_email` a esse jogador — já permitido pela RLS existente, porque o treinador é `team_member`. `SUPABASE_URL`/`SUPABASE_ANON_KEY` são exportadas por `supabase-client.js` precisamente para este segundo cliente as poder reutilizar.
 - **"Utilizador" do jogador gerado automaticamente**: o Supabase Auth exige sempre um campo com formato de email, mas o jogador não precisa de ter um email real — `generateLoginUsername()` (`dashboard.js`) gera um a partir do nome (slug sem acentos + sufixo aleatório, ex: `joao-silva-x7k9@jogador.app`), mostrado num campo `readonly` para o treinador copiar. O treinador só escolhe/edita a palavra-passe.
-- **Exportação Excel (.xlsx) do Wellness**: única exceção à filosofia "zero dependências" do resto da app — `dashboard.js` importa [SheetJS](https://sheetjs.com) (`xlsx`, via CDN `esm.sh`, tal como o `@supabase/supabase-js`) porque um `.xlsx` real (múltiplas folhas, tal como o Excel o entende) não é razoável de gerar à mão como o CSV existente. Cada exportação (`exportWellnessDaily()`/`exportWellnessWeekly()`) monta as folhas como arrays-de-arrays (`XLSX.utils.aoa_to_sheet`) e descarrega com `XLSX.writeFile()` — sem passar por Blob/`<a download>` manual, a biblioteca trata disso. A exportação semanal usa sempre a semana civil (segunda a domingo) que contém a data de hoje, calculada em `startOfWeek()`.
+- **Exportação Excel (.xlsx) do Wellness**: 1ª exceção à filosofia "zero dependências" do resto da app — `dashboard.js` importa [SheetJS](https://sheetjs.com) (`xlsx`, via CDN `esm.sh`, tal como o `@supabase/supabase-js`) porque um `.xlsx` real (múltiplas folhas, tal como o Excel o entende) não é razoável de gerar à mão como o CSV existente. Cada exportação (`exportWellnessDaily()`/`exportWellnessWeekly()`) monta as folhas como arrays-de-arrays (`XLSX.utils.aoa_to_sheet`) e descarrega com `XLSX.writeFile()` — sem passar por Blob/`<a download>` manual, a biblioteca trata disso. A exportação semanal usa sempre a semana civil (segunda a domingo) que contém a data de hoje, calculada em `startOfWeek()`.
+- **Gráficos de evolução do Wellness**: 2ª exceção — `wellness-jogador.js` importa [Chart.js](https://www.chartjs.org) (`chart.js/auto`, via CDN `esm.sh`) para 5 gráficos de linha, um por métrica (Dores/Stress/Fadiga/Sono 0-10, e Peso à parte por ter escala diferente) — cada cartão já mostra o nome na `h2.tracker-title`, por isso a legenda do Chart.js fica desligada em cada um. O toggle Semana/Mês/Total é sempre uma **janela deslizante** a partir de hoje (últimos 7/30 dias, ou tudo), não fixa ao calendário como a exportação semanal — para mostrar sempre a tendência mais recente, seja qual for o dia em que o treinador está a ver. Os gráficos são recriados (`chart.destroy()` + `new Chart(...)`) sempre que a janela muda ou uma resposta é editada, em vez de atualizados in-place; guardados no objeto `charts` (por id de métrica), não em variáveis separadas.
+- **Exportações de `wellness-jogador.html`**: os dois botões reutilizam padrões já existentes em vez de inventar um terceiro — "Exportar gráficos (PDF)" é só `window.print()` com regras `@media print` (mesma abordagem do relatório do jogo em `match.js`; os `<canvas>` do Chart.js imprimem bem tal como estão, sem tratamento especial); "Exportar tabela (Excel)" usa o SheetJS já importado para os exports do dashboard.
 
 ## Onde encontrar cada coisa
 

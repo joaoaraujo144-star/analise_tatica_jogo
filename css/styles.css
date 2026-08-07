@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.19 (2026-08-07)
+ * Versão: 1.22 (2026-08-07)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -30,6 +30,12 @@
  *                        de wellness continuar a aparecer depois de já ter sido respondido.
  *   1.19 (2026-08-07) — estilo da vista/edição do peso no resumo do questionário (único
  *                        campo editável depois de enviado).
+ *   1.20 (2026-08-07) — estilos de pages/wellness-jogador.html (grelha de gráficos,
+ *                        inputs de edição inline na tabela de respostas).
+ *   1.21 (2026-08-07) — @media print de wellness-jogador.html: só os gráficos saem
+ *                        no PDF (tabela e botões ficam de fora).
+ *   1.22 (2026-08-07) — .print-only-header: cabeçalho (nome + intervalo de datas) só
+ *                        visível no PDF exportado.
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -724,7 +730,31 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
   .players-table th { color: #666; }
   .log th, .log td { border-color: #ccc; }
   .log th { color: #666; }
+
+  /* Wellness por jogador (pages/wellness-jogador.html): só os gráficos
+     saem no PDF — a tabela de respostas e os botões ficam de fora
+     (".top-bar"/".toolbar" já ficam escondidos pela regra geral acima). */
+  #wellness-table-card, .wellness-export-actions {
+    display: none !important;
+  }
+  .wellness-charts { max-width: 100%; }
+  .wellness-charts .players-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .print-only-header {
+    display: block !important;
+    text-align: center;
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #000;
+    margin: 0 0 16px;
+  }
 }
+
+/* Escondido no ecrã em qualquer página — só existe para aparecer no PDF
+   exportado (ver a regra acima, dentro de @media print). */
+.print-only-header { display: none; }
 
 /* ---------- Questionário de wellness (pages/jogador.html) ---------- */
 
@@ -802,4 +832,25 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
   padding: 5px 8px;
   font-size: 0.9em;
   width: 80px;
+}
+
+/* ---------- Wellness por jogador, vista do treinador (pages/wellness-jogador.html) ---------- */
+
+.wellness-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  width: 100%;
+  max-width: 1000px;
+}
+.wellness-charts canvas { max-height: 280px; }
+.wellness-edit-input {
+  background: #1c242c;
+  border: 1px solid #333;
+  color: #eee;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 0.85em;
+  width: 55px;
+  text-align: center;
 }

@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 016.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 018.)
 --
--- Versão: 1.15 (2026-08-07) — reflete sempre o estado final cumulativo,
+-- Versão: 1.17 (2026-08-07) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -26,6 +26,10 @@
 --   1.14 (2026-08-07) — wellness_responses ganha "peso" (kg, opcional).
 --   1.15 (2026-08-07) — função update_wellness_peso(): o peso pode ser atualizado
 --                        várias vezes no mesmo dia (os outros campos ficam fixos).
+--   1.16 (2026-08-07) — policy wellness_team_member_update: o treinador pode corrigir
+--                        um dia já registado (pages/wellness-jogador.html).
+--   1.17 (2026-08-07) — policy wellness_team_member_insert: o treinador também pode
+--                        criar uma resposta em nome de um jogador.
 
 create extension if not exists "pgcrypto";
 
@@ -224,12 +228,27 @@ create policy "wellness_player_select" on wellness_responses
   );
 
 -- ...e o treinador vê as respostas de todos os jogadores da sua equipa.
--- Não há policy de insert direta: a escrita só acontece via a função
--- submit_wellness (mais abaixo), que identifica o jogador pelo próprio login.
+-- Não há policy de insert direta: a escrita inicial só acontece via a
+-- função submit_wellness (mais abaixo), que identifica o jogador pelo
+-- próprio login.
 create policy "wellness_team_member_select" on wellness_responses
   for select using (
     exists (select 1 from team_members tm where tm.team_id = wellness_responses.team_id and tm.user_id = auth.uid())
   );
+
+-- O treinador pode corrigir um dia já registado (ex: o jogador enganou-se
+-- a preencher) — usada em pages/wellness-jogador.html.
+create policy "wellness_team_member_update" on wellness_responses
+  for update
+  using (exists (select 1 from team_members tm where tm.team_id = wellness_responses.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = wellness_responses.team_id and tm.user_id = auth.uid()));
+
+-- O treinador também pode criar uma resposta em nome de um jogador (ex:
+-- registar um dia esquecido, ou dados de teste/demo) — a mesma confiança
+-- que já tem para "update", estendida à criação.
+create policy "wellness_team_member_insert" on wellness_responses
+  for insert
+  with check (exists (select 1 from team_members tm where tm.team_id = wellness_responses.team_id and tm.user_id = auth.uid()));
 
 -- View: Registo de Jogo normalizado (1ª + 2ª parte juntas, rodadas 180º
 -- conforme a orientação de ataque escolhida nas setas para cada parte).

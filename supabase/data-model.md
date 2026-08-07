@@ -7,7 +7,7 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.5 (2026-08-07)
+  Versão: 1.7 (2026-08-07)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
@@ -16,6 +16,10 @@
                         e a tabela wellness_responses (questionário diário dos jogadores).
     1.4 (2026-08-07) — wellness_responses ganha peso (kg, opcional).
     1.5 (2026-08-07) — função update_wellness_peso(): peso editável várias vezes por dia.
+    1.6 (2026-08-07) — policy wellness_team_member_update: o treinador pode corrigir
+                        qualquer campo de um dia já registado.
+    1.7 (2026-08-07) — policy wellness_team_member_insert: o treinador também pode
+                        criar uma resposta em nome de um jogador.
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -269,7 +273,7 @@ Questionário diário de wellness, preenchido pelo próprio jogador (login próp
 | `peso` | numeric | não | peso em kg — o único campo do questionário que é mesmo opcional, e o único editável depois de enviado (ex: pesagem antes/depois do treino) |
 | `created_at` | timestamptz | sim | |
 
-A escrita só acontece via funções (nenhuma política de `insert`/`update` direta na tabela): `submit_wellness()` cria a resposta do dia (identifica o jogador pelo próprio `auth.uid()`, não recebe `player_id` do cliente); `update_wellness_peso()` só atualiza o `peso` de uma resposta já existente do próprio dia — os restantes campos ficam fixos depois de enviados.
+O jogador só pode criar a própria resposta do dia via `submit_wellness()` (identifica-o pelo próprio `auth.uid()`, não recebe `player_id` do cliente). O treinador tem duas policies diretas na tabela, sem função: `wellness_team_member_insert` (criar uma resposta em nome de um jogador — ex: dia esquecido, ou dados de teste) e `wellness_team_member_update` (corrigir qualquer campo de qualquer dia). O jogador só pode alterar o próprio `peso` depois de enviado (`update_wellness_peso()`).
 
 ### `events_normalizado` (view, não tabela)
 Junta `events` com `matches` e roda 180º (`100 - x_pct`, `100 - y_pct`) os pontos da parte cuja orientação de ataque não é a de referência (`E-D`), para que a 1ª e a 2ª parte fiquem representadas no mesmo sentido de ataque.

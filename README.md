@@ -14,6 +14,7 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/*
   - **Login do jogador (opcional)**: o treinador pode criar um acesso próprio para cada jogador diretamente nesta tab ("Criar login") — só define a palavra-passe; o "utilizador" (formato de email, ex: `joao-silva-x7k9@jogador.app`) é gerado automaticamente a partir do nome, e o jogador nunca precisa de ter esse email real. O jogador passa a poder entrar sozinho, mas só vê uma página própria (`jogador.html`) com o questionário de wellness, nunca o resto da equipa.
 - **Wellness**: tab no dashboard da equipa com a resposta de hoje de cada jogador — dores musculares, stress, fadiga e sono (0-10, com cor verde/amarelo/vermelho consoante o nível), mais o peso em kg (**opcional**, sem cor), ou ❌ se ainda não respondeu — e a **média do dia por métrica** (só sobre quem já respondeu). Cada jogador só pode responder uma vez por dia, na própria conta; ao entrar, vai logo para o questionário do dia (ou para o resumo, se já tiver respondido). O **peso é o único campo editável depois de enviado** — pode atualizá-lo quantas vezes quiser durante o dia (ex: antes/depois do treino), diretamente no resumo.
   - **Exportar para Excel**: dois botões, "Exportar diário" (respostas + médias de hoje) e "Exportar semanal" (uma linha por jogador/dia da semana civil atual — segunda a domingo — mais uma folha só com as médias diárias da equipa).
+  - **Página por jogador** (botão "Ver" na tabela): 5 gráficos de evolução, um por métrica (Dores/Stress/Fadiga/Sono 0-10, e Peso à parte por ter escala diferente), com toggle Semana/Mês/Total (janela deslizante — últimos 7/30 dias, ou tudo), e a tabela de respostas diárias por baixo — onde o treinador pode **corrigir um dia** (ex: o jogador enganou-se a preencher) ou **criar um dia esquecido**. Dois botões de exportação: "Exportar gráficos (PDF)" (impressão do browser, só os gráficos) e "Exportar tabela (Excel)".
 - **Jogos**: dentro de uma equipa, cria e guarda um histórico de jogos (adversário + data). Abrir um jogo leva à sua própria página, com três tabs só disponíveis aí (Jogadores, Registo de Jogo, Relatórios) e um botão "Trocar de jogo" para voltar à lista.
 - **Cronómetro do jogo**: botões "Iniciar 1ª Parte", "Finalizar Parte" e "Iniciar 2ª Parte" (cada um grava a hora exata), um indicador visual (slide) da parte atual, um temporizador grande em minutos:segundos que conta a partir do início da parte em curso, e "Recomeçar Jogo" para limpar o cronómetro sem apagar dados. Quando a 2ª parte termina, a tab Registo de Jogo desaparece (troca automaticamente para Relatórios se estiver aberta) e a tab Jogadores fica bloqueada, só de leitura.
 - **Edição só com o jogo a decorrer**: enquanto nenhuma parte está em curso (antes de começar, no intervalo, ou depois de terminar uma parte), só é possível convocar/remover jogadores e mudar o Estado (Titular/Suplente) na tab Jogadores; cartões, assistências, golos, substituição e os cliques no Registo de Jogo ficam bloqueados até haver uma parte a decorrer.
@@ -48,9 +49,12 @@ pages/
   match.html              Página de um jogo: Jogadores, Registo de Jogo, Relatórios (só deste jogo).
   jogador.html            Página do jogador (login criado pelo treinador): questionário de
                            wellness diário — nunca vê o resto da equipa.
+  wellness-jogador.html   Página do treinador: evolução do wellness de um jogador (gráficos
+                           Chart.js) e edição de um dia — aberta a partir da tab Wellness.
 js/
   supabase-client.js       Inicializa o cliente Supabase — partilhado por todas as páginas.
-  login.js, teams.js, dashboard.js, match.js, jogador.js   Lógica de cada página em pages/.
+  login.js, teams.js, dashboard.js, match.js, jogador.js, wellness-jogador.js
+                            Lógica de cada página em pages/.
 css/
   styles.css                Estilos partilhados entre todas as páginas.
 assets/
@@ -62,12 +66,14 @@ docs/
 supabase/
   schema.sql                Esquema completo — para configurar um projeto Supabase novo de raiz.
   data-model.md             Logical Data Model: diagrama de entidades/relações + dicionário de dados.
-  migrations/               Migrações incrementais, por ordem (001 a 014) — só necessárias em
+  migrations/               Migrações incrementais, por ordem (001 a 017) — só necessárias em
                              projetos já existentes, correr uma vez cada uma, por esta ordem:
                              001_teams, 002_team_logos, 003_substituicao, 004_amarelo2,
                              005_player_events, 006_partes, 007_orientacao, 008_events_parte,
                              009_events_normalizado, 010_events_minuto, 011_cruzamentos,
-                             012_events_player, 013_events_zona, 014_wellness.
+                             012_events_player, 013_events_zona, 014_wellness, 015_wellness_peso,
+                             016_wellness_peso_editavel, 017_wellness_coach_update,
+                             018_wellness_coach_insert.
 scripts/
   seed-demo-match.mjs       Ferramenta de dev: preenche uma equipa + jogo completo com dados
                              realistas para demos rápidas — ver "Ferramentas de desenvolvimento".
@@ -75,6 +81,8 @@ scripts/
                              de um CSV (Nome;Alcunha;Data de Nascimento).
   create-team-logins.mjs    Ferramenta de dev: cria o login de todos os jogadores de uma
                              equipa sem login ainda, e exporta as credenciais para CSV local.
+  seed-wellness.mjs         Ferramenta de dev: gera vários dias de wellness de teste para
+                             um jogador (equipa/jogador encontrados por nome).
 ```
 
 Cada página em `pages/` só referencia o seu próprio ficheiro em `js/` (mesmo nome) e o `css/styles.css` partilhado; a navegação entre páginas usa caminhos relativos dentro da própria pasta `pages/`.
@@ -158,6 +166,15 @@ node scripts/create-team-logins.mjs <email> <password> <join_code> [ficheiro-csv
 ```
 
 O CSV gerado (`credenciais-*.csv`) fica só local — está no `.gitignore`, nunca é comitado.
+
+`scripts/seed-wellness.mjs` gera vários dias de respostas de wellness de teste para um jogador
+(encontra a equipa e o jogador por nome aproximado, `ilike`) — útil para testar os gráficos de
+`pages/wellness-jogador.html` sem esperar dias reais. Precisa da policy
+`wellness_team_member_insert` (migração 018):
+
+```bash
+node scripts/seed-wellness.mjs <email> <password> <nome-da-equipa> <nome-do-jogador> [dias]
+```
 
 ## Publicação
 

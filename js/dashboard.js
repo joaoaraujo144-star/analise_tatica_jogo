@@ -5,7 +5,7 @@
  * Wellness (vista do treinador sobre o questionário diário dos jogadores)
  * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.14 (2026-08-07)
+ * Versão: 1.15 (2026-08-07)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -28,6 +28,8 @@
  *                        da tab Wellness, igual à escala usada em jogador.html.
  *   1.14 (2026-08-07) — tab Wellness (tabela, médias e exportações Excel) ganha a
  *                        coluna Peso (kg), opcional e sem cor (não é escala 0-10).
+ *   1.15 (2026-08-07) — tab Wellness ganha um botão "Ver" por jogador, que abre
+ *                        pages/wellness-jogador.html (gráficos + edição de um dia).
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -335,16 +337,24 @@ function wellnessCell(value) {
   return value == null ? '—' : `<span class="${wellnessColorClass(value)}">${value}</span>`;
 }
 
+function openWellnessPlayer(playerId) {
+  localStorage.setItem('current_wellness_player_id', playerId);
+  window.location.href = 'wellness-jogador.html';
+}
+
 function renderWellness(byPlayer) {
   const body = el('wellness-body');
   body.innerHTML = '';
   rosterCache.forEach(p => {
     const r = byPlayer.get(p.id);
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td>${r ? '✅' : '❌'}</td><td>${wellnessCell(r?.dores_musculares)}</td><td>${wellnessCell(r?.stress)}</td><td>${wellnessCell(r?.fadiga)}</td><td>${wellnessCell(r?.sono)}</td><td>${r?.peso ?? '—'}</td>`;
+    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td>${r ? '✅' : '❌'}</td><td>${wellnessCell(r?.dores_musculares)}</td><td>${wellnessCell(r?.stress)}</td><td>${wellnessCell(r?.fadiga)}</td><td>${wellnessCell(r?.sono)}</td><td>${r?.peso ?? '—'}</td><td><button class="action small" data-id="${p.id}">Ver</button></td>`;
     body.appendChild(tr);
   });
   el('wellness-empty').hidden = rosterCache.length > 0;
+  body.querySelectorAll('button[data-id]').forEach(btn => {
+    btn.addEventListener('click', () => openWellnessPlayer(btn.dataset.id));
+  });
   renderWellnessAverages(Array.from(byPlayer.values()), rosterCache.length);
 }
 

@@ -6,7 +6,7 @@
   questionário diário) e Relatórios (agregado de todos os jogos).
   Lógica em ../js/dashboard.js.
 
-  Versão: 1.9 (2026-08-07)
+  Versão: 1.10 (2026-08-07)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-08) — passa a ser específico de uma equipa (troca de equipa).
@@ -20,6 +20,8 @@
     1.7 (2026-08-05) — tab Wellness ganha as médias do dia por métrica.
     1.8 (2026-08-05) — tab Wellness ganha exportação para Excel (.xlsx), diária e semanal.
     1.9 (2026-08-07) — tab Wellness ganha a coluna/média de Peso (kg, opcional).
+    1.10 (2026-08-07) — tab Wellness ganha um botão "Ver" por jogador (gráficos +
+                         edição de um dia, em pages/wellness-jogador.html).
 -->
 <html lang="pt">
 <head>
@@ -110,7 +112,7 @@
           <button class="action" id="btn-export-wellness-weekly">Exportar semanal (.xlsx)</button>
         </div>
         <table class="players-table">
-          <thead><tr><th>Nº</th><th>Nome</th><th>Respondeu</th><th>Dores</th><th>Stress</th><th>Fadiga</th><th>Sono</th><th>Peso (kg)</th></tr></thead>
+          <thead><tr><th>Nº</th><th>Nome</th><th>Respondeu</th><th>Dores</th><th>Stress</th><th>Fadiga</th><th>Sono</th><th>Peso (kg)</th><th></th></tr></thead>
           <tbody id="wellness-body"></tbody>
         </table>
         <p class="hint" id="wellness-empty">Ainda não há jogadores no plantel.</p>
