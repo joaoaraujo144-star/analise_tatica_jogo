@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 015.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 016.)
 --
--- Versão: 1.14 (2026-08-07) — reflete sempre o estado final cumulativo,
+-- Versão: 1.15 (2026-08-07) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -24,6 +24,8 @@
 --                        login próprio (auth_user_id, data_nascimento, login_email),
 --                        tabela wellness_responses, e a função submit_wellness().
 --   1.14 (2026-08-07) — wellness_responses ganha "peso" (kg, opcional).
+--   1.15 (2026-08-07) — função update_wellness_peso(): o peso pode ser atualizado
+--                        várias vezes no mesmo dia (os outros campos ficam fixos).
 
 create extension if not exists "pgcrypto";
 
@@ -359,6 +361,38 @@ end;
 $$;
 
 grant execute on function submit_wellness(int, int, int, int, numeric) to authenticated;
+
+-- Só o peso pode ser atualizado depois de enviado o questionário do dia
+-- (ex: pesagem antes/depois do treino) — os restantes campos ficam fixos.
+create or replace function update_wellness_peso(p_peso numeric)
+returns wellness_responses
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_player players;
+  v_row wellness_responses;
+begin
+  select * into v_player from players where auth_user_id = auth.uid();
+  if not found then
+    raise exception 'Conta não associada a nenhum jogador.';
+  end if;
+
+  update wellness_responses
+    set peso = p_peso
+    where player_id = v_player.id and data = current_date
+    returning * into v_row;
+
+  if not found then
+    raise exception 'Ainda não respondeste ao questionário de hoje.';
+  end if;
+
+  return v_row;
+end;
+$$;
+
+grant execute on function update_wellness_peso(numeric) to authenticated;
 
 -- ---------- Emblema da equipa (Supabase Storage) ----------
 

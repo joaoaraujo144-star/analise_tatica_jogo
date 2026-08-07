@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.18 (2026-08-07)
+ * Versão: 1.19 (2026-08-07)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -28,6 +28,8 @@
  *                        ficarem visíveis na mesma (regra de autor "display: flex" vencia
  *                        sempre a regra do browser) — bug real por trás do questionário
  *                        de wellness continuar a aparecer depois de já ter sido respondido.
+ *   1.19 (2026-08-07) — estilo da vista/edição do peso no resumo do questionário (único
+ *                        campo editável depois de enviado).
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -789,3 +791,15 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
 .wellness-val-red { color: var(--x-color); }
 .wellness-val-yellow { color: #fbc02d; }
 .wellness-val-green { color: #43a047; }
+
+/* Peso: único campo editável depois de enviado o questionário. */
+.wellness-peso-view, .wellness-peso-edit { display: flex; align-items: center; gap: 8px; }
+.wellness-peso-edit input {
+  background: #1c242c;
+  border: 1px solid #333;
+  color: #eee;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 0.9em;
+  width: 80px;
+}

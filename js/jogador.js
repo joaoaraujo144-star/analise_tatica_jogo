@@ -4,7 +4,7 @@
  * questionário de wellness do dia (ou mostrar o resumo, se já tiver
  * respondido hoje).
  *
- * Versão: 1.9 (2026-08-07)
+ * Versão: 1.10 (2026-08-07)
  * Histórico:
  *   1.0 (2026-08-05) — criação.
  *   1.1 (2026-08-05) — cor no valor de cada pergunta (1-4 vermelho, 5-7 amarelo,
@@ -25,6 +25,9 @@
  *                       (em vez de filtrar direto por data), com log de diagnóstico.
  *   1.9 (2026-08-07) — esconde/mostra os dois cartões (form/resumo) sempre de forma
  *                       explícita nos dois ramos, para não depender do estado inicial do HTML.
+ *   1.10 (2026-08-07) — peso passa a ser editável no resumo, quantas vezes quiser no
+ *                        mesmo dia (ex: antes/depois do treino) — os outros campos ficam
+ *                        fixos depois de enviados. Usa a função update_wellness_peso().
  */
 
 import { supabase } from './supabase-client.js';
@@ -32,6 +35,7 @@ import { supabase } from './supabase-client.js';
 const el = (id) => document.getElementById(id);
 
 let currentPlayer = null;
+let currentWellnessResponse = null;
 
 // Em todas, valor baixo é bom (pouca dor/stress/fadiga, sono "muito bom")
 // — verde no nível baixo, vermelho no alto ("invertido" em relação à
@@ -107,13 +111,67 @@ function summaryRow(label, value, invertido) {
   return `<div class="wellness-summary-row"><span>${label}</span><b class="${wellnessColorClass(value, invertido)}">${value}/10</b></div>`;
 }
 
+// O peso é o único campo editável depois de enviado o questionário (ex:
+// pesagem antes/depois do treino) — por isso tem sempre um botão "Editar",
+// mesmo que ainda não tenha sido preenchido.
+function pesoRowHtml(peso) {
+  return `
+    <div class="wellness-summary-row" id="wellness-peso-row">
+      <span>Peso</span>
+      <span class="wellness-peso-view">
+        <b>${peso != null ? peso + ' kg' : '—'}</b>
+        <button class="action small" type="button" data-action="editar-peso">Editar</button>
+      </span>
+    </div>
+  `;
+}
+
+function pesoEditHtml(peso) {
+  return `
+    <div class="wellness-summary-row" id="wellness-peso-row">
+      <span>Peso</span>
+      <span class="wellness-peso-edit">
+        <input type="number" id="wellness-peso-input" min="0" step="0.1" value="${peso ?? ''}" placeholder="kg">
+        <button class="action small" type="button" data-action="guardar-peso">Guardar</button>
+        <button class="action small" type="button" data-action="cancelar-peso">Cancelar</button>
+      </span>
+    </div>
+  `;
+}
+
 function showWellnessDone(response) {
+  currentWellnessResponse = response;
   const linhas = WELLNESS_FIELDS.map(({ key, label, invertido }) => summaryRow(label, response[key], invertido));
-  if (response.peso != null) {
-    linhas.push(`<div class="wellness-summary-row"><span>Peso</span><b>${response.peso} kg</b></div>`);
-  }
+  linhas.push(pesoRowHtml(response.peso));
   el('wellness-summary').innerHTML = linhas.join('');
   el('wellness-done-card').hidden = false;
+}
+
+function wireWellnessPesoEdit() {
+  el('wellness-summary').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+
+    if (btn.dataset.action === 'editar-peso') {
+      el('wellness-peso-row').outerHTML = pesoEditHtml(currentWellnessResponse.peso);
+      return;
+    }
+
+    if (btn.dataset.action === 'cancelar-peso') {
+      el('wellness-peso-row').outerHTML = pesoRowHtml(currentWellnessResponse.peso);
+      return;
+    }
+
+    if (btn.dataset.action === 'guardar-peso') {
+      const pesoStr = el('wellness-peso-input').value.trim();
+      const { data, error } = await supabase.rpc('update_wellness_peso', {
+        p_peso: pesoStr ? Number(pesoStr) : null,
+      });
+      if (error) { alert(error.message); return; }
+      currentWellnessResponse = data;
+      el('wellness-peso-row').outerHTML = pesoRowHtml(data.peso);
+    }
+  });
 }
 
 async function loadWellnessToday() {
@@ -165,6 +223,7 @@ async function init() {
   wireSignOut();
   wireWellnessSliders();
   wireWellnessForm();
+  wireWellnessPesoEdit();
 
   supabase.auth.onAuthStateChange((_event, newSession) => {
     if (!newSession) window.location.href = 'login.html';
