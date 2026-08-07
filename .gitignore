@@ -1,1 +1,4 @@
 .DS_Store
+
+# Gerado por scripts/create-team-logins.mjs — passwords em texto simples, nunca comitar.
+credenciais-*.csv

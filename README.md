@@ -71,6 +71,10 @@ supabase/
 scripts/
   seed-demo-match.mjs       Ferramenta de dev: preenche uma equipa + jogo completo com dados
                              realistas para demos rápidas — ver "Ferramentas de desenvolvimento".
+  import-plantel.mjs        Ferramenta de dev: cria uma equipa e importa o plantel a partir
+                             de um CSV (Nome;Alcunha;Data de Nascimento).
+  create-team-logins.mjs    Ferramenta de dev: cria o login de todos os jogadores de uma
+                             equipa sem login ainda, e exporta as credenciais para CSV local.
 ```
 
 Cada página em `pages/` só referencia o seu próprio ficheiro em `js/` (mesmo nome) e o `css/styles.css` partilhado; a navegação entre páginas usa caminhos relativos dentro da própria pasta `pages/`.
@@ -132,6 +136,28 @@ node scripts/seed-demo-match.mjs <email> <password>
 
 Usa uma conta já existente na app (ex: a conta de teste); a palavra-passe também pode vir das
 variáveis de ambiente `SEED_EMAIL`/`SEED_PASSWORD`, para não ficar no histórico do terminal.
+
+`scripts/import-plantel.mjs` cria uma equipa nova e importa o plantel a partir de um CSV com as
+colunas `Nome;Alcunha;Data de Nascimento` (datas em dd-mm-aaaa) — mesmo padrão de ligação à REST
+API do Supabase do script acima, sem dependências novas. A alcunha fica guardada como
+`"Nome (Alcunha)"` (não há coluna própria para ela), editável depois na tab Plantel:
+
+```bash
+node scripts/import-plantel.mjs <email> <password> [caminho-do-csv] [nome-da-equipa]
+```
+
+`scripts/create-team-logins.mjs` cria o login de todos os jogadores de uma equipa que ainda não
+têm um (o mesmo que o botão "Criar login" da tab Plantel, um a um) e exporta um CSV local com
+Nome/Utilizador/Password — o único momento em que a password ainda é conhecida em texto simples
+(o Supabase nunca a guarda de forma recuperável). Só processa jogadores sem login, por isso é
+seguro correr outra vez mais tarde (ex: depois de esbarrar no limite de emails do Supabase — ver
+"Configurar um novo ambiente Supabase" acima sobre desligar "Confirm email"):
+
+```bash
+node scripts/create-team-logins.mjs <email> <password> <join_code> [ficheiro-csv-de-saida]
+```
+
+O CSV gerado (`credenciais-*.csv`) fica só local — está no `.gitignore`, nunca é comitado.
 
 ## Publicação
 
