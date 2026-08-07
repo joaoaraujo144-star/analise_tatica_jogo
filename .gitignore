@@ -2,3 +2,9 @@
 
 # Gerado por scripts/create-team-logins.mjs — passwords em texto simples, nunca comitar.
 credenciais-*.csv
+docs/SANGUEDO.CSV
+docs/RONFE.CSV
+
+# Ficheiros de plantel (nomes reais + datas de nascimento) usados com
+# scripts/import-plantel.mjs — dados pessoais, ficam só no computador local.
+docs/plantel_*.csv
