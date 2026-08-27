@@ -101,7 +101,7 @@ Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`tea
 - **`team_members`** — quem pertence a que equipa (`role`: `owner` ou `membro`).
 - **`players`** — plantel reutilizável de uma equipa (`numero`, `nome`, e opcionalmente `auth_user_id`/`data_nascimento`/`login_email` — login próprio de um jogador, ver Wellness abaixo).
 - **`matches`** — jogos de uma equipa (`adversario`, `data`, `parte1_inicio`, `parte1_fim`, `parte2_inicio`, `parte2_fim`, `orientacao_parte1`: `E-D` ou `D-E`).
-- **`match_players`** — convocatória e estatísticas de um jogador num jogo específico (`estado`, `amarelo`, `amarelo2`, `vermelho`, `assistencias`, `golo`, `substituicao`: vazio, `Saiu` ou `Entrou`).
+- **`match_players`** — convocatória e estatísticas de um jogador num jogo específico (`numero`: opcional, sobrepõe-se ao número de `players` só nesse jogo; `estado`, `amarelo`, `amarelo2`, `vermelho`, `assistencias`, `golo`, `substituicao`: vazio, `Saiu` ou `Entrou`).
 - **`events`** — cliques nos 5 campos (`tracker_id`, `parte`: 1 ou 2, `minuto`, `tipo`, `x_pct`, `y_pct`, `player_id`: opcional).
 - **`player_events`** — histórico de cada ação clicada na convocatória (`tipo`, `valor`, `created_at`), um registo por clique.
 - **`wellness_responses`** — questionário diário de um jogador (`dores_musculares`, `stress`, `fadiga`, `sono`, cada um 0-10), no máximo um por dia (`unique (player_id, data)`); só é escrita via a função `submit_wellness()`.

@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.27 (2026-08-27)
+ * Versão: 1.28 (2026-08-27)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -63,6 +63,13 @@
  *                        soltos pela página inteira. Classe da seta passa a
  *                        "arrow-live-field", e os querySelector relevantes passam a
  *                        ".field-wrap.screen-field" (mais específico).
+ *   1.28 (2026-08-27) — número do jogador na convocatória passa a ser editável por
+ *                        jogo (match_players.numero, ver migração 019), sobrepondo-se
+ *                        ao número de base do Plantel só nesse jogo — útil para
+ *                        jogadores cedidos ou com camisola diferente da habitual.
+ *                        Corrige de caminho applyLockState() a não aplicar o estado
+ *                        visual de bloqueio no arranque da página (corria antes de
+ *                        loadMatchPlayers() preencher a tabela).
  */
 
 import { supabase } from './supabase-client.js';
@@ -248,6 +255,11 @@ function applyLockState() {
   document.querySelectorAll('#players-body .btn-remove-player, #players-body [data-action="toggle-estado"]').forEach(node => {
     node.style.pointerEvents = locked ? 'none' : '';
     node.style.opacity = locked ? '0.5' : '';
+  });
+  // .disabled (não só pointer-events) porque é um <input> — só pointer-events
+  // continuaria a deixar editar por teclado (tab + escrever) com o jogo terminado.
+  document.querySelectorAll('#players-body .match-numero-input').forEach(node => {
+    node.disabled = locked;
   });
   document.querySelectorAll('#players-body .stat-cell, #players-body [data-action="toggle-substituicao"]').forEach(node => {
     node.style.pointerEvents = canEditWhileRunning ? '' : 'none';
@@ -476,6 +488,24 @@ function wireConvocatoria() {
       logPlayerActions(mp, { [key]: mp[key] })
     ]);
   });
+
+  // Número específico do jogo — editável sempre que a convocatória o for
+  // (mesma janela do Estado/remover: até o jogo terminar, não só antes de
+  // começar), para corrigir um jogador cedido ou com camisola diferente.
+  el('players-body').addEventListener('change', async (e) => {
+    const input = e.target.closest('.match-numero-input');
+    if (!input) return;
+    if (isLocked()) return;
+    const mp = matchPlayersCache.find(x => x.id === input.dataset.id);
+    if (!mp) return;
+    const numero = input.value.trim();
+    mp.numero = numero || null;
+    const { error } = await supabase.from('match_players').update({ numero: numero || null }).eq('id', mp.id);
+    if (error) { alert(error.message); return; }
+  });
+  el('players-body').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.classList.contains('match-numero-input')) e.target.blur();
+  });
 }
 
 async function loadMatchPlayers() {
@@ -487,12 +517,25 @@ async function loadMatchPlayers() {
   matchPlayersCache = data || [];
   renderMatchPlayers();
   renderConvocarOptions();
+  // applyLockState() já corre no init() (via updatePeriodoUI()), mas antes
+  // desta função — nessa altura #players-body ainda está vazio, por isso o
+  // estado visual de bloqueio (opacidade/disabled) nunca chegava a aplicar-se
+  // às linhas, num jogo já terminado (a edição em si já ficava bloqueada
+  // pelos isLocked() em cada handler, só o aspeto visual é que não refletia).
+  applyLockState();
+}
+
+// O número específico do jogo (mp.numero) sobrepõe-se ao número de base
+// do Plantel (mp.players.numero) só nesse jogo — ver migração
+// supabase/migrations/019_match_players_numero.sql.
+function matchPlayerNumero(mp) {
+  return mp.numero || mp.players?.numero || '';
 }
 
 function sortedMatchPlayers() {
   return [...matchPlayersCache].sort((a, b) => {
-    const na = parseInt(a.players?.numero, 10);
-    const nb = parseInt(b.players?.numero, 10);
+    const na = parseInt(matchPlayerNumero(a), 10);
+    const nb = parseInt(matchPlayerNumero(b), 10);
     if (isNaN(na) && isNaN(nb)) return 0;
     if (isNaN(na)) return 1;
     if (isNaN(nb)) return -1;
@@ -508,7 +551,7 @@ function renderMatchPlayers() {
     const estado = mp.estado || 'Suplente';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${mp.players?.numero || ''}</td>
+      <td><input type="text" class="wellness-edit-input match-numero-input" data-id="${mp.id}" value="${mp.numero || ''}" maxlength="3" placeholder="${mp.players?.numero || '—'}" title="Número deste jogo — em branco usa o número do Plantel (${mp.players?.numero || 'nenhum definido'})"></td>
       <td>${mp.players?.nome || ''}</td>
       <td><span class="badge-estado ${estado === 'Titular' ? 'titular' : ''}" data-action="toggle-estado" data-id="${mp.id}">${estado}</span></td>
       <td class="stat-cell stat-toggle ${mp.amarelo ? 'on' : ''}" data-action="toggle-amarelo" data-id="${mp.id}">🟨</td>
@@ -527,7 +570,8 @@ function renderMatchPlayers() {
 // ---------- Jogador (liga, opcionalmente, cada clique do Registo de Jogo a um jogador) ----------
 
 function playerLabel(mp) {
-  return `${mp.players?.numero ? mp.players.numero + ' ' : ''}${mp.players?.nome || ''}`.trim();
+  const numero = matchPlayerNumero(mp);
+  return `${numero ? numero + ' ' : ''}${mp.players?.nome || ''}`.trim();
 }
 
 function playerLabelById(playerId) {
@@ -575,7 +619,7 @@ function showJogadorPopup(clientX, clientY, onPick) {
   const popup = document.createElement('div');
   popup.className = 'jogador-popup';
   const chips = players.map(mp =>
-    `<button type="button" class="jogador-num-chip" data-player-id="${mp.player_id}" title="${playerLabel(mp)}" aria-label="${playerLabel(mp)}">${mp.players?.numero || '?'}</button>`
+    `<button type="button" class="jogador-num-chip" data-player-id="${mp.player_id}" title="${playerLabel(mp)}" aria-label="${playerLabel(mp)}">${matchPlayerNumero(mp) || '?'}</button>`
   ).join('');
   popup.innerHTML = `<div class="jogador-popup-title">Quem fez?</div><div class="jogador-popup-chips">${chips}</div>`;
   document.body.appendChild(popup);
@@ -1044,7 +1088,7 @@ function wireDownloadSession() {
     lines.push(['Número', 'Nome', 'Estado', 'Amarelos', 'Vermelho', 'Assistências', 'Golos', 'Substituição'].join(','));
     matchPlayersCache.forEach(mp => {
       lines.push([
-        csvField(mp.players?.numero || ''),
+        csvField(matchPlayerNumero(mp)),
         csvField(mp.players?.nome || ''),
         csvField(mp.estado || 'Suplente'),
         (mp.amarelo || 0) + (mp.amarelo2 || 0),

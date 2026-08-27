@@ -7,7 +7,7 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.7 (2026-08-07)
+  Versão: 1.8 (2026-08-27)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
@@ -20,6 +20,8 @@
                         qualquer campo de um dia já registado.
     1.7 (2026-08-07) — policy wellness_team_member_insert: o treinador também pode
                         criar uma resposta em nome de um jogador.
+    1.8 (2026-08-27) — match_players ganha numero (opcional): sobrepõe-se ao número de
+                        base em players.numero só nesse jogo.
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -103,6 +105,7 @@ erDiagram
     uuid team_id FK
     uuid match_id FK
     uuid player_id FK
+    text numero
     text estado
     int amarelo
     int amarelo2
@@ -219,6 +222,7 @@ Convocatória e estatísticas de um jogador num jogo específico.
 | `team_id` | uuid | sim (FK → `teams`) | |
 | `match_id` | uuid | sim (FK → `matches`) | único por (`match_id`, `player_id`) |
 | `player_id` | uuid | sim (FK → `players`) | |
+| `numero` | text | não | número específico deste jogo; se vazio, usa o número de base em `players.numero` |
 | `estado` | text | sim | `Titular` ou `Suplente` |
 | `amarelo` / `amarelo2` | int | sim (default 0) | 2 cartões amarelos; marcar os dois marca `vermelho` automaticamente |
 | `vermelho` | int | sim (default 0) | |

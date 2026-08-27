@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.29 (2026-08-27)
+ * Versão: 1.30 (2026-08-27)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -63,6 +63,8 @@
  *                        de "screen-field" (colidia com o mesmo nome em ".field-wrap",
  *                        fazendo os pontos do Registo de Jogo aparecerem soltos pela
  *                        página — ver 1.27 em js/match.js) para "arrow-live-field".
+ *   1.30 (2026-08-27) — nota em ".wellness-edit-input" sobre a reutilização no Plantel
+ *                        (número do jogador editável), sem alterações de estilo.
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -1003,6 +1005,10 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
   max-width: 1000px;
 }
 .wellness-charts canvas { max-height: 280px; }
+/* Reutilizada fora do contexto wellness (ver ".roster-number-input" em
+   pages/dashboard.html / js/dashboard.js, o número do jogador no Plantel)
+   — é só um input pequeno e centrado dentro de uma célula de tabela, sem
+   nada específico de wellness na aparência. */
 .wellness-edit-input {
   background: #1c242c;
   border: 1px solid #333;

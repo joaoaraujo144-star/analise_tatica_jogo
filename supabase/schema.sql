@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 018.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 019.)
 --
--- Versão: 1.17 (2026-08-07) — reflete sempre o estado final cumulativo,
+-- Versão: 1.18 (2026-08-27) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -30,6 +30,9 @@
 --                        um dia já registado (pages/wellness-jogador.html).
 --   1.17 (2026-08-07) — policy wellness_team_member_insert: o treinador também pode
 --                        criar uma resposta em nome de um jogador.
+--   1.18 (2026-08-27) — match_players ganha "numero" (opcional): sobrepõe-se ao número
+--                        de base em players.numero só nesse jogo, para equipas em que o
+--                        número de um jogador muda de jogo para jogo.
 
 create extension if not exists "pgcrypto";
 
@@ -91,6 +94,10 @@ create table if not exists match_players (
   team_id uuid not null references teams(id) on delete cascade,
   match_id uuid not null references matches(id) on delete cascade,
   player_id uuid not null references players(id) on delete cascade,
+  -- Número específico deste jogo, se diferente do número "de base" em
+  -- players.numero (ex: jogador cedido, camisola diferente) — null usa
+  -- sempre o número do Plantel.
+  numero text,
   estado text not null default 'Suplente' check (estado in ('Titular', 'Suplente')),
   amarelo int not null default 0,
   amarelo2 int not null default 0,

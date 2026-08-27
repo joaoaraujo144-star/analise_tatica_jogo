@@ -5,7 +5,7 @@
  * Wellness (vista do treinador sobre o questionário diário dos jogadores)
  * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.15 (2026-08-07)
+ * Versão: 1.16 (2026-08-27)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -30,6 +30,10 @@
  *                        coluna Peso (kg), opcional e sem cor (não é escala 0-10).
  *   1.15 (2026-08-07) — tab Wellness ganha um botão "Ver" por jogador, que abre
  *                        pages/wellness-jogador.html (gráficos + edição de um dia).
+ *   1.16 (2026-08-27) — número do jogador no Plantel passa a ser editável diretamente
+ *                        na tabela (input sempre visível, grava ao sair do campo) —
+ *                        antes só dava para definir na criação, sem forma de corrigir
+ *                        um jogador convocado sem número ainda atribuído.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -205,6 +209,21 @@ function wireRoster() {
       await loadRoster();
     }
   });
+
+  // Número editável diretamente na tabela (sem botão "editar" à parte) —
+  // útil quando o treinador convocou um jogador sem número ainda definido.
+  el('roster-body').addEventListener('change', async (e) => {
+    const input = e.target.closest('.roster-number-input');
+    if (!input) return;
+    const numero = input.value.trim();
+    const { error } = await supabase.from('players').update({ numero: numero || null }).eq('id', input.dataset.id);
+    if (error) { alert(error.message); return; }
+    const p = rosterCache.find(x => x.id === input.dataset.id);
+    if (p) p.numero = numero || null;
+  });
+  el('roster-body').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.classList.contains('roster-number-input')) e.target.blur();
+  });
 }
 
 async function loadRoster() {
@@ -265,7 +284,7 @@ function renderRoster() {
   body.innerHTML = '';
   rosterCache.forEach(p => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td class="roster-access">${accessCellHtml(p)}</td><td><button class="btn-remove-player" data-id="${p.id}" title="Remover">✕</button></td>`;
+    tr.innerHTML = `<td><input type="text" class="wellness-edit-input roster-number-input" data-id="${p.id}" value="${p.numero || ''}" maxlength="3" placeholder="—"></td><td>${p.nome}</td><td class="roster-access">${accessCellHtml(p)}</td><td><button class="btn-remove-player" data-id="${p.id}" title="Remover">✕</button></td>`;
     body.appendChild(tr);
   });
   el('roster-empty').hidden = rosterCache.length > 0;
