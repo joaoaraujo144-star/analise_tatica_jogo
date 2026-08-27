@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.22 (2026-07-15)
+ * Versão: 1.27 (2026-08-27)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -41,6 +41,28 @@
  *                        do browser (guardar como PDF), via folha de estilo @media print.
  *   1.22 (2026-07-15) — o PDF passa a mostrar sempre os dois mapas de calor (X e Y)
  *                        lado a lado por campo, em vez de só o tipo selecionado no ecrã.
+ *   1.23 (2026-08-27) — cada campo do registo normalizado passa a mostrar 3 mapas
+ *                        (1ª Parte, 2ª Parte, Ambas as Partes) lado a lado, cada um
+ *                        com o seu toggle Pontos/Mapa de Calor; e uma seta "Ataque →"
+ *                        fixa em cada mapa a lembrar que a vista já está normalizada
+ *                        (a equipa ataca sempre da esquerda para a direita).
+ *   1.24 (2026-08-27) — updatePrintHeader() preenche o cabeçalho "vs adversário — data"
+ *                        que só aparece no PDF exportado (ver .print-only-header).
+ *   1.25 (2026-08-27) — renderHeatGrid() escreve o número de ocorrências dentro de
+ *                        cada célula do mapa de calor (antes só dava para ver em
+ *                        title, que nunca chegava a aparecer — a grelha tem
+ *                        pointer-events: none).
+ *   1.26 (2026-08-27) — a seta "Ataque →" (attackArrowHtml) deixa de ficar sobreposta
+ *                        ao campo — passa a legenda por cima da imagem, para nunca
+ *                        tapar números do mapa de calor que caiam no canto superior
+ *                        esquerdo.
+ *   1.27 (2026-08-27) — CORRIGE BUG GRAVE da 1.26: a seta reutilizava a classe
+ *                        "screen-field", que colidia com o querySelector('.screen-field')
+ *                        usado para saber onde desenhar os pontos — apanhava a seta (que
+ *                        não é position: relative) em vez do campo, e os pontos ficavam
+ *                        soltos pela página inteira. Classe da seta passa a
+ *                        "arrow-live-field", e os querySelector relevantes passam a
+ *                        ".field-wrap.screen-field" (mais específico).
  */
 
 import { supabase } from './supabase-client.js';
@@ -88,6 +110,13 @@ function logPlayerActions(mp, patch) {
 function updateIndicators() {
   el('team-indicator').textContent = currentTeam ? `Equipa: ${currentTeam.nome}` : 'Equipa';
   el('match-indicator').textContent = currentMatch ? `Jogo: vs ${currentMatch.adversario} (${currentMatch.data})` : 'Jogo';
+}
+
+// Escondido no ecrã (ver .print-only-header em styles.css), só aparece no
+// PDF exportado — sem isto o adversário/data do jogo não aparecem no
+// relatório impresso (o cabeçalho do browser não é controlável por CSS).
+function updatePrintHeader() {
+  el('print-header').textContent = currentMatch ? `vs ${currentMatch.adversario} — ${currentMatch.data}` : '';
 }
 
 // ---------- Cronómetro do jogo (1ª / 2ª parte) ----------
@@ -786,6 +815,32 @@ let normalizadoPointsCache = {};
 const HEATMAP_COLS = 6;
 const HEATMAP_ROWS = 4;
 
+// Cada campo do registo normalizado passa a mostrar 3 mapas lado a lado:
+// só a 1ª parte, só a 2ª parte, e a junção das duas. Como a view
+// events_normalizado já roda os pontos da parte que atacou "ao contrário"
+// (ver supabase/migrations/009_events_normalizado.sql), a equipa ataca
+// sempre da esquerda para a direita nos 3 — daí a seta de orientação fixa
+// (attackArrowHtml) ser sempre "→", igual nos 3 mapas.
+const NORMALIZADO_PARTES = [
+  { key: '1', label: '1ª Parte', filter: (p) => p.parte === 1 },
+  { key: '2', label: '2ª Parte', filter: (p) => p.parte === 2 },
+  { key: 'all', label: 'Ambas as Partes', filter: () => true },
+];
+
+// extraClass 'arrow-live-field' marca a seta do campo interativo, que tem
+// de desaparecer na impressão junto com ".screen-field" (ver @media print
+// em css/styles.css) — ao contrário das setas dos pares X/Y só de
+// impressão, que já não têm essa marca e por isso ficam sempre visíveis no
+// PDF. NÃO reutilizar a classe "screen-field" aqui: partBlock.querySelector
+// ('.screen-field') (usado para saber onde desenhar os pontos) apanharia
+// esta seta em vez do campo, porque vem antes dele no HTML — os pontos
+// ficavam então "soltos" pela página inteira (a seta não é position:
+// relative, ao contrário de ".field-wrap").
+function attackArrowHtml(extraClass) {
+  const cls = extraClass ? `attack-arrow ${extraClass}` : 'attack-arrow';
+  return `<div class="${cls}" title="Mapa normalizado: a equipa ataca sempre da esquerda para a direita">Ataque →</div>`;
+}
+
 function buildHeatGrid(points) {
   const counts = Array.from({ length: HEATMAP_ROWS }, () => Array(HEATMAP_COLS).fill(0));
   points.forEach(p => { counts[p.zona_row][p.zona_col]++; });
@@ -807,32 +862,21 @@ function renderHeatGrid(container, counts) {
         const intensity = count / max;
         cell.style.background = `rgba(229, 57, 53, ${(0.15 + intensity * 0.65).toFixed(2)})`;
         cell.title = `${count} ponto${count === 1 ? '' : 's'}`;
+        cell.textContent = count;
       }
       container.appendChild(cell);
     });
   });
 }
 
-// Recalcula e mostra o mapa de calor de uma secção, filtrado ao tipo
-// (X/Y) atualmente selecionado — cantos "A Favor" e "Contra", por
-// exemplo, não podem ser misturados no mesmo mapa, ou perde o sentido.
-function renderSectionHeat(section, cfg) {
-  const tipo = section.dataset.heatTipo || 'X';
-  const points = (normalizadoPointsCache[cfg.id] || []).filter(p => p.tipo === tipo);
-  renderHeatGrid(section.querySelector('.heat-grid'), buildHeatGrid(points));
-}
-
-function buildNormalizadoSections() {
-  const page = el('normalizado-page');
-  page.innerHTML = '';
-  TRACKERS.forEach(cfg => {
-    const section = document.createElement('section');
-    section.className = 'tracker';
-    section.dataset.tracker = cfg.id;
-    section.dataset.heatTipo = 'X';
-    section.innerHTML = `
-      <h2 class="tracker-title">${cfg.title}</h2>
-      <div class="toolbar">
+// Markup de um dos 3 mapas (1ª parte / 2ª parte / ambas) de um campo:
+// vista interativa (screen-field, com toggle Pontos/Mapa de Calor) +
+// par X/Y só para impressão (print-heat-pair, ver prepareReportForPrint).
+function buildPartBlockHtml(cfg, partKey, partLabel) {
+  return `
+    <div class="tracker-part" data-parte="${partKey}">
+      <h3 class="part-title">${partLabel}</h3>
+      <div class="toolbar view-toolbar">
         <button class="action view-btn active" data-view="pontos">Pontos</button>
         <button class="action view-btn" data-view="calor">Mapa de Calor</button>
       </div>
@@ -844,6 +888,7 @@ function buildNormalizadoSections() {
         <div class="counter x"><span class="num" data-count="X">0</span>${cfg.xLabel}</div>
         <div class="counter y"><span class="num" data-count="Y">0</span>${cfg.yLabel}</div>
       </div>
+      ${attackArrowHtml('arrow-live-field')}
       <div class="field-wrap screen-field">
         <img src="../assets/campo.png" alt="Campo de futebol" class="field-img" draggable="false">
         <div class="heat-grid" hidden></div>
@@ -851,6 +896,7 @@ function buildNormalizadoSections() {
       <div class="print-heat-pair">
         <div class="print-heat-col">
           <p class="print-heat-label">${cfg.xLabel}</p>
+          ${attackArrowHtml()}
           <div class="field-wrap">
             <img src="../assets/campo.png" alt="Campo de futebol" class="field-img" draggable="false">
             <div class="heat-grid print-heat-grid" data-tipo="X"></div>
@@ -858,11 +904,38 @@ function buildNormalizadoSections() {
         </div>
         <div class="print-heat-col">
           <p class="print-heat-label">${cfg.yLabel}</p>
+          ${attackArrowHtml()}
           <div class="field-wrap">
             <img src="../assets/campo.png" alt="Campo de futebol" class="field-img" draggable="false">
             <div class="heat-grid print-heat-grid" data-tipo="Y"></div>
           </div>
         </div>
+      </div>
+    </div>
+  `;
+}
+
+// Recalcula e mostra o mapa de calor de uma das 3 partes de um campo,
+// filtrado ao tipo (X/Y) atualmente selecionado nesse bloco — cantos "A
+// Favor" e "Contra", por exemplo, não podem ser misturados no mesmo mapa.
+function renderPartHeat(partBlock, cfg) {
+  const partDef = NORMALIZADO_PARTES.find(p => p.key === partBlock.dataset.parte);
+  const tipo = partBlock.dataset.heatTipo || 'X';
+  const points = (normalizadoPointsCache[cfg.id] || []).filter(partDef.filter).filter(p => p.tipo === tipo);
+  renderHeatGrid(partBlock.querySelector('.field-wrap.screen-field .heat-grid'), buildHeatGrid(points));
+}
+
+function buildNormalizadoSections() {
+  const page = el('normalizado-page');
+  page.innerHTML = '';
+  TRACKERS.forEach(cfg => {
+    const section = document.createElement('section');
+    section.className = 'tracker';
+    section.dataset.tracker = cfg.id;
+    section.innerHTML = `
+      <h2 class="tracker-title">${cfg.title}</h2>
+      <div class="tracker-parts">
+        ${NORMALIZADO_PARTES.map(part => buildPartBlockHtml(cfg, part.key, part.label)).join('')}
       </div>
       <div class="log">
         <table>
@@ -875,23 +948,27 @@ function buildNormalizadoSections() {
     `;
     page.appendChild(section);
 
-    section.querySelector('.toolbar').addEventListener('click', (e) => {
-      const btn = e.target.closest('.view-btn');
-      if (!btn) return;
-      section.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b === btn));
-      const showHeat = btn.dataset.view === 'calor';
-      section.querySelectorAll('.marker').forEach(m => { m.style.display = showHeat ? 'none' : ''; });
-      section.querySelector('.heat-grid').hidden = !showHeat;
-      section.querySelector('.heat-tipo-toolbar').hidden = !showHeat;
-      if (showHeat) renderSectionHeat(section, cfg);
-    });
+    section.querySelectorAll('.tracker-part').forEach(partBlock => {
+      partBlock.dataset.heatTipo = 'X';
 
-    section.querySelector('.heat-tipo-toolbar').addEventListener('click', (e) => {
-      const btn = e.target.closest('.heat-tipo-btn');
-      if (!btn) return;
-      section.querySelectorAll('.heat-tipo-btn').forEach(b => b.classList.toggle('active', b === btn));
-      section.dataset.heatTipo = btn.dataset.tipo;
-      renderSectionHeat(section, cfg);
+      partBlock.querySelector('.view-toolbar').addEventListener('click', (e) => {
+        const btn = e.target.closest('.view-btn');
+        if (!btn) return;
+        partBlock.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b === btn));
+        const showHeat = btn.dataset.view === 'calor';
+        partBlock.querySelectorAll('.marker').forEach(m => { m.style.display = showHeat ? 'none' : ''; });
+        partBlock.querySelector('.field-wrap.screen-field .heat-grid').hidden = !showHeat;
+        partBlock.querySelector('.heat-tipo-toolbar').hidden = !showHeat;
+        if (showHeat) renderPartHeat(partBlock, cfg);
+      });
+
+      partBlock.querySelector('.heat-tipo-toolbar').addEventListener('click', (e) => {
+        const btn = e.target.closest('.heat-tipo-btn');
+        if (!btn) return;
+        partBlock.querySelectorAll('.heat-tipo-btn').forEach(b => b.classList.toggle('active', b === btn));
+        partBlock.dataset.heatTipo = btn.dataset.tipo;
+        renderPartHeat(partBlock, cfg);
+      });
     });
 
     section.querySelector('tbody').addEventListener('change', async (e) => {
@@ -923,23 +1000,28 @@ async function loadNormalizadoReport() {
 
   TRACKERS.forEach(cfg => {
     const section = document.querySelector(`#normalizado-page section[data-tracker="${cfg.id}"]`);
-    const fieldWrap = section.querySelector('.field-wrap');
-    const showHeat = section.querySelector('.view-btn[data-view="calor"]').classList.contains('active');
-    fieldWrap.querySelectorAll('.marker').forEach(m => m.remove());
     const points = (data || []).filter(p => p.tracker_id === cfg.id);
     normalizadoPointsCache[cfg.id] = points;
-    points.forEach(p => {
-      const marker = document.createElement('div');
-      marker.className = 'marker ' + p.tipo;
-      marker.style.left = p.x_pct_normalizado + '%';
-      marker.style.top = p.y_pct_normalizado + '%';
-      marker.style.display = showHeat ? 'none' : '';
-      marker.textContent = p.tipo;
-      fieldWrap.appendChild(marker);
+
+    NORMALIZADO_PARTES.forEach(part => {
+      const partBlock = section.querySelector(`.tracker-part[data-parte="${part.key}"]`);
+      const fieldWrap = partBlock.querySelector('.field-wrap.screen-field');
+      const showHeat = partBlock.querySelector('.view-btn[data-view="calor"]').classList.contains('active');
+      fieldWrap.querySelectorAll('.marker').forEach(m => m.remove());
+      const partPoints = points.filter(part.filter);
+      partPoints.forEach(p => {
+        const marker = document.createElement('div');
+        marker.className = 'marker ' + p.tipo;
+        marker.style.left = p.x_pct_normalizado + '%';
+        marker.style.top = p.y_pct_normalizado + '%';
+        marker.style.display = showHeat ? 'none' : '';
+        marker.textContent = p.tipo;
+        fieldWrap.appendChild(marker);
+      });
+      partBlock.querySelector('[data-count="X"]').textContent = partPoints.filter(p => p.tipo === 'X').length;
+      partBlock.querySelector('[data-count="Y"]').textContent = partPoints.filter(p => p.tipo === 'Y').length;
+      if (showHeat) renderPartHeat(partBlock, cfg);
     });
-    section.querySelector('[data-count="X"]').textContent = points.filter(p => p.tipo === 'X').length;
-    section.querySelector('[data-count="Y"]').textContent = points.filter(p => p.tipo === 'Y').length;
-    if (showHeat) renderSectionHeat(section, cfg);
 
     const logBody = section.querySelector('tbody');
     logBody.innerHTML = '';
@@ -1026,17 +1108,22 @@ function wireDownloadSession() {
 
 // ---------- Exportar relatório (PDF via impressão do browser) ----------
 
-// Antes de imprimir, preenche os dois mapas de calor (X e Y) de cada
-// secção do registo normalizado — independente do que estiver escolhido
-// no ecrã, porque misturar tipos (ex: Ganhos e Perdas) no mesmo mapa não
-// faz sentido, mas o PDF deve mostrar sempre os dois lado a lado.
+// Antes de imprimir, preenche os dois mapas de calor (X e Y) de cada uma
+// das 3 partes (1ª, 2ª, Ambas) de cada campo do registo normalizado —
+// independente do que estiver escolhido no ecrã, porque misturar tipos
+// (ex: Ganhos e Perdas) no mesmo mapa não faz sentido, mas o PDF deve
+// mostrar sempre os dois lado a lado, para as 3 partes.
 function prepareReportForPrint() {
   document.querySelectorAll('#normalizado-page section.tracker').forEach(section => {
     const points = normalizadoPointsCache[section.dataset.tracker] || [];
-    ['X', 'Y'].forEach(tipo => {
-      const grid = section.querySelector(`.print-heat-grid[data-tipo="${tipo}"]`);
-      if (!grid) return;
-      renderHeatGrid(grid, buildHeatGrid(points.filter(p => p.tipo === tipo)));
+    section.querySelectorAll('.tracker-part').forEach(partBlock => {
+      const partDef = NORMALIZADO_PARTES.find(p => p.key === partBlock.dataset.parte);
+      const partPoints = points.filter(partDef.filter);
+      ['X', 'Y'].forEach(tipo => {
+        const grid = partBlock.querySelector(`.print-heat-grid[data-tipo="${tipo}"]`);
+        if (!grid) return;
+        renderHeatGrid(grid, buildHeatGrid(partPoints.filter(p => p.tipo === tipo)));
+      });
     });
   });
 }
@@ -1071,6 +1158,7 @@ async function init() {
   currentMatch = match;
 
   updateIndicators();
+  updatePrintHeader();
   wireTopBar();
   wireTabs();
   wirePeriodo();

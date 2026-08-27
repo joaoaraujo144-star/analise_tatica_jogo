@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.22 (2026-08-07)
+ * Versão: 1.29 (2026-08-27)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -36,6 +36,33 @@
  *                        no PDF (tabela e botões ficam de fora).
  *   1.22 (2026-08-07) — .print-only-header: cabeçalho (nome + intervalo de datas) só
  *                        visível no PDF exportado.
+ *   1.23 (2026-08-27) — registo normalizado: cada campo passa a mostrar 3 mapas
+ *                        lado a lado (1ª Parte/2ª Parte/Ambas, ".tracker-parts"),
+ *                        empilhados no PDF; e seta fixa ".attack-arrow" de orientação
+ *                        de ataque sobreposta a cada mapa.
+ *   1.24 (2026-08-27) — corrige o PDF exportado: ".log" deixa de ter o
+ *                        max-height/overflow de scroll do ecrã (que cortava a
+ *                        tabela de registo a meio na impressão), e cada campo
+ *                        (".tracker") passa a começar numa página nova.
+ *   1.25 (2026-08-27) — corrige "h3.part-title" (1ª Parte/2ª Parte/Ambas as Partes)
+ *                        a ficar órfão no fim de uma página no PDF, separado dos
+ *                        seus próprios mapas (falta de break-after: avoid).
+ *   1.26 (2026-08-27) — a correção 1.25 não chegava em todos os Chrome: o motor de
+ *                        paginação não respeita de forma fiável break-before/-after/
+ *                        -inside DENTRO de contentores flex. ".tracker"/".tracker-
+ *                        parts"/".tracker-part" passam a "display: block" e
+ *                        ".print-heat-pair" a tabela CSS, só na impressão — a
+ *                        paginação por blocos/tabelas é fiável em qualquer Chrome.
+ *   1.27 (2026-08-27) — ".heat-cell" centra e destaca (texto branco com sombra) o
+ *                        número de ocorrências que renderHeatGrid() escreve agora
+ *                        dentro de cada célula do mapa de calor.
+ *   1.28 (2026-08-27) — ".attack-arrow" deixa de ser sobreposta (position: absolute
+ *                        em cima da imagem) e passa a legenda em fluxo normal por
+ *                        cima do campo, para nunca tapar números do mapa de calor.
+ *   1.29 (2026-08-27) — corrige a classe da seta usada para a esconder na impressão:
+ *                        de "screen-field" (colidia com o mesmo nome em ".field-wrap",
+ *                        fazendo os pontos do Registo de Jogo aparecerem soltos pela
+ *                        página — ver 1.27 em js/match.js) para "arrow-live-field".
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -82,6 +109,59 @@ h1.page-title {
   border: 1px solid #232b33;
   border-radius: 14px;
   padding: 20px;
+}
+
+/* Registo normalizado (fim de jogo): cada campo mostra 3 mapas lado a
+   lado (1ª Parte, 2ª Parte, Ambas) — o cartão (que por omissão herdaria
+   o max-width:680px de .players-card) e a página ganham mais largura,
+   para o cartão de cada campo poder usar espaço suficiente para isso. */
+#normalizado-card {
+  max-width: 1400px;
+}
+#normalizado-page {
+  grid-template-columns: 1fr;
+  max-width: 1400px;
+}
+.tracker-parts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
+}
+.tracker-part {
+  flex: 1 1 300px;
+  min-width: 280px;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+h3.part-title {
+  margin: 0;
+  font-size: 1.05em;
+  color: #fff;
+}
+
+/* Legenda fixa de orientação: como o registo normalizado já roda os
+   pontos da parte que atacou "ao contrário" (ver
+   supabase/migrations/009_events_normalizado.sql), a equipa ataca sempre
+   da esquerda para a direita nos 3 mapas — esta seta só lembra isso
+   visualmente, não é interativa (ao contrário de #btn-orientacao).
+   Fica por cima do campo (não sobreposta à imagem) para nunca tapar os
+   números do mapa de calor, que podem cair em qualquer setor. */
+.attack-arrow {
+  display: inline-block;
+  margin: 0 0 6px;
+  background: #1c242c;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 0.75em;
+  font-weight: bold;
+  color: #fff;
+  letter-spacing: 0.02em;
 }
 
 h2.tracker-title {
@@ -175,6 +255,13 @@ h2.tracker-title {
   box-sizing: border-box;
   border: 1px solid rgba(255, 255, 255, 0.04);
   transition: background 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85em;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 
 /* Par de mapas de calor (X e Y) só usado no PDF exportado — em ecrã fica
@@ -677,8 +764,36 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
     display: block !important;
   }
   body { background: #fff; color: #000; padding: 0; gap: 12px; }
-  h1.page-title, h2.tracker-title { color: #000; }
+  h1.page-title, h2.tracker-title, h3.part-title { color: #000; }
+  .tracker h2.tracker-title { margin: 0 0 12px; }
   .hint { color: #444; }
+  /* As 3 partes (1ª/2ª/Ambas) ficam lado a lado no ecrã, mas empilhadas
+     no PDF — cada uma já tem o par X/Y lado a lado lá dentro, e 3 pares
+     lado a lado a mais não caberiam numa folha em pé.
+     ".tracker"/".tracker-parts"/".tracker-part" são "display: flex" no
+     ecrã, mas o Chrome não respeita de forma fiável break-before/-after/
+     -inside DENTRO de contentores flex ao imprimir (limitação antiga e
+     conhecida do motor de paginação) — por isso passam a "display: block"
+     só na impressão, onde a paginação por blocos é bem suportada; sem
+     isto, o título de cada parte (ex: "1ª Parte") pode ficar órfão no
+     fim de uma página, separado dos seus próprios mapas. */
+  .tracker-parts {
+    display: block;
+    max-width: none;
+    margin-bottom: 12px;
+  }
+  .tracker-part {
+    display: block;
+    max-width: 100%;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 12px;
+  }
+  /* "display: block" (acima) deixa de respeitar o "gap" que dava o
+     espaçamento entre o título, os contadores e os mapas no ecrã (gap só
+     funciona em flex/grid/multicol) — repõe-se aqui como margem. */
+  .tracker-part h3.part-title { margin: 0 0 8px; }
+  .tracker-part .counters { margin-bottom: 8px; }
   /* display: grid não pagina bem na impressão (colunas lado a lado
      confundem a quebra de página) — cada campo passa a ficar em bloco,
      um por baixo do outro. */
@@ -686,24 +801,55 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
   .players-card {
     background: #fff;
     border-color: #ccc;
-    break-inside: avoid;
-    page-break-inside: avoid;
   }
+  /* #normalizado-card (também ".players-card") junta os 5 campos —
+     é suposto ocupar várias páginas, por isso não pode herdar o
+     "break-inside: avoid" genérico de ".players-card" (que os outros
+     cartões, mais curtos, usam para nunca serem cortados a meio). */
+  #normalizado-card {
+    display: block;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+  #normalizado-card > * { margin-bottom: 12px; }
   .tracker {
+    display: block;
     background: #fff;
     border-color: #ccc;
     margin-bottom: 20px;
+    break-before: page;
+    page-break-before: always;
+  }
+  /* ...exceto o 1º campo, que continua logo a seguir ao resto da tab
+     Relatórios em vez de abrir uma página em branco antes dele. */
+  .tracker:first-child {
+    break-before: auto;
+    page-break-before: auto;
   }
   /* O campo interativo (com o toggle Pontos/Mapa de Calor) não sai no
      PDF — em vez dele mostra-se sempre o par X/Y (.print-heat-pair),
      para nunca faltar nenhum dos dois tipos no documento exportado. */
-  .screen-field { display: none !important; }
+  /* ".attack-arrow.arrow-live-field" é a legenda do campo interativo —
+     some junto com ele; as legendas dos pares X/Y (".print-heat-col") não
+     têm esta classe, por isso continuam visíveis no PDF. Nome diferente
+     de "screen-field" de propósito — ver o comentário de attackArrowHtml()
+     em js/match.js sobre a colisão de seletor que isto evitou. */
+  .screen-field, .attack-arrow.arrow-live-field { display: none !important; }
+  /* Tabela CSS em vez de flex para o par X/Y — pela mesma razão do
+     ".tracker"/".tracker-part" acima: precisa de manter os dois mapas
+     lado a lado, mas com paginação fiável (evitar cortar a meio). */
   .print-heat-pair {
-    display: flex !important;
-    gap: 16px;
+    display: table !important;
+    width: 100%;
+    border-spacing: 16px 0;
     margin-top: 8px;
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+  .print-heat-col {
+    display: table-cell;
+    width: 50%;
+    vertical-align: top;
   }
   /* Só o campo/mapa de calor em si não pode ser cortado a meio — título,
      contadores e tabela de log (mais compridos que uma página, com muitos
@@ -712,9 +858,22 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
     break-inside: avoid;
     page-break-inside: avoid;
   }
-  .tracker-title, .counters {
+  /* h3.part-title precisa da mesma regra que .counters (senão o Chrome
+     por vezes separa o título "1ª Parte"/"2ª Parte"/"Ambas as Partes" do
+     resto do bloco — fica sozinho no fim de uma página, com os mapas a
+     saltarem para a seguinte — apesar de ".tracker-part" já ter
+     break-inside: avoid). */
+  .tracker-title, h3.part-title, .counters {
     break-after: avoid;
     page-break-after: avoid;
+  }
+  /* Na app ".log" é um painel com scroll (max-height + overflow-y) — no
+     PDF isso cortava a tabela a meio, escondendo o resto das linhas em
+     vez de continuar a imprimir. Sem limite de altura, a tabela flui
+     naturalmente para a página seguinte. */
+  .log {
+    max-height: none;
+    overflow: visible;
   }
   .log tr {
     break-inside: avoid;

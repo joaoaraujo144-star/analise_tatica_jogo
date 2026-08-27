@@ -6,7 +6,7 @@
   clicáveis, por parte) e Relatórios (só deste jogo, com registo
   normalizado ao terminar). Lógica em ../js/match.js.
 
-  Versão: 1.9 (2026-07-15)
+  Versão: 1.11 (2026-08-27)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-09) — cada jogo passa a ter esta página própria (fora do dashboard).
@@ -19,6 +19,11 @@
     1.7 (2026-07-14) — movida de raiz para pages/, caminhos de css/js atualizados.
     1.8 (2026-07-15) — popup opcional para escolher o jogador logo a seguir a cada clique no Registo de Jogo.
     1.9 (2026-07-15) — botão "Exportar relatório (PDF)" na tab Relatórios (via impressão do browser).
+    1.10 (2026-08-27) — registo normalizado passa a mostrar 3 mapas por campo
+                         (1ª Parte/2ª Parte/Ambas), cada um com seta de orientação de ataque.
+    1.11 (2026-08-27) — corrige a paginação do PDF (título de cada parte já não fica
+                         órfão) e acrescenta cabeçalho "vs adversário — data" ao relatório
+                         exportado, com nota sobre os cabeçalhos/rodapés do browser.
 -->
 <html lang="pt">
 <head>
@@ -110,8 +115,9 @@
     <div class="tab-panel" id="tab-relatorios" hidden>
       <div class="relatorios-actions">
         <button class="action" id="btn-print-report">Exportar relatório (PDF)</button>
-        <p class="hint">Abre a vista de impressão do browser — escolhe "Guardar como PDF" no destino. O mapa de calor de cada campo é usado automaticamente.</p>
+        <p class="hint">Abre a vista de impressão do browser — escolhe "Guardar como PDF" no destino. O mapa de calor de cada campo é usado automaticamente. Para tirar o cabeçalho/rodapé do browser (URL, data, número de página), desmarca "Cabeçalhos e rodapés" nas opções do diálogo de impressão.</p>
       </div>
+      <p class="print-only-header" id="print-header"></p>
       <div class="players-card">
         <h2 class="tracker-title">Relatório deste Jogo</h2>
         <p class="hint">Estatísticas dos jogadores convocados só para este jogo.</p>
@@ -124,7 +130,7 @@
 
       <div class="players-card" id="normalizado-card" hidden>
         <h2 class="tracker-title">Registo de Jogo — 1ª + 2ª Parte Normalizado</h2>
-        <p class="hint">Junta os pontos das duas partes no mesmo sentido de ataque: os pontos da parte que atacou "ao contrário" (segundo a orientação definida nas setas) são rodados 180º antes de se juntarem aos da outra parte.</p>
+        <p class="hint">Cada campo mostra 3 mapas: só a 1ª parte, só a 2ª parte, e a junção das duas. Os pontos da parte que atacou "ao contrário" (segundo a orientação definida nas setas) são rodados 180º, para os 3 mapas mostrarem sempre a equipa a atacar da esquerda para a direita — daí a seta "Ataque →" fixa em cada um.</p>
         <p class="hint" id="normalizado-error" hidden>Não foi possível carregar os dados normalizados. Confirma que a migração <code>supabase/migrations/009_events_normalizado.sql</code> foi corrida (incluindo o <code>notify pgrst, 'reload schema';</code> no fim).</p>
         <div class="page" id="normalizado-page"></div>
       </div>
