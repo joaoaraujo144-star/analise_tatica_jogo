@@ -7,7 +7,7 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.9 (2026-08-31)
+  Versão: 1.10 (2026-08-31)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
@@ -25,6 +25,9 @@
     1.9 (2026-08-31) — nova tabela wellness_rpe (RPE 1-10, só o treinador o vê ou
                         escreve) — separada de wellness_responses de propósito, para o
                         jogador nunca a conseguir ler (RLS é por linha, não por coluna).
+    1.10 (2026-08-31) — atualiza a ordem dos 5 campos citada na descrição de "events"
+                         (Faltas, Perdas de Bola, Remates, Cruzamentos, Cantos), a
+                         acompanhar a nova ordem de TRACKERS em js/match.js.
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -245,7 +248,7 @@ Convocatória e estatísticas de um jogador num jogo específico.
 | `substituicao` | text | não | `Saiu` ou `Entrou` (consoante o `estado`) |
 
 ### `events`
-Cliques nos 5 campos do Registo de Jogo (Faltas, Cantos, Cruzamentos, Perdas de Bola, Remates), por parte.
+Cliques nos 5 campos do Registo de Jogo (Faltas, Perdas de Bola, Remates, Cruzamentos, Cantos), por parte.
 
 | Coluna | Tipo | Obrigatório | Notas |
 |---|---|---|---|

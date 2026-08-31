@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.28 (2026-08-27)
+ * Versão: 1.29 (2026-08-31)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -70,16 +70,24 @@
  *                        Corrige de caminho applyLockState() a não aplicar o estado
  *                        visual de bloqueio no arranque da página (corria antes de
  *                        loadMatchPlayers() preencher a tabela).
+ *   1.29 (2026-08-31) — reordena TRACKERS: Faltas, Perdas de Bola, Remates,
+ *                        Cruzamentos, Cantos (era Faltas, Cantos, Cruzamentos,
+ *                        Perdas, Remates) — afeta a ordem dos campos no Registo de
+ *                        Jogo, dos mapas no Relatório normalizado, e das secções
+ *                        no CSV exportado, todos derivados deste único array.
  */
 
 import { supabase } from './supabase-client.js';
 
+// Ordem pedida pelo treinador: Faltas, Perdas, Remates, Cruzamentos, Cantos —
+// controla a ordem dos campos no Registo de Jogo, dos mapas no Relatório
+// normalizado, e das secções no CSV exportado (todos iteram este array).
 const TRACKERS = [
   { id: 'faltas', title: 'Faltas', xLabel: 'Realizadas', yLabel: 'Sofridas' },
-  { id: 'cantos', title: 'Cantos', xLabel: 'A Favor', yLabel: 'Contra' },
-  { id: 'cruzamentos', title: 'Cruzamentos', xLabel: 'A Favor', yLabel: 'Contra' },
   { id: 'perdas', title: 'Perdas de Bola', xLabel: 'Ganhos', yLabel: 'Perdas' },
   { id: 'remates', title: 'Remates', xLabel: 'A Favor', yLabel: 'Contra' },
+  { id: 'cruzamentos', title: 'Cruzamentos', xLabel: 'A Favor', yLabel: 'Contra' },
+  { id: 'cantos', title: 'Cantos', xLabel: 'A Favor', yLabel: 'Contra' },
 ];
 
 const el = (id) => document.getElementById(id);
