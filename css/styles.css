@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.36 (2026-08-31)
+ * Versão: 1.37 (2026-08-31)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -86,6 +86,9 @@
  *                        variante ".goal-row.sofrido" sem "marcador".
  *   1.36 (2026-08-31) — ".periodo-score": resultado (golos marcados x sofridos) por
  *                        cima do temporizador do cronómetro.
+ *   1.37 (2026-08-31) — ".badge-oncampo": badge só informativo (sem "cursor: pointer",
+ *                        ao contrário de ".badge-estado") para a nova coluna "Em Campo"
+ *                        da convocatória.
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -705,6 +708,19 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
 .badge-estado.titular { background: #1e5c2f; color: #7ee89a; }
 .badge-estado.entrou { background: #1e5c2f; color: #7ee89a; }
 .badge-estado.saiu { background: #5c1e1e; color: #e88a8a; }
+/* Igual ao ".badge-estado" na aparência, mas só informativo — calculado a
+   partir de Estado + Substituição (isOnField(), js/match.js), nunca
+   clicável, por isso sem "cursor: pointer". */
+.badge-oncampo {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.8em;
+  font-weight: bold;
+  background: #263038;
+  color: #aaa;
+}
+.badge-oncampo.on { background: #1e5c2f; color: #7ee89a; }
 .stat-cell {
   cursor: pointer;
   user-select: none;

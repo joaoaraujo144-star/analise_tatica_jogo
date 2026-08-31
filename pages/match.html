@@ -6,7 +6,7 @@
   clicáveis, por parte) e Relatórios (só deste jogo, com registo
   normalizado ao terminar). Lógica em ../js/match.js.
 
-  Versão: 1.15 (2026-08-31)
+  Versão: 1.17 (2026-08-31)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-09) — cada jogo passa a ter esta página própria (fora do dashboard).
@@ -38,6 +38,12 @@
     1.15 (2026-08-31) — resultado (golos marcados x sofridos) por cima do
                          temporizador, calculado a partir de "goals" — atualiza
                          sozinho sempre que um golo é marcado, sofrido, ou removido.
+    1.16 (2026-08-31) — ao marcar um titular como "Saiu", abre logo um popup com os
+                         suplentes disponíveis para escolher quem entra (mesmo padrão
+                         do popup "Quem fez?" do Registo de Jogo).
+    1.17 (2026-08-31) — nova coluna "Em Campo" na convocatória: badge só informativo
+                         com quem está mesmo a jogar naquele momento (calculado a
+                         partir do Estado e da Substituição).
 -->
 <html lang="pt">
 <head>
@@ -110,11 +116,11 @@
           </select>
           <button class="action" id="btn-convocar">Convocar</button>
         </div>
-        <p class="hint">Clica em 🟨/🟥 para marcar cartão (2 amarelos marcam o vermelho automaticamente), em Assist. para somar (clique direito ou Ctrl+clique para subtrair), em ⚽ para marcar golo (abre a escolha de eventos; clique direito ou Ctrl+clique remove o golo mais recente desse jogador), e em Estado/Substituição para alternar Titular/Suplente e Saiu/Entrou (clique direito limpa a substituição).</p>
+        <p class="hint">Clica em 🟨/🟥 para marcar cartão (2 amarelos marcam o vermelho automaticamente), em Assist. para somar (clique direito ou Ctrl+clique para subtrair), em ⚽ para marcar golo (abre a escolha de eventos; clique direito ou Ctrl+clique remove o golo mais recente desse jogador), e em Estado/Substituição para alternar Titular/Suplente e Saiu/Entrou (clique direito limpa a substituição). Ao marcar um titular como "Saiu", abre logo um popup com os suplentes disponíveis para escolher quem entra. A coluna "Em Campo" é só informativa (calculada a partir do Estado e da Substituição) — mostra quem está mesmo a jogar naquele momento, sem precisares de cruzar as outras duas colunas de cabeça.</p>
         <div class="table-scroll">
         <table class="players-table">
           <thead>
-            <tr><th>Nº</th><th>Nome</th><th>Estado</th><th>🟨</th><th>🟨</th><th>🟥</th><th>Assist.</th><th>⚽</th><th>Substituição</th><th></th></tr>
+            <tr><th>Nº</th><th>Nome</th><th>Estado</th><th>Em Campo</th><th>🟨</th><th>🟨</th><th>🟥</th><th>Assist.</th><th>⚽</th><th>Substituição</th><th></th></tr>
           </thead>
           <tbody id="players-body"></tbody>
         </table>

@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.36 (2026-08-31)
+ * Versão: 1.39 (2026-08-31)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -116,6 +116,21 @@
  *                        Registo de Jogo ganha a coluna "Golo" (a que golo esse
  *                        evento está ligado, se estiver) — antes a ligação
  *                        evento-golo só existia no ecrã, não saía no ficheiro.
+ *   1.37 (2026-08-31) — ao marcar um titular como "Saiu", abre logo o popup "Quem
+ *                        entra?" (showEntrouPopup(), mesmo padrão do showJogadorPopup()
+ *                        já existente) com os suplentes ainda no banco
+ *                        (availableSubstitutes()) — escolher um marca-o logo como
+ *                        "Entrou" (setSubstituicao()), sem teres de procurar a linha
+ *                        dele na tabela à parte.
+ *   1.38 (2026-08-31) — nova coluna "Em Campo" na convocatória: badge só informativo
+ *                        (isOnField(), reaproveitado também por onFieldMatchPlayers())
+ *                        que mostra quem está mesmo a jogar naquele momento, sem
+ *                        cruzar de cabeça Estado + Substituição.
+ *   1.39 (2026-08-31) — CORRIGE isOnField(): vermelho (direto ou por 2º amarelo)
+ *                        também tira o jogador de campo, mesmo sem "Saiu" marcado —
+ *                        antes um titular expulso continuava a aparecer "Em campo".
+ *                        availableSubstitutes() também passa a excluir suplentes
+ *                        com vermelho (não podem entrar).
  */
 
 import { supabase } from './supabase-client.js';
@@ -490,6 +505,22 @@ function wireConvocatoria() {
       return;
     }
 
+    // Substituição também tem fluxo próprio: ao marcar "Saiu" um titular,
+    // abre logo o popup "Quem entra?" com os suplentes disponíveis, para
+    // não teres de procurar o suplente certo na tabela à parte.
+    if (cell.dataset.action === 'toggle-substituicao') {
+      const target = mp.estado === 'Titular' ? 'Saiu' : 'Entrou';
+      const newValue = mp.substituicao === target ? null : target;
+      await setSubstituicao(mp, newValue);
+      if (newValue === 'Saiu') {
+        showEntrouPopup(e.clientX, e.clientY, async (subMpId) => {
+          const subMp = matchPlayersCache.find(x => x.id === subMpId);
+          if (subMp) await setSubstituicao(subMp, 'Entrou');
+        });
+      }
+      return;
+    }
+
     const patch = {};
 
     switch (cell.dataset.action) {
@@ -508,11 +539,6 @@ function wireConvocatoria() {
       case 'count-assistencias':
         patch.assistencias = Math.max(0, (mp.assistencias || 0) + (decrement ? -1 : 1));
         break;
-      case 'toggle-substituicao': {
-        const target = mp.estado === 'Titular' ? 'Saiu' : 'Entrou';
-        patch.substituicao = mp.substituicao === target ? null : target;
-        break;
-      }
       default:
         return;
     }
@@ -622,6 +648,17 @@ function sortedMatchPlayers() {
   });
 }
 
+// Está em campo neste preciso momento: titular que ainda não saiu, ou
+// suplente que já entrou. Usado tanto no badge "Em Campo" (renderMatchPlayers())
+// como para filtrar quem aparece no popup "Quem fez?" (onFieldMatchPlayers()).
+function isOnField(mp) {
+  // Vermelho (direto ou por 2º amarelo, que já marca vermelho=1 sozinho —
+  // ver toggle-amarelo/toggle-amarelo2) tira sempre o jogador de campo,
+  // independentemente de Estado/Substituição.
+  if (mp.vermelho) return false;
+  return mp.estado === 'Titular' ? mp.substituicao !== 'Saiu' : mp.substituicao === 'Entrou';
+}
+
 function renderMatchPlayers() {
   const body = el('players-body');
   body.innerHTML = '';
@@ -633,6 +670,7 @@ function renderMatchPlayers() {
       <td><input type="text" class="wellness-edit-input match-numero-input" data-id="${mp.id}" value="${mp.numero || ''}" maxlength="3" placeholder="${mp.players?.numero || '—'}" title="Número deste jogo — em branco usa o número do Plantel (${mp.players?.numero || 'nenhum definido'})"></td>
       <td>${mp.players?.nome || ''}</td>
       <td><span class="badge-estado ${estado === 'Titular' ? 'titular' : ''}" data-action="toggle-estado" data-id="${mp.id}">${estado}</span></td>
+      <td><span class="badge-oncampo ${isOnField(mp) ? 'on' : ''}" title="Calculado a partir do Estado e da Substituição — não é clicável.">${isOnField(mp) ? 'Em campo' : 'Banco'}</span></td>
       <td class="stat-cell stat-toggle ${mp.amarelo ? 'on' : ''}" data-action="toggle-amarelo" data-id="${mp.id}">🟨</td>
       <td class="stat-cell stat-toggle ${mp.amarelo2 ? 'on' : ''}" data-action="toggle-amarelo2" data-id="${mp.id}">🟨</td>
       <td class="stat-cell stat-toggle ${mp.vermelho ? 'on' : ''}" data-action="toggle-vermelho" data-id="${mp.id}">🟥</td>
@@ -1027,9 +1065,7 @@ function closeJogadorPopup() {
 // em vez dos convocados todos (banco incluído).
 function onFieldMatchPlayers() {
   const sorted = sortedMatchPlayers();
-  const onField = sorted.filter(mp =>
-    mp.estado === 'Titular' ? mp.substituicao !== 'Saiu' : mp.substituicao === 'Entrou'
-  );
+  const onField = sorted.filter(isOnField);
   return onField.length ? onField : sorted;
 }
 
@@ -1058,6 +1094,60 @@ function showJogadorPopup(clientX, clientY, onPick) {
     const btn = e.target.closest('.jogador-num-chip');
     if (!btn) return;
     onPick(btn.dataset.playerId);
+    closeJogadorPopup();
+  });
+
+  jogadorPopupEl = popup;
+  jogadorPopupOutsideHandler = (e) => {
+    if (!popup.contains(e.target)) closeJogadorPopup();
+  };
+  setTimeout(() => document.addEventListener('pointerdown', jogadorPopupOutsideHandler, true), 0);
+}
+
+// Grava a substituição de um jogador (usado tanto pelo clique direto no
+// badge como pelo popup "Quem entra?" a seguir a marcar alguém "Saiu").
+async function setSubstituicao(mp, value) {
+  const patch = { substituicao: value };
+  Object.assign(mp, patch);
+  renderMatchPlayers();
+  await Promise.all([
+    supabase.from('match_players').update(patch).eq('id', mp.id),
+    logPlayerActions(mp, patch)
+  ]);
+}
+
+// Suplentes que ainda não entraram — candidatos a "quem entra" a seguir a
+// um titular sair.
+function availableSubstitutes() {
+  return sortedMatchPlayers().filter(mp => mp.estado === 'Suplente' && mp.substituicao !== 'Entrou' && !mp.vermelho);
+}
+
+// Mesmo padrão do showJogadorPopup() acima, mas para escolher rapidamente
+// quem entra depois de marcares um titular como "Saiu" — poupa ter de
+// procurar o suplente certo na tabela e clicar no badge dele à parte.
+function showEntrouPopup(clientX, clientY, onPick) {
+  closeJogadorPopup();
+  const players = availableSubstitutes();
+  if (!players.length) return;
+
+  const popup = document.createElement('div');
+  popup.className = 'jogador-popup';
+  const chips = players.map(mp =>
+    `<button type="button" class="jogador-num-chip" data-mp-id="${mp.id}" title="${playerLabel(mp)}" aria-label="${playerLabel(mp)}">${matchPlayerNumero(mp) || '?'}</button>`
+  ).join('');
+  popup.innerHTML = `<div class="jogador-popup-title">Quem entra?</div><div class="jogador-popup-chips">${chips}</div>`;
+  document.body.appendChild(popup);
+
+  const rect = popup.getBoundingClientRect();
+  const left = Math.min(Math.max(8, clientX - rect.width / 2), window.innerWidth - rect.width - 8);
+  const top = Math.min(Math.max(8, clientY + 16), window.innerHeight - rect.height - 8);
+  popup.style.left = `${left}px`;
+  popup.style.top = `${top}px`;
+
+  popup.addEventListener('click', (e) => {
+    const btn = e.target.closest('.jogador-num-chip');
+    if (!btn) return;
+    onPick(btn.dataset.mpId);
     closeJogadorPopup();
   });
 
