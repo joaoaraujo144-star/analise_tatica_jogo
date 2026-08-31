@@ -4,7 +4,7 @@
  * gráficos de evolução (Semana/Mês/Total) e tabela de respostas diárias,
  * com edição de um dia (ex: o jogador enganou-se a preencher).
  *
- * Versão: 1.3 (2026-08-07)
+ * Versão: 1.4 (2026-08-31)
  * Histórico:
  *   1.0 (2026-08-07) — criação.
  *   1.1 (2026-08-07) — separa o gráfico único de wellness em 4 gráficos, um por
@@ -13,6 +13,10 @@
  *                       via SheetJS), em dois botões separados.
  *   1.3 (2026-08-07) — o PDF passa a ter um cabeçalho (nome do jogador + intervalo de
  *                       datas), só visível na impressão (#print-header).
+ *   1.4 (2026-08-31) — gráfico e coluna de RPE (1-10), lido/escrito numa tabela própria
+ *                       (wellness_rpe, nunca wellness_responses) — só o treinador o vê ou
+ *                       edita; junta-se aos dias já existentes de wellness_responses, não
+ *                       cria dias novos.
  */
 
 import { Chart } from 'https://esm.sh/chart.js@4/auto';
@@ -27,7 +31,7 @@ let currentPlayer = null;
 let currentRange = 'total';
 let currentRows = [];
 let editingRowId = null;
-let charts = {}; // { dores, stress, fadiga, sono, peso } -> instância Chart.js
+let charts = {}; // { dores, stress, fadiga, sono, peso, rpe } -> instância Chart.js
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -125,6 +129,23 @@ function renderPesoChart(rows) {
   });
 }
 
+function renderRpeChart(rows) {
+  const comRpe = rows.filter(r => r.rpe != null);
+  if (charts.rpe) charts.rpe.destroy();
+  charts.rpe = new Chart(el('chart-rpe'), {
+    type: 'line',
+    data: {
+      labels: comRpe.map(r => formatDateLabel(r.data)),
+      datasets: [{ label: 'RPE', data: comRpe.map(r => r.rpe), borderColor: '#fb8c00', tension: 0.2 }],
+    },
+    options: {
+      ...CHART_COMMON_OPTIONS,
+      scales: { ...CHART_COMMON_OPTIONS.scales, y: { ...CHART_COMMON_OPTIONS.scales.y, min: 0, max: 10 } },
+      plugins: { legend: { display: false } },
+    },
+  });
+}
+
 // ---------- Tabela de respostas (com edição) ----------
 
 function viewRowHtml(r) {
@@ -135,6 +156,7 @@ function viewRowHtml(r) {
     <td>${r.fadiga}</td>
     <td>${r.sono}</td>
     <td>${r.peso ?? '—'}</td>
+    <td>${r.rpe ?? '—'}</td>
     <td><button class="action small" data-action="editar" data-id="${r.id}">Editar</button></td>
   `;
 }
@@ -147,8 +169,9 @@ function editRowHtml(r) {
     <td><input type="number" min="0" max="10" class="wellness-edit-input" id="edit-fadiga" value="${r.fadiga}"></td>
     <td><input type="number" min="0" max="10" class="wellness-edit-input" id="edit-sono" value="${r.sono}"></td>
     <td><input type="number" min="0" step="0.1" class="wellness-edit-input" id="edit-peso" value="${r.peso ?? ''}"></td>
+    <td><input type="number" min="1" max="10" class="wellness-edit-input" id="edit-rpe" value="${r.rpe ?? ''}"></td>
     <td>
-      <button class="action small" data-action="guardar" data-id="${r.id}">Guardar</button>
+      <button class="action small" data-action="guardar" data-id="${r.id}" data-data="${r.data}">Guardar</button>
       <button class="action small" data-action="cancelar">Cancelar</button>
     </td>
   `;
@@ -193,6 +216,19 @@ function wireTable() {
       };
       const { error } = await supabase.from('wellness_responses').update(patch).eq('id', btn.dataset.id);
       if (error) { alert(error.message); return; }
+
+      // RPE vive numa tabela própria (wellness_rpe) — nunca em
+      // wellness_responses, que o jogador já pode ler na íntegra.
+      const rpeStr = el('edit-rpe').value.trim();
+      const rpeError = rpeStr
+        ? (await supabase.from('wellness_rpe').upsert(
+            { team_id: currentTeam.id, player_id: currentPlayer.id, data: btn.dataset.data, rpe: Number(rpeStr) },
+            { onConflict: 'player_id,data' }
+          )).error
+        : (await supabase.from('wellness_rpe').delete()
+            .eq('player_id', currentPlayer.id).eq('data', btn.dataset.data)).error;
+      if (rpeError) { alert(rpeError.message); return; }
+
       editingRowId = null;
       await loadData();
     }
@@ -226,9 +262,9 @@ function exportChartsPdf() {
 }
 
 function exportTableExcel() {
-  const rows = [['Data', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)']];
+  const rows = [['Data', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)', 'RPE']];
   currentRows.forEach(r => {
-    rows.push([r.data, r.dores_musculares, r.stress, r.fadiga, r.sono, r.peso ?? '']);
+    rows.push([r.data, r.dores_musculares, r.stress, r.fadiga, r.sono, r.peso ?? '', r.rpe ?? '']);
   });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Wellness');
@@ -262,9 +298,21 @@ async function loadData() {
   const { data, error } = await query;
   if (error) { console.error(error); return; }
 
-  currentRows = data || [];
+  // RPE vive numa tabela própria (wellness_rpe) — junta-se aqui aos dias já
+  // existentes de wellness_responses (por data), não cria linhas novas.
+  let rpeQuery = supabase
+    .from('wellness_rpe')
+    .select('data, rpe')
+    .eq('player_id', currentPlayer.id);
+  if (desde) rpeQuery = rpeQuery.gte('data', desde);
+  const { data: rpeData, error: rpeError } = await rpeQuery;
+  if (rpeError) { console.error(rpeError); return; }
+  const rpeByDate = new Map((rpeData || []).map(r => [r.data, r.rpe]));
+
+  currentRows = (data || []).map(r => ({ ...r, rpe: rpeByDate.get(r.data) ?? null }));
   renderWellnessCharts(currentRows);
   renderPesoChart(currentRows);
+  renderRpeChart(currentRows);
   renderTable(currentRows);
   updatePrintHeader();
 }

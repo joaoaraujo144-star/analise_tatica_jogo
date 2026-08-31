@@ -9,7 +9,7 @@
   (tabelas/colunas), ver supabase/data-model.md; para funcionalidades e
   setup, ver o README.md.
 
-  Versão: 1.19 (2026-08-27)
+  Versão: 1.20 (2026-08-31)
   Histórico:
     1.0 (2026-07-14) — criação.
     1.1 (2026-07-15) — popup de escolha de jogador após o clique, no Registo de Jogo.
@@ -69,6 +69,9 @@
                          de base do Plantel só nesse jogo (match_players.numero, ver
                          supabase/migrations/019_match_players_numero.sql) — para
                          equipas onde o número muda de jogo para jogo.
+    1.20 (2026-08-31) — RPE (1-10, perceção de esforço) preenchido só pelo treinador,
+                         numa tabela própria (wellness_rpe) sem nenhuma policy de RLS
+                         para o jogador — ver secção "Acesso do jogador" mais abaixo.
 -->
 
 # Arquitetura — Análise de Jogo
@@ -163,6 +166,7 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 - **Row Level Security (RLS)** em todas as tabelas de dados da app, baseada em pertença a uma equipa: uma linha só é visível/editável por quem tem uma entrada correspondente em `team_members`. O `user_id` gravado em cada linha serve só de registo de autoria, **não** é usado para controlo de acesso — dois membros da mesma equipa veem e editam sempre os mesmos dados. Ver `supabase/data-model.md` para o detalhe de cada política.
 - **Acesso do jogador (sem ser `team_member`)**: um jogador com login próprio (`players.auth_user_id`) não pertence a `team_members`, mas ganha duas policies adicionais (que se juntam por OR às de cima): vê/edita só a própria linha em `players` (`players_self_select`, usada em `jogador.js` para ler o próprio nome; `players_self_update` fica disponível, mas nenhum fluxo atual a usa — o perfil deixou de ser editável pelo jogador), e vê só as próprias linhas em `wellness_responses` (`wellness_player_select`). Nunca vê jogos, plantel de outros jogadores, ou qualquer outra tabela.
 - **Escrita do wellness**: o jogador só pode criar a própria resposta do dia via a função `submit_wellness()` (`security definer`, identifica-o pelo próprio `auth.uid()`, nunca recebe um `player_id` do cliente, e usa a restrição `unique (player_id, data)` para impedir mais de uma resposta por dia). O treinador tem duas policies diretas na tabela (sem RPC): `wellness_team_member_insert` (criar uma resposta em nome de um jogador — ex: um dia esquecido, ou dados de teste/demo) e `wellness_team_member_update` (corrigir qualquer campo de qualquer dia). Já o jogador só pode alterar o próprio `peso` depois de enviado (função `update_wellness_peso()`) — os restantes campos ficam fixos para ele, só o treinador os pode mudar.
+- **RPE, coach-only por construção (não só por UI)**: o RPE (perceção de esforço, 1-10) vive na sua própria tabela, `wellness_rpe`, em vez de ser mais uma coluna em `wellness_responses`. A razão é o modelo de RLS ser **por linha, não por coluna** — o jogador já tem uma policy de `select` que lhe dá acesso a todas as colunas da própria linha em `wellness_responses` (`wellness_player_select`), por isso uma coluna `rpe` ali ficaria automaticamente visível a quem chamasse `select('*')` em `jogador.js`, mesmo que a interface nunca a mostrasse — esconder só na UI não seria segurança real. `wellness_rpe` tem RLS ativa e uma única policy, `wellness_rpe_team_member` (`for all`), que exige pertença a `team_members`; **não existe nenhuma policy para o jogador**, nem sequer de `select` — um jogador autenticado que tente ler esta tabela recebe sempre zero linhas. Escrito diretamente pelo treinador (sem RPC, como o resto dos dados de equipa), em dois pontos: a tabela "Wellness de hoje" do dashboard (`pages/dashboard.html`, RPE do dia, input sempre visível) e a tabela de histórico de `wellness-jogador.html` (RPE de qualquer dia já existente em `wellness_responses`, dentro do fluxo de edição "Editar"/"Guardar").
 - **Funções RPC `security definer`** (`create_team`, `join_team_by_code`): usadas quando uma operação precisa de escrever em mais do que uma tabela de forma atómica (criar equipa + inserir o "owner" em `team_members`), contornando a RLS só dentro da própria função, de forma controlada.
 - **Storage** (bucket `team-logos`, público para leitura): upload/substituição de um emblema só é permitido a membros da equipa dona desse emblema, validado pelo caminho do ficheiro (`<team_id>/...`) contra `team_members`.
 - **Chave anon pública**: é suposto ser pública (fica no código-fonte, em `js/supabase-client.js`); a segurança nunca depende de a esconder, só das políticas RLS acima.

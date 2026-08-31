@@ -13,8 +13,9 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/*
 - **Plantel**: tab no dashboard da equipa — lista reutilizável de jogadores (Nº + Nome), gerida uma única vez e partilhada por todos os jogos da equipa.
   - **Login do jogador (opcional)**: o treinador pode criar um acesso próprio para cada jogador diretamente nesta tab ("Criar login") — só define a palavra-passe; o "utilizador" (formato de email, ex: `joao-silva-x7k9@jogador.app`) é gerado automaticamente a partir do nome, e o jogador nunca precisa de ter esse email real. O jogador passa a poder entrar sozinho, mas só vê uma página própria (`jogador.html`) com o questionário de wellness, nunca o resto da equipa.
 - **Wellness**: tab no dashboard da equipa com a resposta de hoje de cada jogador — dores musculares, stress, fadiga e sono (0-10, com cor verde/amarelo/vermelho consoante o nível), mais o peso em kg (**opcional**, sem cor), ou ❌ se ainda não respondeu — e a **média do dia por métrica** (só sobre quem já respondeu). Cada jogador só pode responder uma vez por dia, na própria conta; ao entrar, vai logo para o questionário do dia (ou para o resumo, se já tiver respondido). O **peso é o único campo editável depois de enviado** — pode atualizá-lo quantas vezes quiser durante o dia (ex: antes/depois do treino), diretamente no resumo.
-  - **Exportar para Excel**: dois botões, "Exportar diário" (respostas + médias de hoje) e "Exportar semanal" (uma linha por jogador/dia da semana civil atual — segunda a domingo — mais uma folha só com as médias diárias da equipa).
-  - **Página por jogador** (botão "Ver" na tabela): 5 gráficos de evolução, um por métrica (Dores/Stress/Fadiga/Sono 0-10, e Peso à parte por ter escala diferente), com toggle Semana/Mês/Total (janela deslizante — últimos 7/30 dias, ou tudo), e a tabela de respostas diárias por baixo — onde o treinador pode **corrigir um dia** (ex: o jogador enganou-se a preencher) ou **criar um dia esquecido**. Dois botões de exportação: "Exportar gráficos (PDF)" (impressão do browser, só os gráficos) e "Exportar tabela (Excel)".
+  - **RPE (1-10)**: coluna extra na mesma tabela, preenchida diretamente pelo treinador (input sempre visível, sem confirmação à parte) — ao contrário dos outros campos, **nunca é visível para o jogador**, nem sequer nos dados que chegam ao seu browser (vive numa tabela própria, sem nenhuma política de acesso para ele).
+  - **Exportar para Excel**: dois botões, "Exportar diário" (respostas + médias de hoje) e "Exportar semanal" (uma linha por jogador/dia da semana civil atual — segunda a domingo — mais uma folha só com as médias diárias da equipa) — ambos incluem o RPE.
+  - **Página por jogador** (botão "Ver" na tabela): 6 gráficos de evolução, um por métrica (Dores/Stress/Fadiga/Sono 0-10, Peso e RPE à parte por terem escalas/preenchimento diferentes), com toggle Semana/Mês/Total (janela deslizante — últimos 7/30 dias, ou tudo), e a tabela de respostas diárias por baixo — onde o treinador pode **corrigir um dia** (ex: o jogador enganou-se a preencher), **criar um dia esquecido**, e preencher o **RPE** desse dia. Dois botões de exportação: "Exportar gráficos (PDF)" (impressão do browser, só os gráficos) e "Exportar tabela (Excel)".
 - **Jogos**: dentro de uma equipa, cria e guarda um histórico de jogos (adversário + data). Abrir um jogo leva à sua própria página, com três tabs só disponíveis aí (Jogadores, Registo de Jogo, Relatórios) e um botão "Trocar de jogo" para voltar à lista.
 - **Cronómetro do jogo**: botões "Iniciar 1ª Parte", "Finalizar Parte" e "Iniciar 2ª Parte" (cada um grava a hora exata), um indicador visual (slide) da parte atual, um temporizador grande em minutos:segundos que conta a partir do início da parte em curso, e "Recomeçar Jogo" para limpar o cronómetro sem apagar dados. Quando a 2ª parte termina, a tab Registo de Jogo desaparece (troca automaticamente para Relatórios se estiver aberta) e a tab Jogadores fica bloqueada, só de leitura.
 - **Edição só com o jogo a decorrer**: enquanto nenhuma parte está em curso (antes de começar, no intervalo, ou depois de terminar uma parte), só é possível convocar/remover jogadores e mudar o Estado (Titular/Suplente) na tab Jogadores; cartões, assistências, golos, substituição e os cliques no Registo de Jogo ficam bloqueados até haver uma parte a decorrer.
@@ -66,14 +67,15 @@ docs/
 supabase/
   schema.sql                Esquema completo — para configurar um projeto Supabase novo de raiz.
   data-model.md             Logical Data Model: diagrama de entidades/relações + dicionário de dados.
-  migrations/               Migrações incrementais, por ordem (001 a 017) — só necessárias em
+  migrations/               Migrações incrementais, por ordem (001 a 020) — só necessárias em
                              projetos já existentes, correr uma vez cada uma, por esta ordem:
                              001_teams, 002_team_logos, 003_substituicao, 004_amarelo2,
                              005_player_events, 006_partes, 007_orientacao, 008_events_parte,
                              009_events_normalizado, 010_events_minuto, 011_cruzamentos,
                              012_events_player, 013_events_zona, 014_wellness, 015_wellness_peso,
                              016_wellness_peso_editavel, 017_wellness_coach_update,
-                             018_wellness_coach_insert.
+                             018_wellness_coach_insert, 019_match_players_numero,
+                             020_wellness_rpe.
 scripts/
   seed-demo-match.mjs       Ferramenta de dev: preenche uma equipa + jogo completo com dados
                              realistas para demos rápidas — ver "Ferramentas de desenvolvimento".
@@ -105,9 +107,10 @@ Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`tea
 - **`events`** — cliques nos 5 campos (`tracker_id`, `parte`: 1 ou 2, `minuto`, `tipo`, `x_pct`, `y_pct`, `player_id`: opcional).
 - **`player_events`** — histórico de cada ação clicada na convocatória (`tipo`, `valor`, `created_at`), um registo por clique.
 - **`wellness_responses`** — questionário diário de um jogador (`dores_musculares`, `stress`, `fadiga`, `sono`, cada um 0-10), no máximo um por dia (`unique (player_id, data)`); só é escrita via a função `submit_wellness()`.
+- **`wellness_rpe`** — RPE (1-10, perceção de esforço) de um dia, preenchido só pelo treinador. Tabela própria, separada de `wellness_responses` de propósito: a RLS é por linha, não por coluna, por isso uma coluna `rpe` na tabela que o jogador já lê ficaria visível a ele também — como tabela à parte, sem nenhuma policy para o jogador, fica inacessível a nível de base de dados, não só escondida na interface.
 - **`events_normalizado`** — view sobre `events` que junta a 1ª e 2ª parte, rodando 180º os pontos da parte cuja orientação não é a de referência (`x_pct_normalizado`, `y_pct_normalizado`).
 
-Criar/entrar numa equipa passa por duas funções Postgres (`create_team`, `join_team_by_code`) chamadas via RPC, que tratam a criação da equipa + associação do utilizador de forma atómica. Os emblemas ficam num bucket público do Supabase Storage (`team-logos`), com upload restrito a membros da equipa correspondente. Um jogador com login próprio (`players.auth_user_id`) não é `team_member`, mas ganha policies próprias para ver/editar só a sua linha em `players` e as próprias respostas em `wellness_responses` — ver `docs/architecture.md`.
+Criar/entrar numa equipa passa por duas funções Postgres (`create_team`, `join_team_by_code`) chamadas via RPC, que tratam a criação da equipa + associação do utilizador de forma atómica. Os emblemas ficam num bucket público do Supabase Storage (`team-logos`), com upload restrito a membros da equipa correspondente. Um jogador com login próprio (`players.auth_user_id`) não é `team_member`, mas ganha policies próprias para ver/editar só a sua linha em `players` e as próprias respostas em `wellness_responses` — nunca em `wellness_rpe` — ver `docs/architecture.md`.
 
 Ver `supabase/schema.sql` para a definição completa.
 

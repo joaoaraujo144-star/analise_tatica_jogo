@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 019.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 020.)
 --
--- Versão: 1.18 (2026-08-27) — reflete sempre o estado final cumulativo,
+-- Versão: 1.19 (2026-08-31) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -33,6 +33,9 @@
 --   1.18 (2026-08-27) — match_players ganha "numero" (opcional): sobrepõe-se ao número
 --                        de base em players.numero só nesse jogo, para equipas em que o
 --                        número de um jogador muda de jogo para jogo.
+--   1.19 (2026-08-31) — tabela wellness_rpe (perceção de esforço, 1-10, preenchida só
+--                        pelo treinador) — tabela própria, sem nenhuma policy para o
+--                        jogador, para o valor nunca lhe ser visível.
 
 create extension if not exists "pgcrypto";
 
@@ -153,6 +156,20 @@ create table if not exists wellness_responses (
   unique (player_id, data)
 );
 
+-- RPE (perceção de esforço, 1-10) de um treino/dia, preenchido só pelo
+-- treinador — tabela própria (não uma coluna em wellness_responses, que o
+-- jogador já pode ler na íntegra) para o valor nunca ficar visível para o
+-- jogador, nem sequer por engano num "select *" de outra página.
+create table if not exists wellness_rpe (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references teams(id) on delete cascade,
+  player_id uuid not null references players(id) on delete cascade,
+  data date not null default current_date,
+  rpe int not null check (rpe between 1 and 10),
+  created_at timestamptz not null default now(),
+  unique (player_id, data)
+);
+
 -- Índices para as queries mais comuns
 create index if not exists idx_players_team on players(team_id);
 create index if not exists idx_matches_team on matches(team_id);
@@ -166,6 +183,7 @@ create index if not exists idx_player_events_match on player_events(match_id);
 create index if not exists idx_player_events_player on player_events(player_id);
 create index if not exists idx_wellness_team_data on wellness_responses(team_id, data);
 create index if not exists idx_wellness_player on wellness_responses(player_id);
+create index if not exists idx_wellness_rpe_team_data on wellness_rpe(team_id, data);
 create index if not exists idx_player_events_team on player_events(team_id);
 
 -- Row Level Security
@@ -177,6 +195,7 @@ alter table match_players enable row level security;
 alter table events enable row level security;
 alter table player_events enable row level security;
 alter table wellness_responses enable row level security;
+alter table wellness_rpe enable row level security;
 
 -- Só é possível ver uma equipa (ou dados dela) se se for membro dessa equipa
 create policy "teams_member_select" on teams
@@ -256,6 +275,13 @@ create policy "wellness_team_member_update" on wellness_responses
 create policy "wellness_team_member_insert" on wellness_responses
   for insert
   with check (exists (select 1 from team_members tm where tm.team_id = wellness_responses.team_id and tm.user_id = auth.uid()));
+
+-- RPE: só o treinador (team_member) — de propósito, sem nenhuma policy
+-- para o jogador (nem sequer de select), ao contrário de wellness_responses.
+create policy "wellness_rpe_team_member" on wellness_rpe
+  for all
+  using (exists (select 1 from team_members tm where tm.team_id = wellness_rpe.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = wellness_rpe.team_id and tm.user_id = auth.uid()));
 
 -- View: Registo de Jogo normalizado (1ª + 2ª parte juntas, rodadas 180º
 -- conforme a orientação de ataque escolhida nas setas para cada parte).

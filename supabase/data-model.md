@@ -7,7 +7,7 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.8 (2026-08-27)
+  Versão: 1.9 (2026-08-31)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
@@ -22,6 +22,9 @@
                         criar uma resposta em nome de um jogador.
     1.8 (2026-08-27) — match_players ganha numero (opcional): sobrepõe-se ao número de
                         base em players.numero só nesse jogo.
+    1.9 (2026-08-31) — nova tabela wellness_rpe (RPE 1-10, só o treinador o vê ou
+                        escreve) — separada de wellness_responses de propósito, para o
+                        jogador nunca a conseguir ler (RLS é por linha, não por coluna).
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -51,6 +54,8 @@ erDiagram
   USERS |o--o| PLAYERS : "auth_user_id (login do jogador, opcional)"
   PLAYERS ||--o{ WELLNESS_RESPONSES : "player_id"
   TEAMS ||--o{ WELLNESS_RESPONSES : "team_id"
+  PLAYERS ||--o{ WELLNESS_RPE : "player_id"
+  TEAMS ||--o{ WELLNESS_RPE : "team_id"
 
   USERS {
     uuid id PK
@@ -151,6 +156,15 @@ erDiagram
     int fadiga
     int sono
     numeric peso
+    timestamptz created_at
+  }
+
+  WELLNESS_RPE {
+    uuid id PK
+    uuid team_id FK
+    uuid player_id FK
+    date data
+    int rpe
     timestamptz created_at
   }
 ```
@@ -278,6 +292,20 @@ Questionário diário de wellness, preenchido pelo próprio jogador (login próp
 | `created_at` | timestamptz | sim | |
 
 O jogador só pode criar a própria resposta do dia via `submit_wellness()` (identifica-o pelo próprio `auth.uid()`, não recebe `player_id` do cliente). O treinador tem duas policies diretas na tabela, sem função: `wellness_team_member_insert` (criar uma resposta em nome de um jogador — ex: dia esquecido, ou dados de teste) e `wellness_team_member_update` (corrigir qualquer campo de qualquer dia). O jogador só pode alterar o próprio `peso` depois de enviado (`update_wellness_peso()`).
+
+### `wellness_rpe`
+RPE (*Rate of Perceived Exertion*, 1-10) de um dia/treino, preenchido **só pelo treinador** — nunca pelo jogador. Tabela própria, separada de `wellness_responses`, de propósito: a RLS do Postgres é por linha, não por coluna, e o jogador já tem uma policy de `select` sobre a própria linha em `wellness_responses` — uma coluna `rpe` ali seria automaticamente legível por ele (mesmo sem nenhum ecrã a mostrá-la), porque o `select('*')` de `jogador.js` devolveria o valor à mesma. Como tabela à parte, sem nenhuma policy para o jogador, o valor fica inacessível a nível de base de dados, não só escondido na interface.
+
+| Coluna | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | uuid | sim (PK) | |
+| `team_id` | uuid | sim (FK → `teams`) | |
+| `player_id` | uuid | sim (FK → `players`) | único por (`player_id`, `data`) |
+| `data` | date | sim (default `current_date`) | |
+| `rpe` | int (1-10) | sim | perceção de esforço, atribuída pelo treinador |
+| `created_at` | timestamptz | sim | |
+
+Só uma policy, `wellness_rpe_team_member` (`for all`, exige `team_members`) — sem RPC, o treinador escreve diretamente na tabela a partir de `pages/dashboard.html` (RPE do dia, tab Wellness) e `pages/wellness-jogador.html` (RPE de qualquer dia já existente em `wellness_responses`, no fluxo de edição). Não há policy nenhuma para o jogador: uma tentativa de leitura pelo `auth_user_id` do jogador devolve sempre zero linhas.
 
 ### `events_normalizado` (view, não tabela)
 Junta `events` com `matches` e roda 180º (`100 - x_pct`, `100 - y_pct`) os pontos da parte cuja orientação de ataque não é a de referência (`E-D`), para que a 1ª e a 2ª parte fiquem representadas no mesmo sentido de ataque.
