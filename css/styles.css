@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.31 (2026-08-31)
+ * Versão: 1.32 (2026-08-31)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -70,6 +70,9 @@
  *                        com muitas colunas (ex: Wellness, 10 colunas) já não esmaga o
  *                        conteúdo nem faz a página inteira ganhar scroll horizontal —
  *                        só a própria tabela, dentro do seu cartão.
+ *   1.32 (2026-08-31) — ".counters" ganha "flex-wrap: wrap": as 5 médias de Wellness
+ *                        (Dores/Stress/Fadiga/Sono/Peso) não cabiam numa linha só em
+ *                        telemóvel e ficavam esmagadas — agora quebram para 2 linhas.
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -203,8 +206,13 @@ h2.tracker-title {
   border-color: #fff;
   box-shadow: 0 0 0 3px rgba(255,255,255,0.25);
 }
+/* "flex-wrap: wrap" — sem isto, os 5 contadores das médias de Wellness
+   (Dores/Stress/Fadiga/Sono/Peso) não cabiam num ecrã de telemóvel e
+   ficavam esmagados/cortados (os contadores X/Y dos trackers, só 2 por
+   linha, continuam a caber numa linha só, não são afetados). */
 .counters {
   display: flex;
+  flex-wrap: wrap;
   gap: 18px;
   font-size: 1.1em;
 }
