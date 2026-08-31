@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.32 (2026-08-31)
+ * Versão: 1.34 (2026-08-31)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -99,6 +99,14 @@
  *                        botão "Remover" próprio (sem linha de convocado para
  *                        clique direito/Ctrl+clique). Ver
  *                        supabase/migrations/023_goals_sofridos.sql.
+ *   1.33 (2026-08-31) — renderScore() mostra o resultado (golos marcados x sofridos)
+ *                        por cima do temporizador, contado sempre a partir de
+ *                        goalsCache — chamado no fim de loadGoals().
+ *   1.34 (2026-08-31) — o temporizador mostrado no ecrã passa a começar em 45:00 na
+ *                        2ª parte (convenção do futebol) — só o texto de
+ *                        updatePeriodoTimer(); currentMinutoNoJogo(), usado para
+ *                        gravar eventos/golos, continua relativo ao início da própria
+ *                        parte (0, 1, 2...), para o CSV/BD não mudarem.
  */
 
 import { supabase } from './supabase-client.js';
@@ -204,9 +212,14 @@ function updatePeriodoTimer() {
 
   if (!start) { timerEl.textContent = '00:00'; return; }
 
-  const totalSeconds = Math.max(0, Math.floor((Date.now() - new Date(start).getTime()) / 1000));
-  const mm = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
-  const ss = String(totalSeconds % 60).padStart(2, '0');
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - new Date(start).getTime()) / 1000));
+  // Só o número mostrado no ecrã começa em 45:00 na 2ª parte (convenção do
+  // futebol) — currentMinutoNoJogo(), usado para gravar eventos/golos, não
+  // soma isto e continua relativo ao início da própria parte (0, 1, 2...),
+  // para o CSV/BD não mudarem.
+  const displaySeconds = p2Running ? elapsedSeconds + 45 * 60 : elapsedSeconds;
+  const mm = String(Math.floor(displaySeconds / 60)).padStart(2, '0');
+  const ss = String(displaySeconds % 60).padStart(2, '0');
   timerEl.textContent = `${mm}:${ss}`;
 }
 
