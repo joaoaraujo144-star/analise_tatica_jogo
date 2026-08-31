@@ -6,7 +6,7 @@
   clicáveis, por parte) e Relatórios (só deste jogo, com registo
   normalizado ao terminar). Lógica em ../js/match.js.
 
-  Versão: 1.12 (2026-08-31)
+  Versão: 1.15 (2026-08-31)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-09) — cada jogo passa a ter esta página própria (fora do dashboard).
@@ -27,6 +27,17 @@
     1.12 (2026-08-31) — tabelas de Convocados e Relatório passam a estar dentro de
                          ".table-scroll" (css/styles.css) — a de Convocados (10 colunas)
                          desformatava a página toda em ecrãs estreitos.
+    1.13 (2026-08-31) — nova secção "Golos do jogo" (tab Jogadores): clicar no ⚽ de
+                         um jogador abre um popup para ligar o golo a eventos do
+                         Registo de Jogo (ex: cruzamento + remate). Lógica em
+                         js/match.js, tabela nova supabase/migrations/021_goals.sql.
+    1.14 (2026-08-31) — nova secção "Golos sofridos": mesma lógica, sem "marcador"
+                         (a app não tem lista de jogadores do adversário) — botão
+                         "+ Golo sofrido" próprio, em vez de clicar num ⚽. Tabela
+                         goals ganha "tipo" (supabase/migrations/023_goals_sofridos.sql).
+    1.15 (2026-08-31) — resultado (golos marcados x sofridos) por cima do
+                         temporizador, calculado a partir de "goals" — atualiza
+                         sozinho sempre que um golo é marcado, sofrido, ou removido.
 -->
 <html lang="pt">
 <head>
@@ -52,6 +63,11 @@
 
     <!-- Cronómetro de jogo (1ª/2ª parte) e orientação de ataque -->
     <div class="players-card" id="periodo-card">
+      <div class="periodo-score" id="periodo-score">
+        <span class="score-team" id="score-team-nos">Equipa</span>
+        <span class="score-value"><span id="score-marcados">0</span> &ndash; <span id="score-sofridos">0</span></span>
+        <span class="score-team" id="score-team-adversario">Adversário</span>
+      </div>
       <div class="periodo-timer" id="periodo-timer">00:00</div>
       <div class="orientacao-row">
         <span class="hint">Orientação de ataque na 1ª parte:</span>
@@ -94,7 +110,7 @@
           </select>
           <button class="action" id="btn-convocar">Convocar</button>
         </div>
-        <p class="hint">Clica em 🟨/🟥 para marcar cartão (2 amarelos marcam o vermelho automaticamente), em Assist./⚽ para somar (clique direito ou Ctrl+clique para subtrair), e em Estado/Substituição para alternar Titular/Suplente e Saiu/Entrou (clique direito limpa a substituição).</p>
+        <p class="hint">Clica em 🟨/🟥 para marcar cartão (2 amarelos marcam o vermelho automaticamente), em Assist. para somar (clique direito ou Ctrl+clique para subtrair), em ⚽ para marcar golo (abre a escolha de eventos; clique direito ou Ctrl+clique remove o golo mais recente desse jogador), e em Estado/Substituição para alternar Titular/Suplente e Saiu/Entrou (clique direito limpa a substituição).</p>
         <div class="table-scroll">
         <table class="players-table">
           <thead>
@@ -104,6 +120,23 @@
         </table>
         </div>
         <p class="hint" id="players-empty">Ainda não convocaste jogadores para este jogo.</p>
+      </div>
+
+      <div class="players-card" id="goals-card">
+        <h2 class="tracker-title">Golos do jogo</h2>
+        <p class="hint">Ao clicares no ⚽ de um jogador, escolhe (opcional) que eventos do Registo de Jogo deram origem ao golo — ex: um cruzamento e o remate que resultou em golo.</p>
+        <div class="goals-list" id="goals-list"></div>
+        <p class="hint" id="goals-empty">Ainda não há golos marcados.</p>
+      </div>
+
+      <div class="players-card" id="conceded-card">
+        <div class="goals-card-head">
+          <h2 class="tracker-title">Golos sofridos</h2>
+          <button class="action danger-outline" id="btn-add-conceded">+ Golo sofrido</button>
+        </div>
+        <p class="hint">Sem "marcador" — não há lista de jogadores do adversário. Só o minuto e, opcionalmente, os eventos que mostram como o golo aconteceu (ex: um remate sofrido, ou uma falta cometida perto da área que deu num livre perigoso).</p>
+        <div class="goals-list" id="conceded-list"></div>
+        <p class="hint" id="conceded-empty">Ainda não há golos sofridos.</p>
       </div>
     </div>
 

@@ -7,7 +7,7 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.10 (2026-08-31)
+  Versão: 1.13 (2026-08-31)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
@@ -28,6 +28,13 @@
     1.10 (2026-08-31) — atualiza a ordem dos 5 campos citada na descrição de "events"
                          (Faltas, Perdas de Bola, Remates, Cruzamentos, Cantos), a
                          acompanhar a nova ordem de TRACKERS em js/match.js.
+    1.11 (2026-08-31) — nova tabela goals (um golo é o seu próprio registo, não só
+                         um contador) e events ganha "goal_id" opcional — liga um ou
+                         mais eventos ao golo que geraram.
+    1.12 (2026-08-31) — events_normalizado ganha "goal_id" (o Registo de Jogo
+                         normalizado passa a poder destacar os pontos ligados a golo).
+    1.13 (2026-08-31) — goals ganha "tipo" ('marcado' ou 'sofrido') — golo sofrido usa
+                         a mesma tabela e a mesma ligação a eventos, sem player_id.
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -48,12 +55,16 @@ erDiagram
   TEAMS ||--o{ MATCH_PLAYERS : "team_id"
   TEAMS ||--o{ EVENTS : "team_id"
   TEAMS ||--o{ PLAYER_EVENTS : "team_id"
+  TEAMS ||--o{ GOALS : "team_id"
   MATCHES ||--o{ MATCH_PLAYERS : "match_id"
   MATCHES ||--o{ EVENTS : "match_id"
   MATCHES ||--o{ PLAYER_EVENTS : "match_id"
+  MATCHES ||--o{ GOALS : "match_id"
   PLAYERS ||--o{ MATCH_PLAYERS : "player_id"
   PLAYERS ||--o{ PLAYER_EVENTS : "player_id"
   PLAYERS ||--o{ EVENTS : "player_id (opcional)"
+  PLAYERS ||--o{ GOALS : "player_id (opcional, marcador)"
+  GOALS ||--o{ EVENTS : "goal_id (opcional)"
   USERS |o--o| PLAYERS : "auth_user_id (login do jogador, opcional)"
   PLAYERS ||--o{ WELLNESS_RESPONSES : "player_id"
   TEAMS ||--o{ WELLNESS_RESPONSES : "team_id"
@@ -135,6 +146,19 @@ erDiagram
     numeric x_pct
     numeric y_pct
     uuid player_id FK
+    uuid goal_id FK
+    timestamptz created_at
+  }
+
+  GOALS {
+    uuid id PK
+    uuid user_id FK
+    uuid team_id FK
+    uuid match_id FK
+    text tipo
+    uuid player_id FK
+    int parte
+    int minuto
     timestamptz created_at
   }
 
@@ -262,7 +286,25 @@ Cliques nos 5 campos do Registo de Jogo (Faltas, Perdas de Bola, Remates, Cruzam
 | `tipo` | text | sim | `X` ou `Y` (significado depende do `tracker_id`, ex: Realizadas/Sofridas) |
 | `x_pct` / `y_pct` | numeric | sim | posição do clique no campo, em percentagem |
 | `player_id` | uuid | não (FK → `players`) | jogador que fez a ação; opcional — pode ficar por atribuir e corrigir-se depois |
+| `goal_id` | uuid | não (FK → `goals`, `on delete set null`) | liga este evento ao golo que ajudou a criar (ex: o cruzamento e o remate de um golo); opcional, escolhido no popup ao marcar o golo |
 | `created_at` | timestamptz | sim | |
+
+### `goals`
+Um golo é o seu próprio registo (não só o número em `match_players.golo`), para poder ligar-se a um ou mais eventos de `events` que lhe deram origem — ver `goal_id` acima. Um evento só pode contribuir para um golo, por isso a ligação é uma FK direta em `events`, não uma tabela de junção.
+
+| Coluna | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | uuid | sim (PK) | |
+| `user_id` | uuid | sim (FK → `auth.users`) | |
+| `team_id` | uuid | sim (FK → `teams`) | |
+| `match_id` | uuid | sim (FK → `matches`) | |
+| `tipo` | text | sim (default `marcado`) | `marcado` ou `sofrido` |
+| `player_id` | uuid | não (FK → `players`, `on delete set null`) | marcador do golo — sempre vazio quando `tipo = 'sofrido'` (a app não tem lista de jogadores do adversário) |
+| `parte` | int | não | 1 ou 2 |
+| `minuto` | int | não | minuto do jogo, relativo ao início da parte |
+| `created_at` | timestamptz | sim | |
+
+Escrito diretamente pela app (`js/match.js`), sem RPC. Golo marcado: ao clicar no ⚽ de um jogador (cria o golo + liga os eventos escolhidos no popup) ou ao editar os eventos de um golo já existente (botão "Editar eventos" na secção "Golos do jogo"); apagar (clique direito/Ctrl+clique no ⚽) desliga automaticamente os eventos associados (`on delete set null`), não os apaga, e o contador `match_players.golo` mantém-se como estava, atualizado em paralelo pela app. Golo sofrido: botão "+ Golo sofrido" na secção "Golos sofridos" (sem escolher jogador); "Remover" apaga diretamente, sem passar por nenhum contador (não existe um para golos sofridos).
 
 ### `player_events`
 Histórico de cada ação clicada na convocatória (auditoria), além dos totais já guardados em `match_players`.
@@ -315,7 +357,7 @@ Junta `events` com `matches` e roda 180º (`100 - x_pct`, `100 - y_pct`) os pont
 
 | Coluna | Origem | Notas |
 |---|---|---|
-| `id`, `team_id`, `match_id`, `tracker_id`, `parte`, `minuto`, `tipo`, `created_at`, `x_pct`, `y_pct`, `player_id` | `events` | valores originais, sem alteração |
+| `id`, `team_id`, `match_id`, `tracker_id`, `parte`, `minuto`, `tipo`, `created_at`, `x_pct`, `y_pct`, `player_id`, `goal_id` | `events` | valores originais, sem alteração |
 | `x_pct_normalizado` / `y_pct_normalizado` | calculado | `100 - x_pct` / `100 - y_pct` quando a parte atacou "ao contrário"; senão, igual ao original |
 | `zona_col` (0-5) / `zona_row` (0-3) | calculado | posição na grelha 6×4 usada pelo mapa de calor por zonas, derivada de `x_pct_normalizado`/`y_pct_normalizado`. Serve para agregar por zona diretamente em SQL, sem repetir a lógica de "binning" no cliente. |
 

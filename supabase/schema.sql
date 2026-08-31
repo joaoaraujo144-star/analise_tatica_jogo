@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 020.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 023.)
 --
--- Versão: 1.19 (2026-08-31) — reflete sempre o estado final cumulativo,
+-- Versão: 1.22 (2026-08-31) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -36,6 +36,15 @@
 --   1.19 (2026-08-31) — tabela wellness_rpe (perceção de esforço, 1-10, preenchida só
 --                        pelo treinador) — tabela própria, sem nenhuma policy para o
 --                        jogador, para o valor nunca lhe ser visível.
+--   1.20 (2026-08-31) — tabela goals (um registo por golo, não só um contador) e
+--                        events ganha "goal_id" opcional — liga um ou mais eventos do
+--                        Registo de Jogo (ex: cruzamento + remate) ao golo que geraram.
+--   1.21 (2026-08-31) — events_normalizado ganha "goal_id", para o Registo de Jogo
+--                        normalizado (Relatórios, pós-jogo) também poder destacar os
+--                        pontos ligados a um golo, tal como o ecrã ao vivo.
+--   1.22 (2026-08-31) — goals ganha "tipo" ('marcado' ou 'sofrido') — golo sofrido usa
+--                        a mesma tabela e a mesma ligação a eventos, sem player_id (a
+--                        app não tem lista de jogadores do adversário).
 
 create extension if not exists "pgcrypto";
 
@@ -111,6 +120,24 @@ create table if not exists match_players (
   unique (match_id, player_id)
 );
 
+-- Um golo é o seu próprio registo (não só um número em match_players.golo),
+-- para poder ligar-se a um ou mais eventos do Registo de Jogo que lhe deram
+-- origem (ex: um cruzamento e o remate que resultou em golo). Precisa de
+-- existir antes de "events" (que a referencia via "goal_id").
+create table if not exists goals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  team_id uuid not null references teams(id) on delete cascade,
+  match_id uuid not null references matches(id) on delete cascade,
+  -- "sofrido" fica sempre sem player_id — a app não tem lista de jogadores
+  -- do adversário, por isso um golo sofrido não tem "marcador".
+  tipo text not null default 'marcado' check (tipo in ('marcado', 'sofrido')),
+  player_id uuid references players(id) on delete set null,
+  parte int check (parte in (1, 2)),
+  minuto int,
+  created_at timestamptz not null default now()
+);
+
 -- Cliques nos campos (Faltas, Cantos, Perdas de Bola, Remates)
 create table if not exists events (
   id uuid primary key default gen_random_uuid(),
@@ -124,6 +151,10 @@ create table if not exists events (
   x_pct numeric not null,
   y_pct numeric not null,
   player_id uuid references players(id) on delete set null,
+  -- Um evento só pode ter contribuído para, no máximo, um golo — por isso é
+  -- uma FK direta aqui, não uma tabela de junção. "set null": apagar o golo
+  -- desliga o evento sem o apagar.
+  goal_id uuid references goals(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -179,6 +210,8 @@ create index if not exists idx_match_players_team on match_players(team_id);
 create index if not exists idx_events_match_tracker on events(match_id, tracker_id);
 create index if not exists idx_events_team on events(team_id);
 create index if not exists idx_events_player on events(player_id);
+create index if not exists idx_events_goal on events(goal_id);
+create index if not exists idx_goals_match on goals(match_id);
 create index if not exists idx_player_events_match on player_events(match_id);
 create index if not exists idx_player_events_player on player_events(player_id);
 create index if not exists idx_wellness_team_data on wellness_responses(team_id, data);
@@ -192,6 +225,7 @@ alter table team_members enable row level security;
 alter table players enable row level security;
 alter table matches enable row level security;
 alter table match_players enable row level security;
+alter table goals enable row level security;
 alter table events enable row level security;
 alter table player_events enable row level security;
 alter table wellness_responses enable row level security;
@@ -236,6 +270,11 @@ create policy "match_players_team_member" on match_players
   for all
   using (exists (select 1 from team_members tm where tm.team_id = match_players.team_id and tm.user_id = auth.uid()))
   with check (exists (select 1 from team_members tm where tm.team_id = match_players.team_id and tm.user_id = auth.uid()));
+
+create policy "goals_team_member" on goals
+  for all
+  using (exists (select 1 from team_members tm where tm.team_id = goals.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = goals.team_id and tm.user_id = auth.uid()));
 
 create policy "events_team_member" on events
   for all
@@ -327,7 +366,8 @@ select
       then 100 - e.y_pct
       else e.y_pct
     end) / 100.0 * 4
-  )::int)) as zona_row
+  )::int)) as zona_row,
+  e.goal_id
 from events e
 join matches m on m.id = e.match_id;
 

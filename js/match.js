@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.29 (2026-08-31)
+ * Versão: 1.32 (2026-08-31)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -75,6 +75,30 @@
  *                        Perdas, Remates) — afeta a ordem dos campos no Registo de
  *                        Jogo, dos mapas no Relatório normalizado, e das secções
  *                        no CSV exportado, todos derivados deste único array.
+ *   1.30 (2026-08-31) — golos passam a ser um registo próprio (tabela "goals", ver
+ *                        supabase/migrations/021_goals.sql), ligável a um ou mais
+ *                        eventos do Registo de Jogo que lhe deram origem. Clicar no
+ *                        ⚽ de um jogador abre um popup para escolher (opcional)
+ *                        que eventos recentes contribuíram; clique direito/Ctrl+
+ *                        clique remove o golo mais recente desse jogador (e desliga
+ *                        os eventos associados). Nova secção "Golos do jogo" na tab
+ *                        Jogadores, e destaque dourado nos eventos já ligados, no
+ *                        log de cada campo. O contador em match_players.golo
+ *                        mantém-se, atualizado em paralelo.
+ *   1.31 (2026-08-31) — o destaque de golo passa a aparecer também no próprio ponto
+ *                        do campo (renderMarker() e o ponto normalizado dos
+ *                        Relatórios), com um anel dourado (".marker.golo") — não só
+ *                        na linha do log. events_normalizado passa a expor "goal_id"
+ *                        (ver supabase/migrations/022_events_normalizado_goal.sql).
+ *   1.32 (2026-08-31) — golos sofridos: mesma tabela "goals" e a mesma lógica de
+ *                        ligação a eventos, agora com "tipo" ('marcado'/'sofrido') —
+ *                        golo sofrido não tem player_id (não há lista de jogadores
+ *                        do adversário). openGoalPopup()/confirmGoal() passam a
+ *                        receber { mode, mp, existingGoal }; nova secção "Golos
+ *                        sofridos" com botão "+ Golo sofrido" (sem clicar num ⚽) e
+ *                        botão "Remover" próprio (sem linha de convocado para
+ *                        clique direito/Ctrl+clique). Ver
+ *                        supabase/migrations/023_goals_sofridos.sql.
  */
 
 import { supabase } from './supabase-client.js';
@@ -90,6 +114,10 @@ const TRACKERS = [
   { id: 'cantos', title: 'Cantos', xLabel: 'A Favor', yLabel: 'Contra' },
 ];
 
+function trackerCfgById(id) {
+  return TRACKERS.find(t => t.id === id);
+}
+
 const el = (id) => document.getElementById(id);
 
 let currentUser = null;
@@ -99,6 +127,8 @@ let currentMatchId = localStorage.getItem('current_match_id') || null;
 let currentMatch = null;
 let rosterCache = [];
 let matchPlayersCache = [];
+let goalsCache = [];
+let goalEventsCache = []; // eventos do jogo já ligados a algum golo (goal_id preenchido)
 let trackerApis = {};
 let hoveredTracker = null;
 
@@ -125,6 +155,8 @@ function logPlayerActions(mp, patch) {
 function updateIndicators() {
   el('team-indicator').textContent = currentTeam ? `Equipa: ${currentTeam.nome}` : 'Equipa';
   el('match-indicator').textContent = currentMatch ? `Jogo: vs ${currentMatch.adversario} (${currentMatch.data})` : 'Jogo';
+  el('score-team-nos').textContent = currentTeam ? currentTeam.nome : 'Equipa';
+  el('score-team-adversario').textContent = currentMatch ? currentMatch.adversario : 'Adversário';
 }
 
 // Escondido no ecrã (ver .print-only-header em styles.css), só aparece no
@@ -273,6 +305,7 @@ function applyLockState() {
     node.style.pointerEvents = canEditWhileRunning ? '' : 'none';
     node.style.opacity = canEditWhileRunning ? '' : '0.5';
   });
+  el('btn-add-conceded').disabled = !canEditWhileRunning;
 
   document.querySelectorAll('#page .tracker .field-img').forEach(img => {
     img.style.pointerEvents = canEditWhileRunning ? '' : 'none';
@@ -390,6 +423,11 @@ function renderConvocarOptions() {
 const STAT_ACTIONS = new Set(['toggle-amarelo', 'toggle-amarelo2', 'toggle-vermelho', 'count-assistencias', 'count-golo', 'toggle-substituicao']);
 
 function wireConvocatoria() {
+  el('btn-add-conceded').addEventListener('click', () => {
+    if (isLocked() || !isPeriodoRunning()) return;
+    openGoalPopup({ mode: 'conceded' });
+  });
+
   el('btn-convocar').addEventListener('click', async () => {
     if (isLocked()) return;
     const playerId = el('convocar-select').value;
@@ -421,6 +459,15 @@ function wireConvocatoria() {
     const mp = matchPlayersCache.find(x => x.id === cell.dataset.id);
     if (!mp) return;
     const decrement = e.ctrlKey || e.metaKey;
+
+    // Golo tem fluxo próprio (popup de escolha de eventos / remoção do
+    // golo mais recente) — não passa pelo patch genérico abaixo.
+    if (cell.dataset.action === 'count-golo') {
+      if (decrement) await removeLastGoalForPlayer(mp);
+      else await openGoalPopup({ mode: 'scored', mp });
+      return;
+    }
+
     const patch = {};
 
     switch (cell.dataset.action) {
@@ -438,9 +485,6 @@ function wireConvocatoria() {
         break;
       case 'count-assistencias':
         patch.assistencias = Math.max(0, (mp.assistencias || 0) + (decrement ? -1 : 1));
-        break;
-      case 'count-golo':
-        patch.golo = Math.max(0, (mp.golo || 0) + (decrement ? -1 : 1));
         break;
       case 'toggle-substituicao': {
         const target = mp.estado === 'Titular' ? 'Saiu' : 'Entrou';
@@ -488,12 +532,17 @@ function wireConvocatoria() {
     if (!isPeriodoRunning()) return;
     const mp = matchPlayersCache.find(x => x.id === cell.dataset.id);
     if (!mp) return;
-    const key = cell.dataset.action === 'count-assistencias' ? 'assistencias' : 'golo';
-    mp[key] = Math.max(0, (mp[key] || 0) - 1);
+
+    if (cell.dataset.action === 'count-golo') {
+      await removeLastGoalForPlayer(mp);
+      return;
+    }
+
+    mp.assistencias = Math.max(0, (mp.assistencias || 0) - 1);
     renderMatchPlayers();
     await Promise.all([
-      supabase.from('match_players').update({ [key]: mp[key] }).eq('id', mp.id),
-      logPlayerActions(mp, { [key]: mp[key] })
+      supabase.from('match_players').update({ assistencias: mp.assistencias }).eq('id', mp.id),
+      logPlayerActions(mp, { assistencias: mp.assistencias })
     ]);
   });
 
@@ -593,6 +642,329 @@ function playerOptionsHtml(selectedId) {
     `<option value="${mp.player_id}" ${selectedId === mp.player_id ? 'selected' : ''}>${playerLabel(mp)}</option>`
   ).join('');
   return `<option value="" ${!selectedId ? 'selected' : ''}>—</option>${options}`;
+}
+
+// ---------- Golos (ligados a eventos do Registo de Jogo) ----------
+//
+// Cada golo é o seu próprio registo em "goals" (não só o número em
+// match_players.golo, que continua a existir e é atualizado em paralelo) —
+// permite ligar um ou mais eventos (ex: um cruzamento e o remate que
+// resultou em golo) via "events.goal_id". Ver supabase/migrations/021_goals.sql.
+
+async function loadGoals() {
+  const { data, error } = await supabase
+    .from('goals')
+    .select('*')
+    .eq('match_id', currentMatchId)
+    .order('created_at', { ascending: true });
+  if (error) { console.error(error); return; }
+  goalsCache = data || [];
+
+  const { data: linked, error: linkedError } = await supabase
+    .from('events')
+    .select('*')
+    .eq('match_id', currentMatchId)
+    .not('goal_id', 'is', null);
+  if (linkedError) { console.error(linkedError); return; }
+  goalEventsCache = linked || [];
+
+  renderGoalsList();
+  renderConcededList();
+  renderScore();
+}
+
+// Resultado (marcados x sofridos) — sempre calculado a partir de "goals",
+// nunca guardado à parte, para nunca poder desalinhar do que está nas
+// duas listas por baixo.
+function renderScore() {
+  el('score-marcados').textContent = goalsCache.filter(g => g.tipo !== 'sofrido').length;
+  el('score-sofridos').textContent = goalsCache.filter(g => g.tipo === 'sofrido').length;
+}
+
+function eventLabel(e) {
+  const cfg = trackerCfgById(e.tracker_id);
+  const tipoLabel = cfg ? (e.tipo === 'X' ? cfg.xLabel : cfg.yLabel) : e.tipo;
+  const title = cfg ? cfg.title : e.tracker_id;
+  return { title, tipoLabel };
+}
+
+function goalChainHtml(g) {
+  const evs = goalEventsCache
+    .filter(e => e.goal_id === g.id)
+    .sort((a, b) => (a.minuto ?? 0) - (b.minuto ?? 0) || new Date(a.created_at) - new Date(b.created_at));
+  return evs.length
+    ? evs.map(e => {
+        const { title, tipoLabel } = eventLabel(e);
+        const jogador = e.player_id ? playerLabelById(e.player_id) : '';
+        return `<span class="ev-tag tipo-${e.tipo}">${title} — ${tipoLabel}${jogador ? ' (' + jogador + ')' : ''}</span>`;
+      }).join('<span class="arrow">→</span>')
+    : '<span class="none">sem eventos associados</span>';
+}
+
+function renderGoalsList() {
+  const list = el('goals-list');
+  list.innerHTML = '';
+  const goals = goalsCache.filter(g => g.tipo !== 'sofrido');
+  el('goals-empty').hidden = goals.length > 0;
+
+  goals.forEach(g => {
+    const mp = matchPlayersCache.find(x => x.player_id === g.player_id);
+    const row = document.createElement('div');
+    row.className = 'goal-row';
+    row.innerHTML = `
+      <div class="goal-min">${g.minuto != null ? g.minuto + "'" : '—'}</div>
+      <div class="goal-main">
+        <div class="goal-scorer">⚽ ${mp ? playerLabel(mp) : '—'}</div>
+        <div class="goal-chain">${goalChainHtml(g)}</div>
+      </div>
+      <button class="action small" data-edit-goal="${g.id}">Editar eventos</button>
+    `;
+    list.appendChild(row);
+  });
+
+  list.querySelectorAll('[data-edit-goal]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const goal = goalsCache.find(x => x.id === btn.dataset.editGoal);
+      if (!goal) return;
+      const mp = matchPlayersCache.find(x => x.player_id === goal.player_id);
+      if (mp) openGoalPopup({ mode: 'scored', mp, existingGoal: goal });
+    });
+  });
+}
+
+// Golo sofrido: mesma lógica, sem "marcador" — a app não tem lista de
+// jogadores do adversário, por isso não há um ⚽ por jogador para clicar.
+// "+ Golo sofrido" abre o mesmo popup, e "Remover" apaga diretamente
+// (não há linha de convocado onde fazer clique direito/Ctrl+clique).
+function renderConcededList() {
+  const list = el('conceded-list');
+  list.innerHTML = '';
+  const conceded = goalsCache.filter(g => g.tipo === 'sofrido');
+  el('conceded-empty').hidden = conceded.length > 0;
+
+  conceded.forEach(g => {
+    const row = document.createElement('div');
+    row.className = 'goal-row sofrido';
+    row.innerHTML = `
+      <div class="goal-min">${g.minuto != null ? g.minuto + "'" : '—'}</div>
+      <div class="goal-main">
+        <div class="goal-scorer">🥅 Golo sofrido</div>
+        <div class="goal-chain">${goalChainHtml(g)}</div>
+      </div>
+      <div class="goal-actions">
+        <button class="action small" data-edit-conceded="${g.id}">Editar eventos</button>
+        <button class="action small danger-outline" data-remove-conceded="${g.id}">Remover</button>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+
+  list.querySelectorAll('[data-edit-conceded]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const goal = goalsCache.find(x => x.id === btn.dataset.editConceded);
+      if (goal) openGoalPopup({ mode: 'conceded', existingGoal: goal });
+    });
+  });
+  list.querySelectorAll('[data-remove-conceded]').forEach(btn => {
+    btn.addEventListener('click', () => removeConcededGoal(btn.dataset.removeConceded));
+  });
+}
+
+async function removeConcededGoal(goalId) {
+  const { error } = await supabase.from('goals').delete().eq('id', goalId);
+  if (error) { alert(error.message); return; }
+  await loadGoals();
+  reloadAllTrackers();
+}
+
+let goalPopupOverlay = null;
+let goalPopupSelected = new Set();
+let goalPopupMode = 'scored';
+let goalPopupTargetMp = null;
+let goalPopupEditingGoal = null;
+
+function closeGoalPopup() {
+  if (goalPopupOverlay) { goalPopupOverlay.remove(); goalPopupOverlay = null; }
+  goalPopupTargetMp = null;
+  goalPopupEditingGoal = null;
+  goalPopupSelected = new Set();
+}
+
+// Abre o popup de escolha de eventos — a marcar um golo novo (existingGoal
+// omitido) ou a editar os eventos de um golo já registado. mode: 'scored'
+// (com mp, o marcador) ou 'conceded' (golo sofrido, sem jogador).
+async function openGoalPopup({ mode, mp, existingGoal }) {
+  closeGoalPopup();
+  goalPopupMode = mode;
+  goalPopupTargetMp = mp || null;
+  goalPopupEditingGoal = existingGoal || null;
+  goalPopupSelected = existingGoal
+    ? new Set(goalEventsCache.filter(e => e.goal_id === existingGoal.id).map(e => e.id))
+    : new Set();
+
+  const parte = existingGoal ? existingGoal.parte : currentParte();
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('match_id', currentMatchId)
+    .eq('parte', parte)
+    .order('created_at', { ascending: false });
+  if (error) { alert(error.message); return; }
+  const candidates = data || [];
+
+  const minuto = existingGoal ? existingGoal.minuto : currentMinutoNoJogo();
+  const title = mode === 'conceded'
+    ? `Golo sofrido${minuto != null ? ' — ' + minuto + "'" : ''}`
+    : `Golo de ${playerLabel(mp)}${minuto != null ? ' — ' + minuto + "'" : ''}`;
+
+  const chipsHtml = candidates.map(e => {
+    const { title: trackerTitle, tipoLabel } = eventLabel(e);
+    const jogador = e.player_id ? playerLabelById(e.player_id) : 'sem jogador atribuído';
+    const eventMinuto = e.minuto != null ? `${e.minuto}'` : '—';
+    return `
+      <div class="goal-chip${goalPopupSelected.has(e.id) ? ' selected' : ''}" data-event-id="${e.id}">
+        <span class="chip-check">✓</span>
+        <span class="chip-min">${eventMinuto}</span>
+        <span class="chip-body">
+          <span class="chip-tracker tipo-${e.tipo}">${trackerTitle} — ${tipoLabel}</span><br>
+          <span class="chip-player">${jogador}</span>
+        </span>
+      </div>
+    `;
+  }).join('');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'goal-overlay';
+  overlay.innerHTML = `
+    <div class="goal-popup">
+      <div>
+        <div class="goal-popup-title">${title}</div>
+        <div class="goal-popup-sub">Que eventos contribuíram para este golo? Opcional — podes confirmar sem escolher nenhum.</div>
+      </div>
+      <div class="goal-chip-list">${chipsHtml}</div>
+      ${candidates.length ? '' : '<div class="goal-popup-empty">Ainda não há eventos registados nesta parte.</div>'}
+      <div class="goal-popup-actions">
+        <button class="action" data-action="goal-cancel">Cancelar</button>
+        <button class="action" data-action="goal-confirm">${existingGoal ? 'Guardar' : (mode === 'conceded' ? 'Confirmar golo sofrido' : 'Confirmar golo')}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  goalPopupOverlay = overlay;
+
+  overlay.querySelectorAll('.goal-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const id = chip.dataset.eventId;
+      if (goalPopupSelected.has(id)) goalPopupSelected.delete(id);
+      else goalPopupSelected.add(id);
+      chip.classList.toggle('selected');
+    });
+  });
+  overlay.querySelector('[data-action="goal-cancel"]').addEventListener('click', closeGoalPopup);
+  overlay.querySelector('[data-action="goal-confirm"]').addEventListener('click', confirmGoal);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeGoalPopup(); });
+}
+
+async function confirmGoal() {
+  const mp = goalPopupTargetMp;
+  const editing = goalPopupEditingGoal;
+  const selectedIds = Array.from(goalPopupSelected);
+
+  if (editing) {
+    const previouslyLinked = goalEventsCache.filter(e => e.goal_id === editing.id).map(e => e.id);
+    const toUnlink = previouslyLinked.filter(id => !goalPopupSelected.has(id));
+    const toLink = selectedIds.filter(id => !previouslyLinked.includes(id));
+
+    if (toUnlink.length) {
+      const { error } = await supabase.from('events').update({ goal_id: null }).in('id', toUnlink);
+      if (error) { alert(error.message); return; }
+    }
+    if (toLink.length) {
+      const { error } = await supabase.from('events').update({ goal_id: editing.id }).in('id', toLink);
+      if (error) { alert(error.message); return; }
+    }
+    closeGoalPopup();
+    await loadGoals();
+    reloadAllTrackers();
+    return;
+  }
+
+  if (goalPopupMode === 'conceded') {
+    const { data: goal, error } = await supabase.from('goals').insert({
+      user_id: currentUser.id,
+      team_id: currentTeamId,
+      match_id: currentMatchId,
+      tipo: 'sofrido',
+      parte: currentParte(),
+      minuto: currentMinutoNoJogo()
+    }).select().single();
+    if (error) { alert(error.message); return; }
+
+    if (selectedIds.length) {
+      const { error: linkError } = await supabase.from('events').update({ goal_id: goal.id }).in('id', selectedIds);
+      if (linkError) { alert(linkError.message); return; }
+    }
+
+    closeGoalPopup();
+    await loadGoals();
+    reloadAllTrackers();
+    return;
+  }
+
+  const { data: goal, error } = await supabase.from('goals').insert({
+    user_id: currentUser.id,
+    team_id: currentTeamId,
+    match_id: currentMatchId,
+    tipo: 'marcado',
+    player_id: mp.player_id,
+    parte: currentParte(),
+    minuto: currentMinutoNoJogo()
+  }).select().single();
+  if (error) { alert(error.message); return; }
+
+  if (selectedIds.length) {
+    const { error: linkError } = await supabase.from('events').update({ goal_id: goal.id }).in('id', selectedIds);
+    if (linkError) { alert(linkError.message); return; }
+  }
+
+  mp.golo = Math.max(0, (mp.golo || 0) + 1);
+  renderMatchPlayers();
+  await Promise.all([
+    supabase.from('match_players').update({ golo: mp.golo }).eq('id', mp.id),
+    logPlayerActions(mp, { golo: mp.golo })
+  ]);
+
+  closeGoalPopup();
+  await loadGoals();
+  reloadAllTrackers();
+}
+
+// Clique direito / Ctrl+clique no ⚽ — remove o golo mais recente desse
+// jogador (e desliga os eventos que lhe estavam associados, via "on delete
+// set null" em events.goal_id). Sem golo nenhum registado em "goals" (ex:
+// contador ajustado antes desta funcionalidade existir), só desce o número.
+async function removeLastGoalForPlayer(mp) {
+  const goals = goalsCache
+    .filter(g => g.player_id === mp.player_id)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const last = goals[0];
+
+  if (last) {
+    const { error } = await supabase.from('goals').delete().eq('id', last.id);
+    if (error) { alert(error.message); return; }
+  }
+
+  mp.golo = Math.max(0, (mp.golo || 0) - 1);
+  renderMatchPlayers();
+  await Promise.all([
+    supabase.from('match_players').update({ golo: mp.golo }).eq('id', mp.id),
+    logPlayerActions(mp, { golo: mp.golo })
+  ]);
+
+  if (last) {
+    await loadGoals();
+    reloadAllTrackers();
+  }
 }
 
 let jogadorPopupEl = null;
@@ -720,7 +1092,7 @@ function initTracker(cfg, root) {
 
   function renderMarker(click) {
     const marker = document.createElement('div');
-    marker.className = 'marker ' + click.tipo;
+    marker.className = 'marker ' + click.tipo + (click.goal_id ? ' golo' : '');
     marker.style.left = click.x_pct + '%';
     marker.style.top = click.y_pct + '%';
     marker.textContent = click.tipo;
@@ -735,6 +1107,7 @@ function initTracker(cfg, root) {
     logBody.innerHTML = '';
     clicks.forEach((c, i) => {
       const tr = document.createElement('tr');
+      if (c.goal_id) tr.classList.add('log-row-golo');
       const minuto = c.minuto != null ? `${c.minuto}'` : '—';
       tr.innerHTML = `<td>${i + 1}</td><td class="tipo-${c.tipo}">${c.tipo}</td><td>${c.x_pct}</td><td>${c.y_pct}</td><td>${minuto}</td><td><select class="log-player-select" data-event-id="${c.id}">${playerOptionsHtml(c.player_id)}</select></td>`;
       logBody.appendChild(tr);
@@ -1063,7 +1436,7 @@ async function loadNormalizadoReport() {
       const partPoints = points.filter(part.filter);
       partPoints.forEach(p => {
         const marker = document.createElement('div');
-        marker.className = 'marker ' + p.tipo;
+        marker.className = 'marker ' + p.tipo + (p.goal_id ? ' golo' : '');
         marker.style.left = p.x_pct_normalizado + '%';
         marker.style.top = p.y_pct_normalizado + '%';
         marker.style.display = showHeat ? 'none' : '';
@@ -1230,6 +1603,7 @@ async function init() {
 
   await loadRoster();
   await loadMatchPlayers();
+  await loadGoals();
   reloadAllTrackers();
 }
 
