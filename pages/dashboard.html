@@ -6,7 +6,7 @@
   questionário diário) e Relatórios (agregado de todos os jogos).
   Lógica em ../js/dashboard.js.
 
-  Versão: 1.12 (2026-08-31)
+  Versão: 1.13 (2026-08-31)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-08) — passa a ser específico de uma equipa (troca de equipa).
@@ -28,6 +28,8 @@
                          (css/styles.css) — em ecrãs estreitos, a tabela Wellness
                          (10 colunas) desformatava a página toda em vez de só ela
                          ganhar scroll horizontal.
+    1.13 (2026-08-31) — coluna RPE na tabela Wellness passa para logo a seguir a
+                         "Respondeu" (antes ficava a seguir a Peso, quase no fim).
 -->
 <html lang="pt">
 <head>
@@ -124,7 +126,7 @@
         <p class="hint">A coluna <b>RPE</b> (1-10, perceção de esforço) é só tua — preenche diretamente na tabela; o jogador nunca a vê.</p>
         <div class="table-scroll">
         <table class="players-table">
-          <thead><tr><th>Nº</th><th>Nome</th><th>Respondeu</th><th>Dores</th><th>Stress</th><th>Fadiga</th><th>Sono</th><th>Peso (kg)</th><th>RPE</th><th></th></tr></thead>
+          <thead><tr><th>Nº</th><th>Nome</th><th>Respondeu</th><th>RPE</th><th>Dores</th><th>Stress</th><th>Fadiga</th><th>Sono</th><th>Peso (kg)</th><th></th></tr></thead>
           <tbody id="wellness-body"></tbody>
         </table>
         </div>

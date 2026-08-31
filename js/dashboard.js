@@ -5,7 +5,7 @@
  * Wellness (vista do treinador sobre o questionário diário dos jogadores)
  * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.17 (2026-08-31)
+ * Versão: 1.18 (2026-08-31)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -38,6 +38,8 @@
  *                        treinador (input sempre visível, mesmo padrão do nº no Plantel),
  *                        gravada numa tabela própria (wellness_rpe) que o jogador nunca
  *                        consegue ler — incluída também nas exportações diária/semanal.
+ *   1.18 (2026-08-31) — coluna/campo RPE passa para logo a seguir a "Respondeu" (na
+ *                        tabela e nas exportações), em vez de a seguir a Peso.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -384,7 +386,7 @@ function renderWellness(byPlayer, rpeByPlayer) {
     const r = byPlayer.get(p.id);
     const rpe = rpeByPlayer.get(p.id);
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td>${r ? '✅' : '❌'}</td><td>${wellnessCell(r?.dores_musculares)}</td><td>${wellnessCell(r?.stress)}</td><td>${wellnessCell(r?.fadiga)}</td><td>${wellnessCell(r?.sono)}</td><td>${r?.peso ?? '—'}</td><td><input type="number" min="1" max="10" class="wellness-edit-input rpe-input" data-id="${p.id}" value="${rpe ?? ''}" placeholder="—"></td><td><button class="action small" data-id="${p.id}">Ver</button></td>`;
+    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td>${r ? '✅' : '❌'}</td><td><input type="number" min="1" max="10" class="wellness-edit-input rpe-input" data-id="${p.id}" value="${rpe ?? ''}" placeholder="—"></td><td>${wellnessCell(r?.dores_musculares)}</td><td>${wellnessCell(r?.stress)}</td><td>${wellnessCell(r?.fadiga)}</td><td>${wellnessCell(r?.sono)}</td><td>${r?.peso ?? '—'}</td><td><button class="action small" data-id="${p.id}">Ver</button></td>`;
     body.appendChild(tr);
   });
   el('wellness-empty').hidden = rosterCache.length > 0;
@@ -506,13 +508,13 @@ async function exportWellnessDaily() {
 
   const byPlayer = new Map((data || []).map(r => [r.player_id, r]));
   const rpeByPlayer = new Map((rpeData || []).map(r => [r.player_id, r.rpe]));
-  const rows = [['Nº', 'Nome', 'Respondeu', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)', 'RPE']];
+  const rows = [['Nº', 'Nome', 'Respondeu', 'RPE', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)']];
   rosterCache.forEach(p => {
     const r = byPlayer.get(p.id);
-    rows.push([p.numero || '', p.nome, r ? 'Sim' : 'Não', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '', r?.peso ?? '', rpeByPlayer.get(p.id) ?? '']);
+    rows.push([p.numero || '', p.nome, r ? 'Sim' : 'Não', rpeByPlayer.get(p.id) ?? '', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '', r?.peso ?? '']);
   });
   const avgRpe = average(Array.from(rpeByPlayer.values()));
-  rows.push(['', '', 'Média', ...mediasRow(Array.from(byPlayer.values())), avgRpe === null ? '' : Number(avgRpe.toFixed(1))]);
+  rows.push(['', '', 'Média', avgRpe === null ? '' : Number(avgRpe.toFixed(1)), ...mediasRow(Array.from(byPlayer.values()))]);
 
   downloadWorkbook([{ name: 'Wellness', rows }], `wellness-diario-${hojeIso}.xlsx`);
 }
@@ -541,7 +543,7 @@ async function exportWellnessWeekly() {
   const byPlayerDay = new Map((data || []).map(r => [`${r.player_id}_${r.data}`, r]));
   const rpeByPlayerDay = new Map((rpeData || []).map(r => [`${r.player_id}_${r.data}`, r.rpe]));
 
-  const respostasRows = [['Data', 'Dia', 'Nº', 'Nome', 'Respondeu', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)', 'RPE']];
+  const respostasRows = [['Data', 'Dia', 'Nº', 'Nome', 'Respondeu', 'RPE', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)']];
   const mediasRows = [['Data', 'Dia', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)', 'RPE', 'Nº respostas']];
 
   dates.forEach((date, i) => {
@@ -553,7 +555,7 @@ async function exportWellnessWeekly() {
       const rpe = rpeByPlayerDay.get(`${p.id}_${diaIso}`);
       if (r) respostasDoDia.push(r);
       if (rpe != null) rpesDoDia.push(rpe);
-      respostasRows.push([diaIso, DIAS_SEMANA[i], p.numero || '', p.nome, r ? 'Sim' : 'Não', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '', r?.peso ?? '', rpe ?? '']);
+      respostasRows.push([diaIso, DIAS_SEMANA[i], p.numero || '', p.nome, r ? 'Sim' : 'Não', rpe ?? '', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '', r?.peso ?? '']);
     });
     const avgRpe = average(rpesDoDia);
     mediasRows.push([diaIso, DIAS_SEMANA[i], ...mediasRow(respostasDoDia), avgRpe === null ? '' : Number(avgRpe.toFixed(1)), respostasDoDia.length]);
