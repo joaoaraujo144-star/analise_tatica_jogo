@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.35 (2026-08-31)
+ * Versão: 1.36 (2026-08-31)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -110,6 +110,12 @@
  *   1.35 (2026-08-31) — "Golos do jogo" e "Golos sofridos" passam a mostrar o mais
  *                        recente primeiro (sortGoalsRecentFirst(), por minuto do
  *                        jogo) — mais fácil encontrar o golo que acabaste de marcar.
+ *   1.36 (2026-08-31) — CSV exportado (wireDownloadSession()) ganha as secções
+ *                        "GOLOS" e "GOLOS SOFRIDOS" (minuto, marcador quando há, e a
+ *                        cadeia de eventos que lhe deram origem), e cada campo do
+ *                        Registo de Jogo ganha a coluna "Golo" (a que golo esse
+ *                        evento está ligado, se estiver) — antes a ligação
+ *                        evento-golo só existia no ecrã, não saía no ficheiro.
  */
 
 import { supabase } from './supabase-client.js';
@@ -702,6 +708,16 @@ function eventLabel(e) {
   const tipoLabel = cfg ? (e.tipo === 'X' ? cfg.xLabel : cfg.yLabel) : e.tipo;
   const title = cfg ? cfg.title : e.tracker_id;
   return { title, tipoLabel };
+}
+
+// Versão em texto simples de eventLabel(), para a secção de golos do CSV
+// exportado (wireDownloadSession()) — sem HTML, como a cadeia mostrada em
+// goalChainHtml().
+function eventCsvLabel(e) {
+  const { title, tipoLabel } = eventLabel(e);
+  const jogador = e.player_id ? playerLabelById(e.player_id) : '';
+  const minutoTxt = e.minuto != null ? `${e.minuto}' ` : '';
+  return `${minutoTxt}${title} — ${tipoLabel}${jogador ? ' (' + jogador + ')' : ''}`;
 }
 
 function goalChainHtml(g) {
@@ -1508,10 +1524,58 @@ function wireDownloadSession() {
       ].join(','));
     });
 
+    // Golos e a que eventos cada um está ligado (events.goal_id) — usado
+    // aqui em baixo nas secções GOLOS/GOLOS SOFRIDOS, e também para
+    // preencher a coluna "Golo" de cada campo do Registo de Jogo.
+    const { data: goalsData } = await supabase
+      .from('goals')
+      .select('*')
+      .eq('match_id', currentMatchId)
+      .order('minuto', { ascending: true });
+    const goals = goalsData || [];
+
+    const { data: linkedEventsData } = await supabase
+      .from('events')
+      .select('*')
+      .eq('match_id', currentMatchId)
+      .not('goal_id', 'is', null);
+    const linkedEvents = linkedEventsData || [];
+
+    function eventsForGoal(goalId) {
+      return linkedEvents
+        .filter(e => e.goal_id === goalId)
+        .sort((a, b) => (a.minuto ?? 0) - (b.minuto ?? 0) || new Date(a.created_at) - new Date(b.created_at));
+    }
+
+    const goalDescByEventId = new Map();
+    goals.forEach(g => {
+      const mp = matchPlayersCache.find(x => x.player_id === g.player_id);
+      const minutoTxt = g.minuto != null ? ` (${g.minuto}')` : '';
+      const desc = g.tipo === 'sofrido' ? `Golo sofrido${minutoTxt}` : `Golo${minutoTxt}${mp ? ' - ' + playerLabel(mp) : ''}`;
+      eventsForGoal(g.id).forEach(e => goalDescByEventId.set(e.id, desc));
+    });
+
+    lines.push('');
+    lines.push('=== GOLOS ===');
+    lines.push(['Parte', 'Minuto', 'Marcador', 'Eventos'].join(','));
+    goals.filter(g => g.tipo !== 'sofrido').forEach(g => {
+      const mp = matchPlayersCache.find(x => x.player_id === g.player_id);
+      const chain = eventsForGoal(g.id).map(eventCsvLabel).join(' -> ');
+      lines.push([g.parte ?? '', g.minuto ?? '', csvField(mp ? playerLabel(mp) : ''), csvField(chain)].join(','));
+    });
+
+    lines.push('');
+    lines.push('=== GOLOS SOFRIDOS ===');
+    lines.push(['Parte', 'Minuto', 'Eventos'].join(','));
+    goals.filter(g => g.tipo === 'sofrido').forEach(g => {
+      const chain = eventsForGoal(g.id).map(eventCsvLabel).join(' -> ');
+      lines.push([g.parte ?? '', g.minuto ?? '', csvField(chain)].join(','));
+    });
+
     for (const cfg of TRACKERS) {
       lines.push('');
       lines.push(`=== ${cfg.title.toUpperCase()} ===`);
-      lines.push(['Parte', 'Minuto', 'Tipo', 'X (%)', 'Y (%)', 'Hora', 'Jogador'].join(','));
+      lines.push(['Parte', 'Minuto', 'Tipo', 'X (%)', 'Y (%)', 'Hora', 'Jogador', 'Golo'].join(','));
       const { data } = await supabase
         .from('events')
         .select('*')
@@ -1520,7 +1584,7 @@ function wireDownloadSession() {
         .order('created_at', { ascending: true });
       (data || []).forEach(c => {
         const hora = new Date(c.created_at).toLocaleTimeString('pt-PT');
-        lines.push([c.parte, c.minuto ?? '', c.tipo, c.x_pct, c.y_pct, csvField(hora), csvField(playerLabelById(c.player_id))].join(','));
+        lines.push([c.parte, c.minuto ?? '', c.tipo, c.x_pct, c.y_pct, csvField(hora), csvField(playerLabelById(c.player_id)), csvField(goalDescByEventId.get(c.id) || '')].join(','));
       });
     }
 
