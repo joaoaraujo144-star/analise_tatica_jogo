@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.34 (2026-08-31)
+ * Versão: 1.35 (2026-08-31)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -107,6 +107,9 @@
  *                        updatePeriodoTimer(); currentMinutoNoJogo(), usado para
  *                        gravar eventos/golos, continua relativo ao início da própria
  *                        parte (0, 1, 2...), para o CSV/BD não mudarem.
+ *   1.35 (2026-08-31) — "Golos do jogo" e "Golos sofridos" passam a mostrar o mais
+ *                        recente primeiro (sortGoalsRecentFirst(), por minuto do
+ *                        jogo) — mais fácil encontrar o golo que acabaste de marcar.
  */
 
 import { supabase } from './supabase-client.js';
@@ -714,10 +717,22 @@ function goalChainHtml(g) {
     : '<span class="none">sem eventos associados</span>';
 }
 
+// O mais recente primeiro (pelo minuto do jogo; created_at como desempate,
+// ex. dois golos sem minuto marcado) — mais fácil encontrar/escolher o
+// golo que acabaste de marcar, sem teres de percorrer a lista toda.
+function sortGoalsRecentFirst(goals) {
+  return [...goals].sort((a, b) => {
+    const am = a.minuto ?? -1;
+    const bm = b.minuto ?? -1;
+    if (bm !== am) return bm - am;
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+}
+
 function renderGoalsList() {
   const list = el('goals-list');
   list.innerHTML = '';
-  const goals = goalsCache.filter(g => g.tipo !== 'sofrido');
+  const goals = sortGoalsRecentFirst(goalsCache.filter(g => g.tipo !== 'sofrido'));
   el('goals-empty').hidden = goals.length > 0;
 
   goals.forEach(g => {
@@ -752,7 +767,7 @@ function renderGoalsList() {
 function renderConcededList() {
   const list = el('conceded-list');
   list.innerHTML = '';
-  const conceded = goalsCache.filter(g => g.tipo === 'sofrido');
+  const conceded = sortGoalsRecentFirst(goalsCache.filter(g => g.tipo === 'sofrido'));
   el('conceded-empty').hidden = conceded.length > 0;
 
   conceded.forEach(g => {
