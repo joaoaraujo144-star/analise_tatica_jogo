@@ -7,7 +7,7 @@
   Acedida a partir do botão "Ver" na tab Wellness do dashboard.
   Lógica em ../js/wellness-jogador.js.
 
-  Versão: 1.4 (2026-08-31)
+  Versão: 1.5 (2026-08-31)
   Histórico:
     1.0 (2026-08-07) — criação.
     1.1 (2026-08-07) — separa o gráfico único de wellness em 4 gráficos, um por
@@ -17,6 +17,9 @@
                         jogador e o intervalo de datas do PDF exportado.
     1.4 (2026-08-31) — gráfico e coluna de RPE (1-10, perceção de esforço),
                         preenchido só pelo treinador — nunca visível ao jogador.
+    1.5 (2026-08-31) — tabela de Respostas passa a estar dentro de ".table-scroll"
+                        (css/styles.css), para não desformatar a página em ecrãs
+                        estreitos.
 -->
 <html lang="pt">
 <head>
@@ -89,10 +92,12 @@
   <div class="players-card" id="wellness-table-card">
     <h2 class="tracker-title">Respostas</h2>
     <p class="hint">Clica em "Editar" para corrigir um dia (ex: o jogador enganou-se a preencher). A coluna RPE é preenchida só por ti.</p>
+    <div class="table-scroll">
     <table class="players-table">
       <thead><tr><th>Data</th><th>Dores</th><th>Stress</th><th>Fadiga</th><th>Sono</th><th>Peso (kg)</th><th>RPE</th><th></th></tr></thead>
       <tbody id="wellness-jogador-body"></tbody>
     </table>
+    </div>
     <p class="hint" id="wellness-jogador-empty">Sem respostas neste intervalo.</p>
   </div>
 

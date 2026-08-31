@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.30 (2026-08-27)
+ * Versão: 1.31 (2026-08-31)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -65,6 +65,11 @@
  *                        página — ver 1.27 em js/match.js) para "arrow-live-field".
  *   1.30 (2026-08-27) — nota em ".wellness-edit-input" sobre a reutilização no Plantel
  *                        (número do jogador editável), sem alterações de estilo.
+ *   1.31 (2026-08-31) — nova classe ".table-scroll" (todas as ".players-table" passam
+ *                        a estar envolvidas por ela): em ecrãs estreitos, uma tabela
+ *                        com muitas colunas (ex: Wellness, 10 colunas) já não esmaga o
+ *                        conteúdo nem faz a página inteira ganhar scroll horizontal —
+ *                        só a própria tabela, dentro do seu cartão.
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -538,8 +543,21 @@ button.action.active { background: #263b5c; border-color: #4a7fd6; }
   font-family: monospace;
   letter-spacing: 0.05em;
 }
-.players-table { width: 100%; border-collapse: collapse; }
-.players-table th, .players-table td { text-align: center; padding: 6px 8px; border-bottom: 1px solid #232b33; }
+/* Sem isto, uma tabela com muitas colunas (ex: Wellness, 10 colunas) não
+   tinha para onde ir em ecrãs estreitos — o texto esmagava-se ou a página
+   inteira ganhava scroll horizontal (o ".players-card" à volta desalinhava-
+   se todo). O scroll fica isolado à tabela: ".players-table" já não força
+   as colunas a caberem em 100% da largura (min-width: max-content deixa-a
+   crescer o que precisar), só quando o conteúdo não cabe é que aparece a
+   barra de scroll, sempre dentro do cartão. Sempre a envolver "table.players-
+   table" nas páginas (ver pages/dashboard.html, match.html, wellness-jogador.html). */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.players-table { width: 100%; min-width: max-content; border-collapse: collapse; }
+.players-table th, .players-table td { text-align: center; padding: 6px 8px; border-bottom: 1px solid #232b33; white-space: nowrap; }
 .players-table th:nth-child(2), .players-table td:nth-child(2) { text-align: left; }
 .players-table th { color: #888; font-weight: normal; }
 .btn-remove-player {
@@ -891,6 +909,11 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
   .players-table th { color: #666; }
   .log th, .log td { border-color: #ccc; }
   .log th { color: #666; }
+  /* No ecrã ".table-scroll" isola o scroll horizontal dentro da tabela
+     (ver mais abaixo) — numa página impressa não há scrollbar, por isso
+     "overflow-x: auto" arrisca cortar colunas em silêncio em vez de as
+     mostrar; "visible" garante que nada desaparece do PDF. */
+  .table-scroll { overflow-x: visible; }
 
   /* Wellness por jogador (pages/wellness-jogador.html): só os gráficos
      saem no PDF — a tabela de respostas e os botões ficam de fora

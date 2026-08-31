@@ -6,7 +6,7 @@
   clicáveis, por parte) e Relatórios (só deste jogo, com registo
   normalizado ao terminar). Lógica em ../js/match.js.
 
-  Versão: 1.11 (2026-08-27)
+  Versão: 1.12 (2026-08-31)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-09) — cada jogo passa a ter esta página própria (fora do dashboard).
@@ -24,6 +24,9 @@
     1.11 (2026-08-27) — corrige a paginação do PDF (título de cada parte já não fica
                          órfão) e acrescenta cabeçalho "vs adversário — data" ao relatório
                          exportado, com nota sobre os cabeçalhos/rodapés do browser.
+    1.12 (2026-08-31) — tabelas de Convocados e Relatório passam a estar dentro de
+                         ".table-scroll" (css/styles.css) — a de Convocados (10 colunas)
+                         desformatava a página toda em ecrãs estreitos.
 -->
 <html lang="pt">
 <head>
@@ -92,12 +95,14 @@
           <button class="action" id="btn-convocar">Convocar</button>
         </div>
         <p class="hint">Clica em 🟨/🟥 para marcar cartão (2 amarelos marcam o vermelho automaticamente), em Assist./⚽ para somar (clique direito ou Ctrl+clique para subtrair), e em Estado/Substituição para alternar Titular/Suplente e Saiu/Entrou (clique direito limpa a substituição).</p>
+        <div class="table-scroll">
         <table class="players-table">
           <thead>
             <tr><th>Nº</th><th>Nome</th><th>Estado</th><th>🟨</th><th>🟨</th><th>🟥</th><th>Assist.</th><th>⚽</th><th>Substituição</th><th></th></tr>
           </thead>
           <tbody id="players-body"></tbody>
         </table>
+        </div>
         <p class="hint" id="players-empty">Ainda não convocaste jogadores para este jogo.</p>
       </div>
     </div>
@@ -121,10 +126,12 @@
       <div class="players-card">
         <h2 class="tracker-title">Relatório deste Jogo</h2>
         <p class="hint">Estatísticas dos jogadores convocados só para este jogo.</p>
+        <div class="table-scroll">
         <table class="players-table">
           <thead><tr><th>Nº</th><th>Nome</th><th>Estado</th><th>Golos</th><th>Assist.</th><th>🟨</th><th>🟥</th></tr></thead>
           <tbody id="reports-body"></tbody>
         </table>
+        </div>
         <p class="hint" id="reports-empty">Sem dados ainda.</p>
       </div>
 
