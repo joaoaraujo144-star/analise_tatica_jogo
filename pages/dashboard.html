@@ -6,7 +6,7 @@
   questionário diário) e Relatórios (agregado de todos os jogos).
   Lógica em ../js/dashboard.js.
 
-  Versão: 1.13 (2026-08-31)
+  Versão: 1.15 (2026-09-01)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-08) — passa a ser específico de uma equipa (troca de equipa).
@@ -30,6 +30,10 @@
                          ganhar scroll horizontal.
     1.13 (2026-08-31) — coluna RPE na tabela Wellness passa para logo a seguir a
                          "Respondeu" (antes ficava a seguir a Peso, quase no fim).
+    1.14 (2026-09-01) — tab Wellness ganha, no topo, a flag "dia de treino" e,
+                         quando ligada, a duração do treino em minutos.
+    1.15 (2026-09-01) — tabela Wellness ganha a coluna "Carga" (RPE × duração do
+                         treino), calculada automaticamente, sem input próprio.
 -->
 <html lang="pt">
 <head>
@@ -109,6 +113,20 @@
     <!-- Tab Wellness: vista rápida do treinador sobre o questionário diário -->
     <div class="tab-panel" id="tab-wellness" hidden>
       <div class="players-card">
+        <h2 class="tracker-title">Treino de hoje</h2>
+        <label class="training-day-row">
+          <span class="switch">
+            <input type="checkbox" id="training-day-toggle">
+            <span class="switch-slider"></span>
+          </span>
+          <span>Hoje é dia de treino</span>
+        </label>
+        <div class="player-form" id="training-duration-row" hidden>
+          <label for="training-duration">Duração do treino (minutos)</label>
+          <input type="number" id="training-duration" min="1" step="1" placeholder="ex: 90">
+        </div>
+      </div>
+      <div class="players-card">
         <h2 class="tracker-title">Wellness de hoje</h2>
         <p class="hint">Dores musculares, stress, fadiga, sono (0-10) e peso (kg, opcional) que cada jogador reportou hoje, na própria conta. Para criar o acesso de um jogador, vai à tab Plantel.</p>
         <div class="counters" id="wellness-averages">
@@ -124,9 +142,10 @@
           <button class="action" id="btn-export-wellness-weekly">Exportar semanal (.xlsx)</button>
         </div>
         <p class="hint">A coluna <b>RPE</b> (1-10, perceção de esforço) é só tua — preenche diretamente na tabela; o jogador nunca a vê.</p>
+        <p class="hint">A coluna <b>Carga</b> é calculada automaticamente (RPE × duração do treino em minutos, definida no cartão "Treino de hoje" acima) — só aparece quando as duas estão preenchidas.</p>
         <div class="table-scroll">
         <table class="players-table">
-          <thead><tr><th>Nº</th><th>Nome</th><th>Respondeu</th><th>RPE</th><th>Dores</th><th>Stress</th><th>Fadiga</th><th>Sono</th><th>Peso (kg)</th><th></th></tr></thead>
+          <thead><tr><th>Nº</th><th>Nome</th><th>Respondeu</th><th>RPE</th><th>Carga</th><th>Dores</th><th>Stress</th><th>Fadiga</th><th>Sono</th><th>Peso (kg)</th><th></th></tr></thead>
           <tbody id="wellness-body"></tbody>
         </table>
         </div>

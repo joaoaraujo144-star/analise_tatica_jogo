@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.37 (2026-08-31)
+ * Versão: 1.38 (2026-09-01)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -89,6 +89,8 @@
  *   1.37 (2026-08-31) — ".badge-oncampo": badge só informativo (sem "cursor: pointer",
  *                        ao contrário de ".badge-estado") para a nova coluna "Em Campo"
  *                        da convocatória.
+ *   1.38 (2026-09-01) — ".switch"/".training-day-row": interruptor "dia de treino" no
+ *                        topo da tab Wellness.
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -721,6 +723,57 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
   color: #aaa;
 }
 .badge-oncampo.on { background: #1e5c2f; color: #7ee89a; }
+
+/* Interruptor "dia de treino" (tab Wellness) — checkbox nativo escondido,
+   com uma pill desenhada em cima (mesmo padrão de acessibilidade de um
+   toggle: o checkbox continua focável/operável por teclado). */
+.training-day-row { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.switch-slider {
+  position: absolute;
+  inset: 0;
+  background: #263038;
+  border: 1px solid #333;
+  border-radius: 24px;
+  transition: background 0.15s;
+}
+.switch-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 2px;
+  top: 2px;
+  background: #aaa;
+  border-radius: 50%;
+  transition: transform 0.15s, background 0.15s;
+}
+.switch input:checked + .switch-slider { background: #1e5c2f; }
+.switch input:checked + .switch-slider::before { transform: translateX(20px); background: #7ee89a; }
+.switch input:focus-visible + .switch-slider { outline: 2px solid #7ee89a; outline-offset: 2px; }
+/* Mesma pegadinha documentada acima em ".players-card[hidden]": ".player-form"
+   já define "display: flex", que vence o "[hidden] { display: none }" do
+   browser — por isso precisa da mesma regra explícita aqui. */
+#training-duration-row[hidden] { display: none; }
+#training-duration-row { align-items: center; }
+#training-duration-row input[type="number"] {
+  background: #1c242c;
+  border: 1px solid #333;
+  color: #eee;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.95em;
+  width: 100px;
+}
+
 .stat-cell {
   cursor: pointer;
   user-select: none;

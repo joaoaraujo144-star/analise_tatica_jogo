@@ -5,7 +5,7 @@
  * Wellness (vista do treinador sobre o questionário diário dos jogadores)
  * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.18 (2026-08-31)
+ * Versão: 1.20 (2026-09-01)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -40,6 +40,13 @@
  *                        consegue ler — incluída também nas exportações diária/semanal.
  *   1.18 (2026-08-31) — coluna/campo RPE passa para logo a seguir a "Respondeu" (na
  *                        tabela e nas exportações), em vez de a seguir a Peso.
+ *   1.19 (2026-09-01) — tab Wellness ganha, no topo, a flag "dia de treino" (por
+ *                        equipa por dia) e, quando ligada, a duração em minutos —
+ *                        tabela própria (training_days), sem ligação a jogadores.
+ *   1.20 (2026-09-01) — coluna "Carga" na tabela Wellness (RPE × duração do treino,
+ *                        calcCarga()) — sem input próprio, recalculada sempre que o
+ *                        RPE ou a duração do treino mudam; incluída também nas
+ *                        exportações diária/semanal.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -91,7 +98,7 @@ function wireTabs() {
         panel.hidden = panel.id !== `tab-${btn.dataset.tab}`;
       });
       if (btn.dataset.tab === 'relatorios') loadReports();
-      if (btn.dataset.tab === 'wellness') loadWellness();
+      if (btn.dataset.tab === 'wellness') { loadWellness(); loadTrainingDay(); }
     });
   });
 }
@@ -335,6 +342,59 @@ function renderReports(rows) {
   el('reports-empty').hidden = rows.length > 0;
 }
 
+// ---------- Treino do dia (flag + duração, topo da tab Wellness) ----------
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function loadTrainingDay() {
+  const { data, error } = await supabase
+    .from('training_days')
+    .select('treino, duracao_minutos')
+    .eq('team_id', currentTeamId)
+    .eq('data', todayIso())
+    .maybeSingle();
+  if (error) { console.error(error); return; }
+  const treino = data?.treino ?? false;
+  el('training-day-toggle').checked = treino;
+  el('training-duration-row').hidden = !treino;
+  el('training-duration').value = data?.duracao_minutos ?? '';
+}
+
+async function saveTrainingDay(patch) {
+  const { error } = await supabase
+    .from('training_days')
+    .upsert({ team_id: currentTeamId, data: todayIso(), ...patch }, { onConflict: 'team_id,data' });
+  if (error) alert(error.message);
+}
+
+function wireTrainingDay() {
+  el('training-day-toggle').addEventListener('change', async (e) => {
+    const treino = e.target.checked;
+    el('training-duration-row').hidden = !treino;
+    if (!treino) {
+      el('training-duration').value = '';
+      await saveTrainingDay({ treino: false, duracao_minutos: null });
+    } else {
+      await saveTrainingDay({ treino: true });
+    }
+    await loadWellness(); // a coluna Carga (RPE × minutos) depende da duração de hoje
+  });
+
+  el('training-duration').addEventListener('change', async (e) => {
+    const raw = e.target.value.trim();
+    const minutos = raw ? Number(raw) : null;
+    if (minutos != null && (!Number.isInteger(minutos) || minutos <= 0)) {
+      alert('A duração do treino tem de ser um número inteiro de minutos, maior que 0.');
+      e.target.value = '';
+      return;
+    }
+    await saveTrainingDay({ treino: true, duracao_minutos: minutos });
+    await loadWellness(); // idem
+  });
+}
+
 // ---------- Wellness (vista do treinador: quem respondeu hoje) ----------
 
 async function loadWellness() {
@@ -358,7 +418,26 @@ async function loadWellness() {
   if (rpeError) { console.error(rpeError); return; }
   const rpeByPlayer = new Map((rpeData || []).map(r => [r.player_id, r.rpe]));
 
-  renderWellness(byPlayer, rpeByPlayer);
+  // Carga (RPE × minutos) usa a duração do treino do dia (training_days),
+  // igual para toda a equipa — null se hoje não for dia de treino ou a
+  // duração ainda não estiver preenchida.
+  const { data: trainingData, error: trainingError } = await supabase
+    .from('training_days')
+    .select('duracao_minutos')
+    .eq('team_id', currentTeamId)
+    .eq('data', hoje)
+    .maybeSingle();
+  if (trainingError) { console.error(trainingError); return; }
+  const duracaoMinutos = trainingData?.duracao_minutos ?? null;
+
+  renderWellness(byPlayer, rpeByPlayer, duracaoMinutos);
+}
+
+// Carga (perceção de esforço × duração do treino) — só existe quando as
+// duas partes estão preenchidas: RPE do jogador (wellness_rpe) e duração
+// do treino do dia (training_days, por equipa, não por jogador).
+function calcCarga(rpe, duracaoMinutos) {
+  return (rpe != null && duracaoMinutos != null) ? rpe * duracaoMinutos : null;
 }
 
 // Em todas as métricas, valor baixo é bom (pouca dor/stress/fadiga, sono
@@ -379,14 +458,15 @@ function openWellnessPlayer(playerId) {
   window.location.href = 'wellness-jogador.html';
 }
 
-function renderWellness(byPlayer, rpeByPlayer) {
+function renderWellness(byPlayer, rpeByPlayer, duracaoMinutos) {
   const body = el('wellness-body');
   body.innerHTML = '';
   rosterCache.forEach(p => {
     const r = byPlayer.get(p.id);
     const rpe = rpeByPlayer.get(p.id);
+    const carga = calcCarga(rpe, duracaoMinutos);
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td>${r ? '✅' : '❌'}</td><td><input type="number" min="1" max="10" class="wellness-edit-input rpe-input" data-id="${p.id}" value="${rpe ?? ''}" placeholder="—"></td><td>${wellnessCell(r?.dores_musculares)}</td><td>${wellnessCell(r?.stress)}</td><td>${wellnessCell(r?.fadiga)}</td><td>${wellnessCell(r?.sono)}</td><td>${r?.peso ?? '—'}</td><td><button class="action small" data-id="${p.id}">Ver</button></td>`;
+    tr.innerHTML = `<td>${p.numero || ''}</td><td>${p.nome}</td><td>${r ? '✅' : '❌'}</td><td><input type="number" min="1" max="10" class="wellness-edit-input rpe-input" data-id="${p.id}" value="${rpe ?? ''}" placeholder="—"></td><td>${carga ?? '—'}</td><td>${wellnessCell(r?.dores_musculares)}</td><td>${wellnessCell(r?.stress)}</td><td>${wellnessCell(r?.fadiga)}</td><td>${wellnessCell(r?.sono)}</td><td>${r?.peso ?? '—'}</td><td><button class="action small" data-id="${p.id}">Ver</button></td>`;
     body.appendChild(tr);
   });
   el('wellness-empty').hidden = rosterCache.length > 0;
@@ -409,7 +489,8 @@ function wireWellnessTable() {
     if (!raw) {
       const { error } = await supabase.from('wellness_rpe').delete()
         .eq('team_id', currentTeamId).eq('player_id', input.dataset.id).eq('data', hoje);
-      if (error) alert(error.message);
+      if (error) { alert(error.message); return; }
+      await loadWellness(); // recalcula a coluna Carga (RPE × minutos) desta linha
       return;
     }
 
@@ -419,6 +500,7 @@ function wireWellnessTable() {
         { onConflict: 'player_id,data' }
       );
     if (error) { alert(error.message); return; }
+    await loadWellness(); // idem
   });
   el('wellness-body').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.classList.contains('rpe-input')) e.target.blur();
@@ -506,15 +588,29 @@ async function exportWellnessDaily() {
     .eq('data', hojeIso);
   if (rpeError) { alert(rpeError.message); return; }
 
+  const { data: trainingData, error: trainingError } = await supabase
+    .from('training_days')
+    .select('duracao_minutos')
+    .eq('team_id', currentTeamId)
+    .eq('data', hojeIso)
+    .maybeSingle();
+  if (trainingError) { alert(trainingError.message); return; }
+  const duracaoMinutos = trainingData?.duracao_minutos ?? null;
+
   const byPlayer = new Map((data || []).map(r => [r.player_id, r]));
   const rpeByPlayer = new Map((rpeData || []).map(r => [r.player_id, r.rpe]));
-  const rows = [['Nº', 'Nome', 'Respondeu', 'RPE', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)']];
+  const rows = [['Nº', 'Nome', 'Respondeu', 'RPE', 'Carga', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)']];
+  const cargas = [];
   rosterCache.forEach(p => {
     const r = byPlayer.get(p.id);
-    rows.push([p.numero || '', p.nome, r ? 'Sim' : 'Não', rpeByPlayer.get(p.id) ?? '', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '', r?.peso ?? '']);
+    const rpe = rpeByPlayer.get(p.id);
+    const carga = calcCarga(rpe, duracaoMinutos);
+    if (carga != null) cargas.push(carga);
+    rows.push([p.numero || '', p.nome, r ? 'Sim' : 'Não', rpe ?? '', carga ?? '', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '', r?.peso ?? '']);
   });
   const avgRpe = average(Array.from(rpeByPlayer.values()));
-  rows.push(['', '', 'Média', avgRpe === null ? '' : Number(avgRpe.toFixed(1)), ...mediasRow(Array.from(byPlayer.values()))]);
+  const avgCarga = average(cargas);
+  rows.push(['', '', 'Média', avgRpe === null ? '' : Number(avgRpe.toFixed(1)), avgCarga === null ? '' : Number(avgCarga.toFixed(1)), ...mediasRow(Array.from(byPlayer.values()))]);
 
   downloadWorkbook([{ name: 'Wellness', rows }], `wellness-diario-${hojeIso}.xlsx`);
 }
@@ -540,25 +636,39 @@ async function exportWellnessWeekly() {
     .lte('data', fimIso);
   if (rpeError) { alert(rpeError.message); return; }
 
+  const { data: trainingData, error: trainingError } = await supabase
+    .from('training_days')
+    .select('data, duracao_minutos')
+    .eq('team_id', currentTeamId)
+    .gte('data', inicioIso)
+    .lte('data', fimIso);
+  if (trainingError) { alert(trainingError.message); return; }
+
   const byPlayerDay = new Map((data || []).map(r => [`${r.player_id}_${r.data}`, r]));
   const rpeByPlayerDay = new Map((rpeData || []).map(r => [`${r.player_id}_${r.data}`, r.rpe]));
+  const duracaoByDay = new Map((trainingData || []).map(r => [r.data, r.duracao_minutos]));
 
-  const respostasRows = [['Data', 'Dia', 'Nº', 'Nome', 'Respondeu', 'RPE', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)']];
-  const mediasRows = [['Data', 'Dia', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)', 'RPE', 'Nº respostas']];
+  const respostasRows = [['Data', 'Dia', 'Nº', 'Nome', 'Respondeu', 'RPE', 'Carga', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)']];
+  const mediasRows = [['Data', 'Dia', 'Dores', 'Stress', 'Fadiga', 'Sono', 'Peso (kg)', 'RPE', 'Carga', 'Nº respostas']];
 
   dates.forEach((date, i) => {
     const diaIso = isoDate(date);
+    const duracaoMinutos = duracaoByDay.get(diaIso) ?? null;
     const respostasDoDia = [];
     const rpesDoDia = [];
+    const cargasDoDia = [];
     rosterCache.forEach(p => {
       const r = byPlayerDay.get(`${p.id}_${diaIso}`);
       const rpe = rpeByPlayerDay.get(`${p.id}_${diaIso}`);
+      const carga = calcCarga(rpe, duracaoMinutos);
       if (r) respostasDoDia.push(r);
       if (rpe != null) rpesDoDia.push(rpe);
-      respostasRows.push([diaIso, DIAS_SEMANA[i], p.numero || '', p.nome, r ? 'Sim' : 'Não', rpe ?? '', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '', r?.peso ?? '']);
+      if (carga != null) cargasDoDia.push(carga);
+      respostasRows.push([diaIso, DIAS_SEMANA[i], p.numero || '', p.nome, r ? 'Sim' : 'Não', rpe ?? '', carga ?? '', r?.dores_musculares ?? '', r?.stress ?? '', r?.fadiga ?? '', r?.sono ?? '', r?.peso ?? '']);
     });
     const avgRpe = average(rpesDoDia);
-    mediasRows.push([diaIso, DIAS_SEMANA[i], ...mediasRow(respostasDoDia), avgRpe === null ? '' : Number(avgRpe.toFixed(1)), respostasDoDia.length]);
+    const avgCarga = average(cargasDoDia);
+    mediasRows.push([diaIso, DIAS_SEMANA[i], ...mediasRow(respostasDoDia), avgRpe === null ? '' : Number(avgRpe.toFixed(1)), avgCarga === null ? '' : Number(avgCarga.toFixed(1)), respostasDoDia.length]);
   });
 
   downloadWorkbook(
@@ -648,6 +758,7 @@ async function init() {
   wireTabs();
   wireMatches();
   wireRoster();
+  wireTrainingDay();
   wireWellnessTable();
   wireWellnessExports();
   wireImport();

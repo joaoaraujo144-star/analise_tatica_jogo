@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 023.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 024.)
 --
--- Versão: 1.22 (2026-08-31) — reflete sempre o estado final cumulativo,
+-- Versão: 1.23 (2026-09-01) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -45,6 +45,8 @@
 --   1.22 (2026-08-31) — goals ganha "tipo" ('marcado' ou 'sofrido') — golo sofrido usa
 --                        a mesma tabela e a mesma ligação a eventos, sem player_id (a
 --                        app não tem lista de jogadores do adversário).
+--   1.23 (2026-09-01) — tabela training_days: flag "dia de treino" + duração (minutos),
+--                        por equipa por dia, editável no topo da tab Wellness.
 
 create extension if not exists "pgcrypto";
 
@@ -201,6 +203,19 @@ create table if not exists wellness_rpe (
   unique (player_id, data)
 );
 
+-- Flag diária, por equipa (não por jogador): hoje é dia de treino? Com a
+-- duração em minutos quando é. Propriedade do dia em si, por isso vive
+-- numa tabela própria, uma linha por equipa por dia.
+create table if not exists training_days (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references teams(id) on delete cascade,
+  data date not null default current_date,
+  treino boolean not null default false,
+  duracao_minutos int check (duracao_minutos > 0),
+  created_at timestamptz not null default now(),
+  unique (team_id, data)
+);
+
 -- Índices para as queries mais comuns
 create index if not exists idx_players_team on players(team_id);
 create index if not exists idx_matches_team on matches(team_id);
@@ -218,6 +233,7 @@ create index if not exists idx_wellness_team_data on wellness_responses(team_id,
 create index if not exists idx_wellness_player on wellness_responses(player_id);
 create index if not exists idx_wellness_rpe_team_data on wellness_rpe(team_id, data);
 create index if not exists idx_player_events_team on player_events(team_id);
+create index if not exists idx_training_days_team_data on training_days(team_id, data);
 
 -- Row Level Security
 alter table teams enable row level security;
@@ -230,6 +246,7 @@ alter table events enable row level security;
 alter table player_events enable row level security;
 alter table wellness_responses enable row level security;
 alter table wellness_rpe enable row level security;
+alter table training_days enable row level security;
 
 -- Só é possível ver uma equipa (ou dados dela) se se for membro dessa equipa
 create policy "teams_member_select" on teams
@@ -321,6 +338,11 @@ create policy "wellness_rpe_team_member" on wellness_rpe
   for all
   using (exists (select 1 from team_members tm where tm.team_id = wellness_rpe.team_id and tm.user_id = auth.uid()))
   with check (exists (select 1 from team_members tm where tm.team_id = wellness_rpe.team_id and tm.user_id = auth.uid()));
+
+create policy "training_days_team_member" on training_days
+  for all
+  using (exists (select 1 from team_members tm where tm.team_id = training_days.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = training_days.team_id and tm.user_id = auth.uid()));
 
 -- View: Registo de Jogo normalizado (1ª + 2ª parte juntas, rodadas 180º
 -- conforme a orientação de ataque escolhida nas setas para cada parte).

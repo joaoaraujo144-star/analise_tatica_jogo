@@ -7,7 +7,7 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.13 (2026-08-31)
+  Versão: 1.14 (2026-09-01)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
@@ -35,6 +35,8 @@
                          normalizado passa a poder destacar os pontos ligados a golo).
     1.13 (2026-08-31) — goals ganha "tipo" ('marcado' ou 'sofrido') — golo sofrido usa
                          a mesma tabela e a mesma ligação a eventos, sem player_id.
+    1.14 (2026-09-01) — nova tabela training_days (flag "dia de treino" + duração em
+                         minutos, por equipa por dia, sem ligação a jogadores).
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -70,6 +72,7 @@ erDiagram
   TEAMS ||--o{ WELLNESS_RESPONSES : "team_id"
   PLAYERS ||--o{ WELLNESS_RPE : "player_id"
   TEAMS ||--o{ WELLNESS_RPE : "team_id"
+  TEAMS ||--o{ TRAINING_DAYS : "team_id"
 
   USERS {
     uuid id PK
@@ -192,6 +195,15 @@ erDiagram
     uuid player_id FK
     date data
     int rpe
+    timestamptz created_at
+  }
+
+  TRAINING_DAYS {
+    uuid id PK
+    uuid team_id FK
+    date data
+    boolean treino
+    int duracao_minutos
     timestamptz created_at
   }
 ```
@@ -351,6 +363,20 @@ RPE (*Rate of Perceived Exertion*, 1-10) de um dia/treino, preenchido **só pelo
 | `created_at` | timestamptz | sim | |
 
 Só uma policy, `wellness_rpe_team_member` (`for all`, exige `team_members`) — sem RPC, o treinador escreve diretamente na tabela a partir de `pages/dashboard.html` (RPE do dia, tab Wellness) e `pages/wellness-jogador.html` (RPE de qualquer dia já existente em `wellness_responses`, no fluxo de edição). Não há policy nenhuma para o jogador: uma tentativa de leitura pelo `auth_user_id` do jogador devolve sempre zero linhas.
+
+### `training_days`
+Flag "dia de treino" + duração (minutos), no topo da tab Wellness. Ao contrário de `wellness_responses`/`wellness_rpe`, **não está ligada a nenhum jogador** — é uma propriedade do dia em si, para a equipa toda — por isso não tem `player_id`, só uma linha por `team_id`+`data`.
+
+| Coluna | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | uuid | sim (PK) | |
+| `team_id` | uuid | sim (FK → `teams`) | único por (`team_id`, `data`) |
+| `data` | date | sim (default `current_date`) | |
+| `treino` | boolean | sim (default `false`) | interruptor "Hoje é dia de treino" |
+| `duracao_minutos` | int (> 0) | não | só preenchido quando `treino = true`; a UI limpa-o (`null`) ao desligar a flag |
+| `created_at` | timestamptz | sim | |
+
+Só uma policy, `training_days_team_member` (`for all`, exige `team_members`) — sem RPC, `loadTrainingDay()`/`saveTrainingDay()` (`dashboard.js`) leem/escrevem diretamente na tabela via `upsert({ onConflict: 'team_id,data' })`.
 
 ### `events_normalizado` (view, não tabela)
 Junta `events` com `matches` e roda 180º (`100 - x_pct`, `100 - y_pct`) os pontos da parte cuja orientação de ataque não é a de referência (`E-D`), para que a 1ª e a 2ª parte fiquem representadas no mesmo sentido de ataque.

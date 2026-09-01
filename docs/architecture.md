@@ -9,7 +9,7 @@
   (tabelas/colunas), ver supabase/data-model.md; para funcionalidades e
   setup, ver o README.md.
 
-  Versão: 1.30 (2026-08-31)
+  Versão: 1.32 (2026-09-01)
   Histórico:
     1.0 (2026-07-14) — criação.
     1.1 (2026-07-15) — popup de escolha de jogador após o clique, no Registo de Jogo.
@@ -101,6 +101,12 @@
                          "Coluna 'Em Campo'" na secção de padrões de código.
     1.30 (2026-08-31) — corrige isOnField(): vermelho também tira o jogador de campo,
                          mesmo sem "Saiu" marcado.
+    1.31 (2026-09-01) — flag "dia de treino" + duração (minutos) no topo da tab
+                         Wellness (training_days) — ver "Dia de treino" na secção
+                         de padrões de código.
+    1.32 (2026-09-01) — coluna "Carga" (RPE × duração do treino) na tabela Wellness,
+                         calculada em cliente, não gravada em lado nenhum — ver
+                         "Dia de treino" na secção de padrões de código.
 -->
 
 # Arquitetura — Análise de Jogo
@@ -224,6 +230,7 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 - **Exportação Excel (.xlsx) do Wellness**: 1ª exceção à filosofia "zero dependências" do resto da app — `dashboard.js` importa [SheetJS](https://sheetjs.com) (`xlsx`, via CDN `esm.sh`, tal como o `@supabase/supabase-js`) porque um `.xlsx` real (múltiplas folhas, tal como o Excel o entende) não é razoável de gerar à mão como o CSV existente. Cada exportação (`exportWellnessDaily()`/`exportWellnessWeekly()`) monta as folhas como arrays-de-arrays (`XLSX.utils.aoa_to_sheet`) e descarrega com `XLSX.writeFile()` — sem passar por Blob/`<a download>` manual, a biblioteca trata disso. A exportação semanal usa sempre a semana civil (segunda a domingo) que contém a data de hoje, calculada em `startOfWeek()`.
 - **Gráficos de evolução do Wellness**: 2ª exceção — `wellness-jogador.js` importa [Chart.js](https://www.chartjs.org) (`chart.js/auto`, via CDN `esm.sh`) para 5 gráficos de linha, um por métrica (Dores/Stress/Fadiga/Sono 0-10, e Peso à parte por ter escala diferente) — cada cartão já mostra o nome na `h2.tracker-title`, por isso a legenda do Chart.js fica desligada em cada um. O toggle Semana/Mês/Total é sempre uma **janela deslizante** a partir de hoje (últimos 7/30 dias, ou tudo), não fixa ao calendário como a exportação semanal — para mostrar sempre a tendência mais recente, seja qual for o dia em que o treinador está a ver. Os gráficos são recriados (`chart.destroy()` + `new Chart(...)`) sempre que a janela muda ou uma resposta é editada, em vez de atualizados in-place; guardados no objeto `charts` (por id de métrica), não em variáveis separadas.
 - **Exportações de `wellness-jogador.html`**: os dois botões reutilizam padrões já existentes em vez de inventar um terceiro — "Exportar gráficos (PDF)" é só `window.print()` com regras `@media print` (mesma abordagem do relatório do jogo em `match.js`; os `<canvas>` do Chart.js imprimem bem tal como estão, sem tratamento especial); "Exportar tabela (Excel)" usa o SheetJS já importado para os exports do dashboard.
+- **Dia de treino** (`training_days`, topo da tab Wellness): flag por equipa por dia (`treino`) e, quando ligada, `duracao_minutos` — ao contrário de `wellness_responses`/`wellness_rpe`, não está ligada a nenhum jogador, é uma propriedade do dia em si (por isso uma linha por `team_id`+`data`, `unique (team_id, data)`, sem `player_id`). `loadTrainingDay()`/`wireTrainingDay()` (`dashboard.js`) usam sempre `upsert({ onConflict: 'team_id,data' })`, o mesmo padrão do RPE — nunca insert/update em separado. O interruptor (`.switch`, `css/styles.css`) é um `<input type="checkbox">` visualmente escondido dentro de um `<label>`: clicar em qualquer ponto da linha (não só no próprio input) alterna o estado, porque o `<label>` encaminha o clique para o descendente associado — por isso `#training-duration-row[hidden]` precisa da mesma regra explícita já documentada acima em `.players-card[hidden]` (uma classe de layout como `.player-form` vence sempre o `[hidden]` por omissão do browser). Desligar a flag limpa e grava `duracao_minutos = null` (não faz sentido guardar uma duração para um dia que não é de treino); a duração só é gravada se for um inteiro positivo (`Number.isInteger` + `> 0` no cliente, e `check (duracao_minutos > 0)` na base de dados, à prova de bypass do input). A coluna **Carga** da tabela Wellness (RPE × `duracao_minutos`) é puramente derivada — `calcCarga(rpe, duracaoMinutos)` (`dashboard.js`) não tem coluna nem tabela própria, é recalculada em cada `renderWellness()` a partir dos dois valores já carregados; devolve `null` (mostrado como "—") sempre que falte um dos dois, nunca `0`, para não confundir "sem carga calculada" com "carga zero". Como o RPE é por jogador (`wellness_rpe`) e a duração é por equipa (`training_days`), qualquer alteração a um dos dois invalida a coluna inteira — por isso tanto o `change` do `.rpe-input` (`wireWellnessTable()`) como os dois handlers de `wireTrainingDay()` terminam com `await loadWellness()`, para recarregar a tabela toda em vez de tentar atualizar só a célula que mudou. As exportações (`exportWellnessDaily()`/`exportWellnessWeekly()`) replicam o mesmo cálculo com os dados já pedidos a Supabase para o CSV/Excel, para nunca desalinhar do que aparece no ecrã.
 
 ## Onde encontrar cada coisa
 
