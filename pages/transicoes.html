@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<!--
+  Análise de Jogo — pages/transicoes.html
+  Aprofundamento sobre transições rápidas (perda/ganho de bola), remates
+  provenientes de cruzamento, e faltas provocadas por perda/ganho de bola
+  (com zona do campo) — mesma metodologia dos dashboards feitos à mão numa
+  conversa anterior. Aberto a partir do botão "Ver Transições e
+  Cruzamentos" na tab Relatórios de pages/match.html. Lógica em
+  ../js/transicoes.js.
+
+  Visual próprio (claro/escuro adaptável), independente do tema escuro do
+  resto da app — mesma folha de estilo de pages/relatorio.html (ver o
+  histórico lá para o porquê).
+
+  Versão: 1.1 (2026-09-14)
+  Histórico:
+    1.0 (2026-09-14) — criação, com o tema escuro partilhado (css/styles.css).
+    1.1 (2026-09-14) — visual próprio claro/escuro (cartões, paleta --accent/
+                        --good/--bad/--warn), a pedido do utilizador — não gostou
+                        do tema escuro partilhado, queria igual aos Artifacts.
+-->
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise de Jogo</title>
+<link rel="stylesheet" href="../css/styles.css">
+<style>
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --surface-2:#eef1f4; --border:#dde2e8;
+  --ink:#1a1f26; --ink-muted:#5b6570; --ink-faint:#8992a0;
+  --accent:#0b62d6; --accent-soft:#0b62d61f; --accent-line:#0b62d64d;
+  --good:#15803d; --good-soft:#15803d1a;
+  --bad:#b91c1c; --bad-soft:#b91c1c1a;
+  --warn:#a15c00; --warn-soft:#a15c001a;
+  --shadow:0 1px 2px rgba(20,25,35,.06),0 8px 24px rgba(20,25,35,.05);
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1117; --surface:#151b21; --surface-2:#1c242c; --border:#232b33;
+    --ink:#eef1f4; --ink-muted:#98a2ae; --ink-faint:#6b7480;
+    --accent:#4c9aff; --accent-soft:#4c9aff26; --accent-line:#4c9aff59;
+    --good:#3ecf7e; --good-soft:#3ecf7e22;
+    --bad:#ff6b6b; --bad-soft:#ff6b6b24;
+    --warn:#f0a93a; --warn-soft:#f0a93a22;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 28px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--ink); margin:0; padding:20px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased;
+  display:flex; flex-direction:column; align-items:center; gap:20px;
+}
+h1.page-title{margin:0;font-size:1.6em;color:var(--ink);font-weight:800;letter-spacing:-.01em}
+.report-page{width:100%;max-width:960px;display:flex;flex-direction:column;gap:16px}
+.hint{font-size:.85em;color:var(--ink-muted);text-align:center;max-width:680px}
+
+.top-bar{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:12px 16px;box-shadow:var(--shadow);
+}
+.match-indicator{font-size:.85em;color:var(--ink-muted);font-weight:600}
+button.action{
+  padding:8px 16px;border-radius:8px;border:1px solid var(--border);
+  background:var(--surface-2);color:var(--ink);cursor:pointer;font-size:.9em;font-family:inherit;
+}
+button.action:hover{background:var(--accent-soft);border-color:var(--accent-line)}
+button.action:disabled{opacity:.5;cursor:not-allowed}
+
+.players-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px;box-shadow:var(--shadow);width:100%;display:flex;flex-direction:column;gap:12px;
+}
+.tracker-title{
+  margin:0;font-size:1.1em;font-weight:800;color:var(--ink);letter-spacing:-.01em;
+}
+.players-card .hint{text-align:left;max-width:none;margin:0}
+
+.report-chart{width:100%;overflow-x:auto}
+.report-chart svg text{font-family:inherit;fill:var(--ink)}
+.report-axis-label{fill:var(--ink-muted);font-size:11px}
+.report-bar-label{fill:var(--ink);font-size:12px;font-weight:700}
+.report-metric-label{fill:var(--ink);font-size:13px;font-weight:700}
+.report-gridline{stroke:var(--border);stroke-width:1}
+.report-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.78em;color:var(--ink-muted);margin-top:8px}
+.report-legend-item{display:flex;align-items:center;gap:6px}
+.report-legend-swatch{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+.report-filters{display:flex;gap:10px;flex-wrap:wrap}
+.report-filters select{
+  background:var(--surface-2);border:1px solid var(--border);color:var(--ink);
+  border-radius:8px;padding:7px 10px;font-size:.85em;font-family:inherit;
+}
+
+.page{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;width:100%}
+.tracker{display:flex;flex-direction:column;gap:10px}
+
+.zona-wrap{overflow-x:auto}
+.zona-grid{display:grid;gap:3px}
+.zona-col-head{font-size:.65em;color:var(--ink-faint);text-align:center;padding-bottom:2px;line-height:1.2}
+.zona-row-head{font-size:.72em;color:var(--ink-muted);display:flex;align-items:center}
+.zona-cell{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  min-height:48px;font-weight:800;font-size:.95em;color:var(--ink);
+}
+
+.bloco-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.bloco-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px}
+.bloco-card.crise{background:var(--bad-soft);border-color:var(--bad)}
+.bloco-card h4{margin:0 0 8px;font-size:.82em;font-weight:800;color:var(--ink)}
+.bloco-card .n{font-size:.72em;color:var(--ink-faint);font-weight:600}
+.bloco-card ul{margin:6px 0 0;padding-left:16px;font-size:.8em;line-height:1.55}
+.bloco-card .pos-line{color:var(--good)}
+.bloco-card .neg-line{color:var(--bad)}
+.empty{font-size:.8em;color:var(--ink-faint);font-style:italic;margin-top:10px}
+
+.funil-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.funil-card{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px}
+.funil-card.defensiva{border-top:4px solid var(--bad)}
+.funil-card.ofensiva{border-top:4px solid var(--good)}
+.funil-title{font-size:.72em;text-transform:uppercase;letter-spacing:.05em;font-weight:800;color:var(--ink-muted);margin-bottom:10px}
+.funil-row{display:flex;align-items:center;gap:0}
+.funil-step{flex:1;text-align:center}
+.funil-num{font-size:2em;font-weight:800;line-height:1;color:var(--ink)}
+.funil-num.zero{color:var(--ink-faint)}
+.funil-label{font-size:.72em;color:var(--ink-muted);margin-top:4px;line-height:1.3}
+.funil-arrow{color:var(--ink-faint);font-size:1.2em;padding:0 6px}
+.funil-pct{display:inline-block;margin-top:6px;padding:2px 8px;border-radius:20px;font-size:.68em;font-weight:800}
+.funil-pct.good{background:var(--good-soft);color:var(--good)}
+.funil-pct.bad{background:var(--bad-soft);color:var(--bad)}
+.funil-pct.zero{background:var(--surface);color:var(--ink-faint)}
+.funil-cases{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:.82em}
+.funil-case-row{display:flex;gap:8px;align-items:baseline;padding:6px 8px;background:var(--surface);border-radius:6px;color:var(--ink);flex-wrap:wrap}
+.funil-case-row.golo-case{background:var(--bad-soft);border:1px solid var(--bad)}
+.funil-case-min{font-weight:800;color:var(--accent);min-width:34px}
+
+.insight-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.insight-list{display:flex;flex-direction:column;gap:10px}
+.insight-card{display:flex;gap:12px;padding:14px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border)}
+.insight-card.good{background:var(--good-soft);border-color:var(--good)}
+.insight-card.info{background:var(--accent-soft);border-color:var(--accent)}
+.insight-card.concern{background:var(--warn-soft);border-color:var(--warn)}
+.insight-card.bad{background:var(--bad-soft);border-color:var(--bad)}
+.insight-badge{
+  flex:none;font-size:.65em;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+  padding:3px 8px;border-radius:20px;height:fit-content;white-space:nowrap;color:#fff;
+}
+.insight-card.good .insight-badge{background:var(--good)}
+.insight-card.info .insight-badge{background:var(--accent)}
+.insight-card.concern .insight-badge{background:var(--warn)}
+.insight-card.bad .insight-badge{background:var(--bad)}
+.insight-card p{margin:0;font-size:.88em;line-height:1.5;color:var(--ink)}
+</style>
+</head>
+<body>
+
+  <h1 class="page-title">Transições, Cruzamentos e Faltas</h1>
+
+  <div id="app-root" class="report-page">
+
+    <div class="top-bar">
+      <div class="match-indicator" id="team-indicator">Equipa</div>
+      <div class="match-indicator" id="match-indicator">Jogo</div>
+      <button class="action" id="btn-voltar-jogo">← Voltar ao jogo</button>
+      <button class="action" id="btn-sign-out">Sair</button>
+    </div>
+
+    <div class="players-card">
+      <div class="tracker-title">Metodologia</div>
+      <p class="hint" style="text-align:left;max-width:none">
+        <b>Transição</b> = perdemos/ganhámos a bola e, dentro de uma janela curta, segue-se
+        um Cruzamento ou Remate do lado correspondente. <b>Remate de cruzamento</b> = um
+        Remate precedido, na mesma janela, por um Cruzamento do mesmo lado. <b>Falta
+        provocada</b> = uma Falta que se segue, na janela de transições, a uma perda ou
+        ganho de bola. Janela de transições/faltas: <span id="method-window"></span>s.
+        Janela de remate de cruzamento: 20s (métrica independente). Cantos não contam
+        como consequência — são eventos derivados, a jusante de um remate/cruzamento já
+        bloqueado.
+      </p>
+    </div>
+
+    <div class="players-card">
+      <div class="tracker-title">Funil: da perda/ganho de bola à transição</div>
+      <div class="funil-grid" id="funnels"></div>
+    </div>
+
+    <div class="players-card" id="golos-context-card">
+      <div class="tracker-title" id="golos-context-title">Golos sofridos</div>
+      <p class="hint" id="golos-context-sub">Últimos eventos antes de cada golo sofrido (mesma parte, até 90s antes).</p>
+      <div id="golos-context-holder"></div>
+    </div>
+
+    <div class="players-card">
+      <div class="tracker-title">Remates provenientes de cruzamento</div>
+      <p class="hint">Um remate conta como "de cruzamento" quando há um cruzamento do mesmo lado até 20s antes, na mesma parte.</p>
+      <div class="page" id="cross-sections"></div>
+    </div>
+
+    <div class="players-card">
+      <div class="tracker-title">Faltas provocadas por perda/ganho de bola</div>
+      <p class="hint">Falta que se segue a uma perda (cometida por nós) ou ganho (sofrida por nós) de bola — e em que zona do campo caiu.</p>
+      <div class="funil-grid" id="falta-funnels"></div>
+    </div>
+
+    <div class="players-card">
+      <div class="tracker-title">Leitura para a equipa técnica</div>
+      <div class="insight-actions">
+        <button class="action" id="btn-gerar-insights">Gerar análise</button>
+        <span class="hint" id="insights-status"></span>
+      </div>
+      <div class="insight-list" id="insights-list"></div>
+    </div>
+
+  </div>
+
+<script type="module" src="../js/transicoes.js"></script>
+</body>
+</html>

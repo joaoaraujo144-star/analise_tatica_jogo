@@ -30,6 +30,7 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/*
 - **Relatórios**, em dois níveis:
   - Na página de um jogo: estatísticas só dos convocados desse jogo. Quando o jogo termina, aparece também o **Registo de Jogo normalizado**: os pontos da 1ª e 2ª parte juntos, rodados 180º conforme a orientação de ataque de cada parte, para ficarem representados no mesmo sentido de ataque. Cada campo tem um botão para trocar entre a vista de **Pontos** (marcadores individuais) e **Mapa de Calor** (grelha 6×4 sobre o campo, mais intensa onde há mais eventos — pensada para funcionar bem mesmo com poucos pontos por jogo), com um segundo seletor para escolher qual dos dois tipos (ex: "A Favor"/"Contra", "Ganhos"/"Perdas") mostrar de cada vez — misturá-los não faria sentido. A zona de cada ponto (para o mapa de calor) é calculada na base de dados, não no browser, para poder ser consultada diretamente por SQL no futuro. Um botão **"Exportar relatório (PDF)"** abre a vista de impressão do browser (guardar como PDF) já só com a tab Relatórios, mostrando sempre os dois mapas de calor (ex: "Ganhos" e "Perdas") lado a lado por campo, independentemente do que estiver escolhido no ecrã.
   - No dashboard da equipa: totais agregados por jogador (jogos, golos, assistências, cartões) ao longo de **todos** os jogos da equipa.
+  - **Dois relatórios gerados** (botões "Ver Relatório Geral" / "Ver Transições e Cruzamentos" na tab Relatórios de um jogo): domínio por métrica, evolução por parte e por momento, distribuição por zona do campo (grelha 4×3), resumo por bloco de 15 min e por jogador (Relatório Geral); funis de transição defensiva/ofensiva, remates provenientes de cruzamento, e faltas provocadas por perda/ganho de bola com a zona onde caíram (Transições) — mais uma análise em prosa por botão ("Gerar análise"), escrita pela API da Claude a partir dos números já calculados no browser (nunca dados em bruto) através de uma Edge Function do Supabase, e guardada em cache (`report_insights`) para não voltar a chamar a API sempre que o relatório é reaberto. Ver "Relatórios gerados por IA" abaixo para configurar.
 - **Histórico de ações**: cada clique na convocatória (cartões, assistências, golos, estado, substituição — incluindo quando desligas/subtrais algo) fica registado com data e hora, tal como já acontecia com cada coordenada marcada no Registo de Jogo.
 - **Exportação CSV**: descarrega um único ficheiro com todos os dados do jogo atualmente selecionado — jogadores convocados, os golos marcados e sofridos (minuto, marcador quando há, e a cadeia de eventos que lhes deu origem), todos os cliques dos 5 campos (cada um com uma coluna "Golo", a indicar a que golo esse clique está ligado, se estiver), e o histórico de ações com data/hora.
 - **Importação de dados locais**: se existirem dados de uma versão anterior (guardados no `localStorage` do browser), a app oferece um botão para os importar como um novo jogo da equipa atual.
@@ -52,6 +53,11 @@ pages/
   teams.html              Escolher, criar, entrar (por código de convite) ou editar uma equipa.
   dashboard.html          Tabs Jogos / Plantel / Wellness / Relatórios (agregado) de uma equipa.
   match.html              Página de um jogo: Jogadores, Registo de Jogo, Relatórios (só deste jogo).
+  relatorio.html          Relatório geral de um jogo (domínio, evolução, zonas, por jogador) +
+                           análise em prosa gerada por IA — aberto a partir da tab Relatórios.
+  transicoes.html         Transições rápidas, remates de cruzamento e faltas provocadas por
+                           perda/ganho de bola (com zona do campo) + análise gerada por IA —
+                           aberto a partir da tab Relatórios.
   jogador.html            Página do jogador (login criado pelo treinador): questionário de
                            wellness diário — nunca vê o resto da equipa.
   wellness-jogador.html   Página do treinador: evolução do wellness de um jogador (gráficos
@@ -60,6 +66,12 @@ js/
   supabase-client.js       Inicializa o cliente Supabase — partilhado por todas as páginas.
   login.js, teams.js, dashboard.js, match.js, jogador.js, wellness-jogador.js
                             Lógica de cada página em pages/.
+  relatorio-dados.js       Agregação partilhada por relatorio.js/transicoes.js (domínio, timeline,
+                            zonas, transições, remates de cruzamento, faltas provocadas) — única
+                            exceção à regra "cada página duplica os seus helpers pequenos", por
+                            ser lógica grande e igual nas duas páginas.
+  relatorio.js, transicoes.js
+                            Lógica de pages/relatorio.html e pages/transicoes.html.
 css/
   styles.css                Estilos partilhados entre todas as páginas.
 assets/
@@ -80,7 +92,11 @@ supabase/
                              016_wellness_peso_editavel, 017_wellness_coach_update,
                              018_wellness_coach_insert, 019_match_players_numero,
                              020_wellness_rpe, 021_goals, 022_events_normalizado_goal,
-                             023_goals_sofridos, 024_training_days.
+                             023_goals_sofridos, 024_training_days, 025_report_insights.
+  functions/
+    gerar-insights/index.ts  Edge Function (Deno): gera a análise em prosa dos relatórios
+                              Geral/Transições via API da Claude — ver "Relatórios gerados
+                              por IA" abaixo. Primeira peça server-side deste projeto.
 scripts/
   seed-demo-match.mjs       Ferramenta de dev: preenche uma equipa + jogo completo com dados
                              realistas para demos rápidas — ver "Ferramentas de desenvolvimento".
@@ -90,6 +106,10 @@ scripts/
                              equipa sem login ainda, e exporta as credenciais para CSV local.
   seed-wellness.mjs         Ferramenta de dev: gera vários dias de wellness de teste para
                              um jogador (equipa/jogador encontrados por nome).
+  fix-orientacao.sql        Ferramenta de dev: corrige o sentido de ataque de uma só
+                             parte de um jogo já jogado, sem trocar de lado a outra.
+  fix-marcador-golo.sql     Ferramenta de dev: corrige o marcador de um golo já
+                             registado (goals.player_id + contador em match_players).
 ```
 
 Cada página em `pages/` só referencia o seu próprio ficheiro em `js/` (mesmo nome) e o `css/styles.css` partilhado; a navegação entre páginas usa caminhos relativos dentro da própria pasta `pages/`.
@@ -115,6 +135,7 @@ Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`tea
 - **`wellness_responses`** — questionário diário de um jogador (`dores_musculares`, `stress`, `fadiga`, `sono`, cada um 0-10), no máximo um por dia (`unique (player_id, data)`); só é escrita via a função `submit_wellness()`.
 - **`wellness_rpe`** — RPE (1-10, perceção de esforço) de um dia, preenchido só pelo treinador. Tabela própria, separada de `wellness_responses` de propósito: a RLS é por linha, não por coluna, por isso uma coluna `rpe` na tabela que o jogador já lê ficaria visível a ele também — como tabela à parte, sem nenhuma policy para o jogador, fica inacessível a nível de base de dados, não só escondida na interface.
 - **`training_days`** — flag "dia de treino" (`treino`) + `duracao_minutos`, por equipa por dia (`unique (team_id, data)`) — sem `player_id`, é uma propriedade do dia, não de um jogador.
+- **`report_insights`** — cache da análise em prosa dos relatórios Geral/Transições, gerada pela Edge Function `gerar-insights` (`conteudo` jsonb, um registo por `match_id`+`tipo`) — ver "Relatórios gerados por IA" abaixo.
 - **`events_normalizado`** — view sobre `events` que junta a 1ª e 2ª parte, rodando 180º os pontos da parte cuja orientação não é a de referência (`x_pct_normalizado`, `y_pct_normalizado`).
 
 Criar/entrar numa equipa passa por duas funções Postgres (`create_team`, `join_team_by_code`) chamadas via RPC, que tratam a criação da equipa + associação do utilizador de forma atómica. Os emblemas ficam num bucket público do Supabase Storage (`team-logos`), com upload restrito a membros da equipa correspondente. Um jogador com login próprio (`players.auth_user_id`) não é `team_member`, mas ganha policies próprias para ver/editar só a sua linha em `players` e as próprias respostas em `wellness_responses` — nunca em `wellness_rpe` — ver `docs/architecture.md`.
@@ -128,6 +149,30 @@ Ver `supabase/schema.sql` para a definição completa.
 3. **Authentication → Providers → Email** → confirmar que o provider está ativo e que "Allow new users to sign up" está ligado.
 4. **Authentication → Providers → Email** → desligar "Confirm email" (evita depender de emails de confirmação).
 5. **Settings → API** → copiar o *Project URL* e a *anon public key* e colar em `js/supabase-client.js` (a anon key é pública por definição — a segurança vem das políticas RLS, não de a esconder).
+
+## Relatórios gerados por IA (Edge Function)
+
+Os botões "Gerar análise" em `pages/relatorio.html`/`pages/transicoes.html` chamam a
+API da Claude para escrever a análise em prosa a partir dos números já calculados no
+browser. Como o site é 100% estático (sem backend próprio — ver `docs/architecture.md`),
+essa chamada não pode sair diretamente do browser (exporia a chave da API a qualquer
+visitante) — passa por uma **Supabase Edge Function**
+(`supabase/functions/gerar-insights/index.ts`), a única peça deste projeto que corre no
+servidor e guarda um segredo verdadeiro.
+
+Configurar (uma vez por projeto Supabase, precisa do [Supabase CLI](https://supabase.com/docs/guides/cli) instalado e autenticado — `supabase login`):
+
+```bash
+supabase link --project-ref <ref-do-teu-projeto>   # Settings → General → Reference ID
+supabase functions deploy gerar-insights
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-...   # chave da tua conta Anthropic
+```
+
+Sem isto configurado, os dois botões "Gerar análise" mostram um erro (`ANTHROPIC_API_KEY
+não configurada`) mas o resto de cada relatório (gráficos, zonas, tabelas) funciona à
+mesma — a função só serve a secção de insights. A verificação de sessão (só um
+utilizador já autenticado na app consegue chamar a função) é feita automaticamente pelo
+Supabase antes do pedido lá chegar, sem código extra.
 
 ## Desenvolvimento local
 
@@ -185,6 +230,25 @@ O CSV gerado (`credenciais-*.csv`) fica só local — está no `.gitignore`, nun
 ```bash
 node scripts/seed-wellness.mjs <email> <password> <nome-da-equipa> <nome-do-jogador> [dias]
 ```
+
+`scripts/fix-orientacao.sql` corrige o sentido de ataque de **uma só parte** de um jogo já jogado
+— para o caso em que as duas equipas não trocaram de lado ao intervalo (as duas partes atacam no
+mesmo sentido real, mas só uma ficou registada ao contrário). O botão de orientação na app
+(`js/match.js`, `wireOrientacao`) fica permanentemente bloqueado assim que o jogo arranca
+(`parte1_inicio` definido). Corre-se diretamente no **SQL Editor do Supabase**, sem precisar de
+login/password da app: um select para encontrar o id do jogo pelo nome do adversário, e um update
+que roda 180º (`100 - x_pct`, `100 - y_pct`) as coordenadas em bruto só dos eventos da parte
+errada, sem tocar em `orientacao_parte1` nem na outra parte — porque esse campo assume sempre que
+a 2ª parte ataca no sentido oposto da 1ª (troca de lado normal), e trocá-lo estragaria a parte que
+já estava certa.
+
+`scripts/fix-marcador-golo.sql` corrige o marcador de um golo já registado (ex: atribuído ao
+jogador errado ao clicar). Um golo é o seu próprio registo em `goals` (`player_id`), não só um
+número em `match_players.golo` — por isso corrigir só a primeira tabela não chega: o contador em
+`match_players` (usado na convocatória, no plantel e nos exports CSV) também tem de ser ajustado,
+um a menos no jogador errado e um a mais no certo. Corre-se no SQL Editor do Supabase: selects para
+encontrar o `goal_id` e o id do jogador certo, um update a `goals.player_id`, e dois updates a
+`match_players.golo`.
 
 ## Publicação
 

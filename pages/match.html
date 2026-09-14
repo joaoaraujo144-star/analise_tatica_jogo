@@ -6,7 +6,7 @@
   clicáveis, por parte) e Relatórios (só deste jogo, com registo
   normalizado ao terminar). Lógica em ../js/match.js.
 
-  Versão: 1.17 (2026-08-31)
+  Versão: 1.18 (2026-09-14)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-09) — cada jogo passa a ter esta página própria (fora do dashboard).
@@ -44,6 +44,11 @@
     1.17 (2026-08-31) — nova coluna "Em Campo" na convocatória: badge só informativo
                          com quem está mesmo a jogar naquele momento (calculado a
                          partir do Estado e da Substituição).
+    1.18 (2026-09-14) — dois botões novos na tab Relatórios ("Ver Relatório Geral" /
+                         "Ver Transições e Cruzamentos"), que abrem pages/relatorio.html
+                         e pages/transicoes.html — dashboards com gráficos, zonas do
+                         campo e análise em prosa gerada por IA (Edge Function
+                         gerar-insights). Lógica de navegação em js/match.js.
 -->
 <html lang="pt">
 <head>
@@ -160,6 +165,9 @@
       <div class="relatorios-actions">
         <button class="action" id="btn-print-report">Exportar relatório (PDF)</button>
         <p class="hint">Abre a vista de impressão do browser — escolhe "Guardar como PDF" no destino. O mapa de calor de cada campo é usado automaticamente. Para tirar o cabeçalho/rodapé do browser (URL, data, número de página), desmarca "Cabeçalhos e rodapés" nas opções do diálogo de impressão.</p>
+        <button class="action" id="btn-abrir-relatorio">Ver Relatório Geral</button>
+        <button class="action" id="btn-abrir-transicoes">Ver Transições e Cruzamentos</button>
+        <p class="hint">Dois relatórios gerados a partir dos dados deste jogo, com gráficos, zonas do campo e uma análise em prosa gerada por IA (botão "Gerar análise" em cada um).</p>
       </div>
       <p class="print-only-header" id="print-header"></p>
       <div class="players-card">

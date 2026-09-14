@@ -7,7 +7,7 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.14 (2026-09-01)
+  Versão: 1.15 (2026-09-14)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
@@ -37,6 +37,9 @@
                          a mesma tabela e a mesma ligação a eventos, sem player_id.
     1.14 (2026-09-01) — nova tabela training_days (flag "dia de treino" + duração em
                          minutos, por equipa por dia, sem ligação a jogadores).
+    1.15 (2026-09-14) — nova tabela report_insights (cache da análise em prosa dos
+                         relatórios Geral e Transições, gerada pela Edge Function
+                         gerar-insights via API da Claude).
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -73,6 +76,8 @@ erDiagram
   PLAYERS ||--o{ WELLNESS_RPE : "player_id"
   TEAMS ||--o{ WELLNESS_RPE : "team_id"
   TEAMS ||--o{ TRAINING_DAYS : "team_id"
+  TEAMS ||--o{ REPORT_INSIGHTS : "team_id"
+  MATCHES ||--o{ REPORT_INSIGHTS : "match_id"
 
   USERS {
     uuid id PK
@@ -205,6 +210,15 @@ erDiagram
     boolean treino
     int duracao_minutos
     timestamptz created_at
+  }
+
+  REPORT_INSIGHTS {
+    uuid id PK
+    uuid team_id FK
+    uuid match_id FK
+    text tipo
+    jsonb conteudo
+    timestamptz gerado_em
   }
 ```
 
@@ -377,6 +391,20 @@ Flag "dia de treino" + duração (minutos), no topo da tab Wellness. Ao contrár
 | `created_at` | timestamptz | sim | |
 
 Só uma policy, `training_days_team_member` (`for all`, exige `team_members`) — sem RPC, `loadTrainingDay()`/`saveTrainingDay()` (`dashboard.js`) leem/escrevem diretamente na tabela via `upsert({ onConflict: 'team_id,data' })`.
+
+### `report_insights`
+Cache da análise em prosa ("insights") dos relatórios Geral e Transições de um jogo, gerada pela Edge Function `gerar-insights` (chama a API da Claude com os dados já agregados no cliente) — ver `supabase/functions/gerar-insights/`. Sem esta tabela, cada visita ao relatório voltaria a chamar (e a pagar) a API.
+
+| Coluna | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | uuid | sim (PK) | |
+| `team_id` | uuid | sim (FK → `teams`) | |
+| `match_id` | uuid | sim (FK → `matches`) | único por (`match_id`, `tipo`) |
+| `tipo` | text | sim | `'geral'` ou `'transicoes'` |
+| `conteudo` | jsonb | sim | array de insights `{ level, badge, text }`, formato livre — decidido pelo prompt da Edge Function, não pelo esquema |
+| `gerado_em` | timestamptz | sim (default `now()`) | atualizado a cada `upsert` (botão "Regenerar análise") |
+
+Só uma policy, `report_insights_team_member` (`for all`, exige `team_members`) — o cliente lê com `select` normal e escreve com `upsert({ onConflict: 'match_id,tipo' })`, tal como `training_days`.
 
 ### `events_normalizado` (view, não tabela)
 Junta `events` com `matches` e roda 180º (`100 - x_pct`, `100 - y_pct`) os pontos da parte cuja orientação de ataque não é a de referência (`E-D`), para que a 1ª e a 2ª parte fiquem representadas no mesmo sentido de ataque.

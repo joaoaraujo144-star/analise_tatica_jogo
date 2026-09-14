@@ -9,7 +9,7 @@
   (tabelas/colunas), ver supabase/data-model.md; para funcionalidades e
   setup, ver o README.md.
 
-  Versão: 1.32 (2026-09-01)
+  Versão: 1.33 (2026-09-14)
   Histórico:
     1.0 (2026-07-14) — criação.
     1.1 (2026-07-15) — popup de escolha de jogador após o clique, no Registo de Jogo.
@@ -107,6 +107,10 @@
     1.32 (2026-09-01) — coluna "Carga" (RPE × duração do treino) na tabela Wellness,
                          calculada em cliente, não gravada em lado nenhum — ver
                          "Dia de treino" na secção de padrões de código.
+    1.33 (2026-09-14) — duas páginas novas, relatorio.html/transicoes.html, abertas a
+                         partir de match.html; primeira Edge Function do projeto
+                         (gerar-insights) — única exceção ao "sem backend", documentada
+                         na Visão geral. Ver README.md § "Relatórios gerados por IA".
 -->
 
 # Arquitetura — Análise de Jogo
@@ -123,10 +127,24 @@ Browser (pages/*.html + js/*.js)
 Supabase
    ├─ Auth        → contas (email + palavra-passe)
    ├─ Postgres     → tabelas + RLS + funções RPC (ver supabase/data-model.md)
-   └─ Storage      → bucket "team-logos" (emblemas das equipas)
+   ├─ Storage      → bucket "team-logos" (emblemas das equipas)
+   └─ Edge Functions → gerar-insights (única exceção, ver abaixo)
 ```
 
-Não há backend próprio, API intermédia, nem variáveis de ambiente secretas — todo o código corre no browser do utilizador.
+Não há backend próprio nem API intermédia — quase todo o código corre no browser do
+utilizador, com a chave pública ("anon key") do Supabase, e a segurança vem das políticas
+de Row Level Security, não de esconder essa chave (ver [Modelo de
+segurança](#modelo-de-segurança)). A única exceção é a Edge Function
+`gerar-insights` (`supabase/functions/gerar-insights/index.ts`), que guarda um segredo
+verdadeiro (`ANTHROPIC_API_KEY`, via `supabase secrets set` — nunca no código) e serve só
+para chamar a API da Claude a partir de `pages/relatorio.html`/`pages/transicoes.html`
+("Gerar análise"). O cliente já calculou todos os números antes de chamar a função —
+recebe só um resumo agregado (`js/relatorio-dados.js`), nunca dados em bruto — e o
+resultado fica em cache em `report_insights`, para não repetir a chamada de cada vez que
+o relatório é reaberto. A verificação de sessão é automática (Supabase recusa pedidos sem
+JWT válido antes de chegarem à função); não há RLS nova a escrever para isto, a função
+não lê a base de dados diretamente. Ver README.md § "Relatórios gerados por IA" para o
+processo de deploy.
 
 ## Mapa de páginas e navegação
 
@@ -136,6 +154,8 @@ flowchart LR
   T["pages/teams.html<br/>(escolher / criar / entrar numa equipa)"]
   D["pages/dashboard.html<br/>(Jogos · Plantel · Wellness · Relatórios da equipa)"]
   M["pages/match.html<br/>(Jogadores · Registo de Jogo · Relatórios do jogo)"]
+  R["pages/relatorio.html<br/>(Relatório Geral gerado)"]
+  TR["pages/transicoes.html<br/>(Transições e Cruzamentos gerado)"]
   J["pages/jogador.html<br/>(questionário de wellness)"]
   W["pages/wellness-jogador.html<br/>(gráficos + edição, um jogador)"]
 
@@ -143,6 +163,10 @@ flowchart LR
   L -->|"sessão válida (jogador)"| J
   T -->|abrir equipa| D
   D -->|abrir jogo| M
+  M -->|"Ver Relatório Geral"| R
+  M -->|"Ver Transições e Cruzamentos"| TR
+  R -->|"Voltar ao jogo"| M
+  TR -->|"Voltar ao jogo"| M
   D -->|"Ver (tab Wellness)"| W
   W -->|"Voltar"| D
   M -->|"Trocar de jogo"| D
@@ -152,6 +176,8 @@ flowchart LR
   T -->|"Sair"| L
   D -->|"Sair"| L
   M -->|"Sair"| L
+  R -->|"Sair"| L
+  TR -->|"Sair"| L
   J -->|"Sair"| L
   W -->|"Sair"| L
 ```
@@ -176,8 +202,8 @@ A app usa duas chaves de `localStorage` para lembrar "onde estás", à parte da 
 
 | Chave | Definida em | Lida em | Limpa em |
 |---|---|---|---|
-| `current_team_id` | `teams.js` (ao abrir/criar/entrar numa equipa) | `dashboard.js`, `match.js` (para saber a equipa atual) | "Sair" (todas as páginas); "Trocar de equipa" |
-| `current_match_id` | `dashboard.js` (ao abrir/criar um jogo) | `match.js` (para saber o jogo atual) | "Sair"; "Trocar de jogo"; "Trocar de equipa" (fica órfã de qualquer forma, porque sem equipa não há jogo) |
+| `current_team_id` | `teams.js` (ao abrir/criar/entrar numa equipa) | `dashboard.js`, `match.js`, `relatorio.js`, `transicoes.js` (para saber a equipa atual) | "Sair" (todas as páginas); "Trocar de equipa" |
+| `current_match_id` | `dashboard.js` (ao abrir/criar um jogo) | `match.js`, `relatorio.js`, `transicoes.js` (para saber o jogo atual) | "Sair"; "Trocar de jogo"; "Trocar de equipa" (fica órfã de qualquer forma, porque sem equipa não há jogo) |
 | `current_wellness_player_id` | `dashboard.js` (botão "Ver" na tab Wellness) | `wellness-jogador.js` (para saber de que jogador é a página) | "Sair"; fica órfã ao trocar de equipa (a query seguinte falha e redireciona) |
 
 Se `dashboard.html` for aberta sem `current_team_id` válido (ou a equipa deixou de existir/o utilizador deixou de ser membro), redireciona para `teams.html`. Da mesma forma, `match.html` sem `current_match_id` válido redireciona para `dashboard.html`. Isto permite recarregar a página (F5) ou colar o link diretamente sem perder o contexto, enquanto as chaves continuarem válidas.
@@ -191,6 +217,7 @@ Cada página faz uma cadeia de verificações no arranque (`init()`), na ordem i
 1. **`teams.html`**: sessão válida → senão `login.html`.
 2. **`dashboard.html`**: sessão válida → `current_team_id` existe → a equipa existe e o utilizador é membro dela (a própria query já filtra por RLS) → senão `login.html` ou `teams.html`, consoante o que falhou.
 3. **`match.html`**: sessão válida → `current_team_id`/equipa válidos → `current_match_id` existe → o jogo existe e pertence a essa equipa → senão `login.html`, `teams.html` ou `dashboard.html`.
+3b. **`relatorio.html`/`transicoes.html`**: mesma cadeia de `match.html` (sessão → equipa → jogo) — leem os mesmos `current_team_id`/`current_match_id`, sem nada na URL; "Voltar ao jogo" leva sempre a `match.html`, não faz parte da cadeia de guardas.
 4. **`jogador.html`**: sessão válida → existe uma linha em `players` com `auth_user_id` igual ao utilizador atual → senão `login.html` (com aviso — conta não associada a nenhum jogador). Não depende de `current_team_id`/`current_match_id`: a equipa do jogador vem sempre da própria linha em `players`.
 5. **`wellness-jogador.html`**: sessão válida → `current_team_id`/equipa válidos → `current_wellness_player_id` existe e esse jogador pertence a essa equipa → senão `teams.html` ou `dashboard.html`.
 
@@ -209,6 +236,8 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 ## Padrões de código usados em várias páginas
 
 - **`el(id)`**: helper `document.getElementById` repetido em todos os ficheiros JS (não é um módulo partilhado — cada página tem a sua própria cópia, de propósito, para não haver dependência extra num projeto sem build step).
+- **`js/relatorio-dados.js`**: exceção deliberada ao ponto anterior — módulo partilhado por `relatorio.js`/`transicoes.js`, com a agregação (domínio, timeline, zonas 4×3, transições, remates de cruzamento, faltas provocadas) que as duas páginas precisam por igual. A lógica é grande (~300 linhas) e duplicá-la seria o tipo de coisa que fica dessincronizada com o tempo — ao contrário de um `el(id)` de 1 linha, aqui o custo de duplicar é maior do que o custo de um módulo extra. Lê sempre de `events_normalizado` (nunca de `events` diretamente), para não reimplementar a rotação de 180º no cliente, e calcula golos por jogador a partir de `goals.player_id` (nunca de `match_players.golo`, que é só um contador que pode ficar dessincronizado por um clique errado na convocatória).
+- **Relatórios gerados por IA** (`pages/relatorio.html`/`pages/transicoes.html`, botão "Gerar análise"): o cliente calcula um resumo compacto (números já agregados, nunca eventos em bruto) e chama `supabase.functions.invoke('gerar-insights', { body: { tipo, dados } })`; a Edge Function devolve um array `{ level, badge, text }` que é gravado em `report_insights` via `upsert({ onConflict: 'match_id,tipo' })` e desenhado com as classes `.insight-card`/`.insight-badge`. Ao reabrir o relatório, lê-se primeiro a cache (`select().maybeSingle()`) — só volta a chamar a API se o utilizador clicar "Regenerar análise" (ex: depois de corrigir um dado errado na base de dados).
 - **Atualização otimista**: ao clicar numa célula (cartão, golo, estado, ponto no campo), a UI atualiza-se imediatamente em memória e no ecrã, e só depois o pedido ao Supabase é disparado em segundo plano — não há "loading state" à espera da resposta do servidor.
 - **Padrão de clique/contador**: usado nos 5 campos do Registo de Jogo (`js/match.js`, `initTracker()`) e nas células de estatísticas da convocatória — clique esquerdo regista/soma, clique direito ou Ctrl+clique remove/subtrai.
 - **Estado de "parte a decorrer"** (`isPeriodoRunning()`, `isLocked()`, `currentParte()` em `js/match.js`): três perguntas simples sobre os timestamps de `matches` (`parteN_inicio`/`parteN_fim`) que controlam, em cascata, o que pode ser editado em cada tab — sem guardar um "estado" separado, é sempre derivado desses timestamps. `applyLockState()` aplica isso visualmente (opacidade/`pointer-events`/`disabled`) às linhas já renderizadas da tabela de convocados — tem de correr de novo sempre que a tabela é reconstruída (`loadMatchPlayers()`), porque o `innerHTML = ''` de `renderMatchPlayers()` perde qualquer estilo inline aplicado antes.

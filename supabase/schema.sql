@@ -3,7 +3,7 @@
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
 -- todos os ficheiros em supabase/migrations/, do 001 ao 024.)
 --
--- Versão: 1.23 (2026-09-01) — reflete sempre o estado final cumulativo,
+-- Versão: 1.24 (2026-09-14) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -47,6 +47,9 @@
 --                        app não tem lista de jogadores do adversário).
 --   1.23 (2026-09-01) — tabela training_days: flag "dia de treino" + duração (minutos),
 --                        por equipa por dia, editável no topo da tab Wellness.
+--   1.24 (2026-09-14) — tabela report_insights: cache da análise em prosa (gerada pela
+--                        API da Claude, via Edge Function gerar-insights) dos relatórios
+--                        Geral e Transições de um jogo — um registo por jogo+tipo.
 
 create extension if not exists "pgcrypto";
 
@@ -216,6 +219,21 @@ create table if not exists training_days (
   unique (team_id, data)
 );
 
+-- Cache da análise em prosa (insights) dos relatórios Geral e Transições de
+-- um jogo, gerada pela API da Claude através da Edge Function
+-- gerar-insights (ver supabase/functions/gerar-insights). Guardada aqui
+-- para não voltar a chamar a API sempre que o relatório é reaberto — o
+-- botão "Regenerar análise" em cada página faz upsert(match_id, tipo).
+create table if not exists report_insights (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references teams(id) on delete cascade,
+  match_id uuid not null references matches(id) on delete cascade,
+  tipo text not null check (tipo in ('geral', 'transicoes')),
+  conteudo jsonb not null,
+  gerado_em timestamptz not null default now(),
+  unique (match_id, tipo)
+);
+
 -- Índices para as queries mais comuns
 create index if not exists idx_players_team on players(team_id);
 create index if not exists idx_matches_team on matches(team_id);
@@ -234,6 +252,7 @@ create index if not exists idx_wellness_player on wellness_responses(player_id);
 create index if not exists idx_wellness_rpe_team_data on wellness_rpe(team_id, data);
 create index if not exists idx_player_events_team on player_events(team_id);
 create index if not exists idx_training_days_team_data on training_days(team_id, data);
+create index if not exists idx_report_insights_match on report_insights(match_id);
 
 -- Row Level Security
 alter table teams enable row level security;
@@ -247,6 +266,7 @@ alter table player_events enable row level security;
 alter table wellness_responses enable row level security;
 alter table wellness_rpe enable row level security;
 alter table training_days enable row level security;
+alter table report_insights enable row level security;
 
 -- Só é possível ver uma equipa (ou dados dela) se se for membro dessa equipa
 create policy "teams_member_select" on teams
@@ -343,6 +363,11 @@ create policy "training_days_team_member" on training_days
   for all
   using (exists (select 1 from team_members tm where tm.team_id = training_days.team_id and tm.user_id = auth.uid()))
   with check (exists (select 1 from team_members tm where tm.team_id = training_days.team_id and tm.user_id = auth.uid()));
+
+create policy "report_insights_team_member" on report_insights
+  for all
+  using (exists (select 1 from team_members tm where tm.team_id = report_insights.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = report_insights.team_id and tm.user_id = auth.uid()));
 
 -- View: Registo de Jogo normalizado (1ª + 2ª parte juntas, rodadas 180º
 -- conforme a orientação de ataque escolhida nas setas para cada parte).

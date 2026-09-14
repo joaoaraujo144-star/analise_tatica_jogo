@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.39 (2026-08-31)
+ * Versão: 1.40 (2026-09-14)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -131,6 +131,9 @@
  *                        antes um titular expulso continuava a aparecer "Em campo".
  *                        availableSubstitutes() também passa a excluir suplentes
  *                        com vermelho (não podem entrar).
+ *   1.40 (2026-09-14) — wireRelatoriosGerados(): dois botões novos na tab Relatórios
+ *                        que abrem pages/relatorio.html / pages/transicoes.html
+ *                        (navegação simples, os dois IDs já estão em localStorage).
  */
 
 import { supabase } from './supabase-client.js';
@@ -1742,6 +1745,15 @@ function wirePrintReport() {
   });
 }
 
+// ---------- Relatórios gerados (relatorio.html / transicoes.html) ----------
+// currentMatchId/currentTeamId já estão em localStorage (como em toda a
+// navegação da app) — as duas páginas leem-nos de lá, não é preciso passar
+// nada na URL.
+function wireRelatoriosGerados() {
+  el('btn-abrir-relatorio').addEventListener('click', () => { window.location.href = 'relatorio.html'; });
+  el('btn-abrir-transicoes').addEventListener('click', () => { window.location.href = 'transicoes.html'; });
+}
+
 // ---------- Init ----------
 
 async function init() {
@@ -1777,6 +1789,7 @@ async function init() {
   buildTrackerSections();
   wireDownloadSession();
   wirePrintReport();
+  wireRelatoriosGerados();
   applyLockState();
 
   supabase.auth.onAuthStateChange((_event, newSession) => {

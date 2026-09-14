@@ -8,3 +8,7 @@ docs/RONFE.CSV
 # Ficheiros de plantel (nomes reais + datas de nascimento) usados com
 # scripts/import-plantel.mjs — dados pessoais, ficam só no computador local.
 docs/plantel_*.csv
+
+# Estado local do Supabase CLI (supabase link/functions deploy) — específico
+# da máquina, nunca comitar.
+supabase/.temp/
