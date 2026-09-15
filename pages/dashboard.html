@@ -6,7 +6,7 @@
   questionário diário) e Relatórios (agregado de todos os jogos).
   Lógica em ../js/dashboard.js.
 
-  Versão: 1.15 (2026-09-01)
+  Versão: 1.16 (2026-09-15)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-08) — passa a ser específico de uma equipa (troca de equipa).
@@ -34,6 +34,9 @@
                          quando ligada, a duração do treino em minutos.
     1.15 (2026-09-01) — tabela Wellness ganha a coluna "Carga" (RPE × duração do
                          treino), calculada automaticamente, sem input próprio.
+    1.16 (2026-09-15) — tab Jogos ganha o checkbox "Pré-época" (na criação e,
+                         alternável, na listagem) — jogos marcados assim ficam
+                         fora do agregado da tab Relatórios.
 -->
 <html lang="pt">
 <head>
@@ -68,15 +71,19 @@
         <div class="player-form">
           <input type="date" id="match-date">
           <input type="text" id="match-opponent" placeholder="Adversário">
+          <label class="hint" style="display:flex;align-items:center;gap:4px;">
+            <input type="checkbox" id="match-pre-epoca"> Pré-época
+          </label>
           <button class="action" id="btn-create-match">Criar Jogo</button>
         </div>
       </div>
 
       <div class="players-card">
         <h2 class="tracker-title">Jogos</h2>
+        <p class="hint">Jogos marcados como "Pré-época" continuam disponíveis normalmente, mas ficam fora do Relatório de Equipa.</p>
         <div class="table-scroll">
         <table class="players-table">
-          <thead><tr><th>Data</th><th>Adversário</th><th></th></tr></thead>
+          <thead><tr><th>Data</th><th>Adversário</th><th>Pré-época</th><th></th></tr></thead>
           <tbody id="matches-body"></tbody>
         </table>
         </div>

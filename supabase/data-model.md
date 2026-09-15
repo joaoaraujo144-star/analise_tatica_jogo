@@ -7,7 +7,7 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.15 (2026-09-14)
+  Versão: 1.16 (2026-09-15)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
@@ -40,6 +40,8 @@
     1.15 (2026-09-14) — nova tabela report_insights (cache da análise em prosa dos
                          relatórios Geral e Transições, gerada pela Edge Function
                          gerar-insights via API da Claude).
+    1.16 (2026-09-15) — matches ganha "pre_epoca" (boolean): jogo continua acessível
+                         normalmente, mas fica fora do agregado da tab Relatórios.
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -123,6 +125,7 @@ erDiagram
     timestamptz parte2_inicio
     timestamptz parte2_fim
     text orientacao_parte1
+    boolean pre_epoca
     timestamptz created_at
   }
 
@@ -277,6 +280,7 @@ Jogos de uma equipa, com o cronómetro e a orientação de ataque.
 | `parte1_inicio` / `parte1_fim` | timestamptz | não | hora de início/fim da 1ª parte |
 | `parte2_inicio` / `parte2_fim` | timestamptz | não | hora de início/fim da 2ª parte; `parte2_fim` definido = jogo terminado (bloqueia edição) |
 | `orientacao_parte1` | text | não | `E-D` ou `D-E`; direção de ataque na 1ª parte (a 2ª é sempre o oposto) |
+| `pre_epoca` | boolean | sim | jogo de pré-época; continua acessível normalmente (dados, relatório do próprio jogo) mas fica fora do agregado da tab Relatórios do dashboard |
 | `created_at` | timestamptz | sim | |
 
 ### `match_players`

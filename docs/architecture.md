@@ -9,7 +9,7 @@
   (tabelas/colunas), ver supabase/data-model.md; para funcionalidades e
   setup, ver o README.md.
 
-  Versão: 1.33 (2026-09-14)
+  Versão: 1.34 (2026-09-15)
   Histórico:
     1.0 (2026-07-14) — criação.
     1.1 (2026-07-15) — popup de escolha de jogador após o clique, no Registo de Jogo.
@@ -111,6 +111,11 @@
                          partir de match.html; primeira Edge Function do projeto
                          (gerar-insights) — única exceção ao "sem backend", documentada
                          na Visão geral. Ver README.md § "Relatórios gerados por IA".
+    1.34 (2026-09-15) — matches ganha a flag "pre_epoca" (tab Jogos, dashboard.html):
+                         jogo continua acessível e intacto (dados, relatório próprio),
+                         mas é excluído do agregado da tab Relatórios (dashboard.js,
+                         loadReports()) — para não misturar estatísticas de pré-época
+                         com as da época.
 -->
 
 # Arquitetura — Análise de Jogo

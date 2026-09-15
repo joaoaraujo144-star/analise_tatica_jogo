@@ -5,7 +5,7 @@
  * Wellness (vista do treinador sobre o questionário diário dos jogadores)
  * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.20 (2026-09-01)
+ * Versão: 1.21 (2026-09-15)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -47,6 +47,10 @@
  *                        calcCarga()) — sem input próprio, recalculada sempre que o
  *                        RPE ou a duração do treino mudam; incluída também nas
  *                        exportações diária/semanal.
+ *   1.21 (2026-09-15) — jogos ganham a flag "Pré-época" (criação + checkbox
+ *                        alternável na listagem, tab Jogos); loadReports() passa a
+ *                        excluir esses jogos do Relatório de Equipa, mantendo-os
+ *                        intactos e acessíveis normalmente dentro do próprio jogo.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -115,9 +119,10 @@ function wireMatches() {
     const data = el('match-date').value;
     const adversario = el('match-opponent').value.trim();
     if (!data || !adversario) return;
+    const pre_epoca = el('match-pre-epoca').checked;
     const { data: row, error } = await supabase
       .from('matches')
-      .insert({ user_id: currentUser.id, team_id: currentTeamId, data, adversario })
+      .insert({ user_id: currentUser.id, team_id: currentTeamId, data, adversario, pre_epoca })
       .select()
       .single();
     if (error) { alert(error.message); return; }
@@ -145,12 +150,23 @@ function renderMatches() {
   body.innerHTML = '';
   matchesCache.forEach(m => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${m.data}</td><td>${m.adversario}</td><td><button class="action" data-id="${m.id}">Abrir</button></td>`;
+    tr.innerHTML = `<td>${m.data}</td><td>${m.adversario}</td><td><input type="checkbox" class="match-pre-epoca-input" data-id="${m.id}" ${m.pre_epoca ? 'checked' : ''}></td><td><button class="action" data-id="${m.id}">Abrir</button></td>`;
     body.appendChild(tr);
   });
   el('matches-empty').hidden = matchesCache.length > 0;
   body.querySelectorAll('button[data-id]').forEach(btn => {
     btn.addEventListener('click', () => openMatch(btn.dataset.id));
+  });
+  // Pré-época alternável diretamente na listagem, sem reabrir o jogo — exclui
+  // (ou volta a incluir) o jogo do agregado do Relatório de Equipa.
+  body.querySelectorAll('.match-pre-epoca-input').forEach(input => {
+    input.addEventListener('change', async () => {
+      const pre_epoca = input.checked;
+      const { error } = await supabase.from('matches').update({ pre_epoca }).eq('id', input.dataset.id);
+      if (error) { alert(error.message); input.checked = !pre_epoca; return; }
+      const m = matchesCache.find(x => x.id === input.dataset.id);
+      if (m) m.pre_epoca = pre_epoca;
+    });
   });
 }
 
@@ -306,10 +322,14 @@ function renderRoster() {
 // ---------- Relatórios ----------
 
 async function loadReports() {
+  // Jogos de pré-época ficam de fora deste agregado (mas continuam intactos
+  // e acessíveis no seu próprio relatório dentro do jogo) — daí o inner join
+  // com matches filtrado por pre_epoca=false.
   const { data, error } = await supabase
     .from('match_players')
-    .select('golo, assistencias, amarelo, amarelo2, vermelho, players(id, numero, nome)')
-    .eq('team_id', currentTeamId);
+    .select('golo, assistencias, amarelo, amarelo2, vermelho, players(id, numero, nome), matches!inner(pre_epoca)')
+    .eq('team_id', currentTeamId)
+    .eq('matches.pre_epoca', false);
   if (error) { console.error(error); return; }
 
   const byPlayer = new Map();

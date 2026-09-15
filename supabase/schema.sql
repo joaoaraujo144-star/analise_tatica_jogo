@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 024.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 026.)
 --
--- Versão: 1.24 (2026-09-14) — reflete sempre o estado final cumulativo,
+-- Versão: 1.25 (2026-09-15) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -50,6 +50,8 @@
 --   1.24 (2026-09-14) — tabela report_insights: cache da análise em prosa (gerada pela
 --                        API da Claude, via Edge Function gerar-insights) dos relatórios
 --                        Geral e Transições de um jogo — um registo por jogo+tipo.
+--   1.25 (2026-09-15) — matches ganha "pre_epoca" (boolean): jogo continua acessível e
+--                        intacto, mas fica fora do agregado da tab Relatórios do dashboard.
 
 create extension if not exists "pgcrypto";
 
@@ -101,6 +103,9 @@ create table if not exists matches (
   parte2_inicio timestamptz,
   parte2_fim timestamptz,
   orientacao_parte1 text check (orientacao_parte1 in ('E-D', 'D-E')),
+  -- Jogo de pré-época: continua acessível normalmente (dados, relatório do
+  -- próprio jogo, etc.) mas fica fora do agregado do Relatório de Equipa.
+  pre_epoca boolean not null default false,
   created_at timestamptz not null default now()
 );
 
