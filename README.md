@@ -63,6 +63,9 @@ pages/
                            wellness diário — nunca vê o resto da equipa.
   wellness-jogador.html   Página do treinador: evolução do wellness de um jogador (gráficos
                            Chart.js) e edição de um dia — aberta a partir da tab Wellness.
+  calendario-jogos.html   Calendário do campeonato (Zona Norte), com links de Vídeo/ZeroZero
+                           por jogo — página à parte, sem login, protegida por código de
+                           acesso; não aparece em nenhuma navegação da app.
 js/
   supabase-client.js       Inicializa o cliente Supabase — partilhado por todas as páginas.
   login.js, teams.js, dashboard.js, match.js, jogador.js, wellness-jogador.js
@@ -73,6 +76,8 @@ js/
                             ser lógica grande e igual nas duas páginas.
   relatorio.js, transicoes.js
                             Lógica de pages/relatorio.html e pages/transicoes.html.
+  calendario-jogos.js       Lógica de pages/calendario-jogos.html — valida o código de
+                            acesso via RPC em vez de Supabase Auth.
 css/
   styles.css                Estilos partilhados entre todas as páginas.
 assets/
@@ -94,7 +99,8 @@ supabase/
                              018_wellness_coach_insert, 019_match_players_numero,
                              020_wellness_rpe, 021_goals, 022_events_normalizado_goal,
                              023_goals_sofridos, 024_training_days, 025_report_insights,
-                             026_matches_pre_epoca.
+                             026_matches_pre_epoca, 027_competition_calendar,
+                             028_competition_video_links.
   functions/
     gerar-insights/index.ts  Edge Function (Deno): gera a análise em prosa dos relatórios
                               Geral/Transições via API da Claude — ver "Relatórios gerados
@@ -139,6 +145,7 @@ Todas as tabelas têm Row Level Security baseada em pertença a uma equipa (`tea
 - **`training_days`** — flag "dia de treino" (`treino`) + `duracao_minutos`, por equipa por dia (`unique (team_id, data)`) — sem `player_id`, é uma propriedade do dia, não de um jogador.
 - **`report_insights`** — cache da análise em prosa dos relatórios Geral/Transições, gerada pela Edge Function `gerar-insights` (`conteudo` jsonb, um registo por `match_id`+`tipo`) — ver "Relatórios gerados por IA" abaixo.
 - **`events_normalizado`** — view sobre `events` que junta a 1ª e 2ª parte, rodando 180º os pontos da parte cuja orientação não é a de referência (`x_pct_normalizado`, `y_pct_normalizado`).
+- **`competition_matches`**/**`competition_access`**/**`competition_match_videos`** — calendário do campeonato usado só por `pages/calendario-jogos.html` (ver secção própria abaixo). Sem `team_id`/`user_id`, e sem **nenhuma** policy de RLS (ao contrário de todas as tabelas acima) — só acessíveis via funções `security definer` que validam um código, não pertença a uma equipa. Um jogo pode ter vários links de vídeo (`competition_match_videos`, um registo por link) e um único link de ZeroZero (`competition_matches.zerozero_url`).
 
 Criar/entrar numa equipa passa por duas funções Postgres (`create_team`, `join_team_by_code`) chamadas via RPC, que tratam a criação da equipa + associação do utilizador de forma atómica. Os emblemas ficam num bucket público do Supabase Storage (`team-logos`), com upload restrito a membros da equipa correspondente. Um jogador com login próprio (`players.auth_user_id`) não é `team_member`, mas ganha policies próprias para ver/editar só a sua linha em `players` e as próprias respostas em `wellness_responses` — nunca em `wellness_rpe` — ver `docs/architecture.md`.
 
@@ -151,6 +158,37 @@ Ver `supabase/schema.sql` para a definição completa.
 3. **Authentication → Providers → Email** → confirmar que o provider está ativo e que "Allow new users to sign up" está ligado.
 4. **Authentication → Providers → Email** → desligar "Confirm email" (evita depender de emails de confirmação).
 5. **Settings → API** → copiar o *Project URL* e a *anon public key* e colar em `js/supabase-client.js` (a anon key é pública por definição — a segurança vem das políticas RLS, não de a esconder).
+
+## Calendário do campeonato (página sem login)
+
+`pages/calendario-jogos.html` é uma página independente do resto da app — não está
+associada a nenhuma equipa, jogador ou treinador com conta, não aparece em nenhum menu
+ou navegação, e não usa Supabase Auth. Mostra **uma jornada de cada vez** (por omissão,
+a mais próxima da data atual) do campeonato (Zona Norte, Campeonato Distrital 1.ª
+Divisão 2026/2027), com setas ‹ › e um seletor para mudar de jornada. Cada jogo tem um
+botão para abrir um popup e adicionar/remover **links de vídeo** (podem ser vários por
+jogo — ex: câmaras diferentes) e outro para o link do **ZeroZero** (só um por jogo);
+cada link já guardado tem o seu próprio botão para abrir diretamente numa nova aba.
+
+Em vez de conta, o acesso é feito por um **código partilhado** (guardado no browser
+depois de introduzido uma vez, para não ter de o repetir a cada visita). Do lado da
+base de dados, `competition_matches`/`competition_access`/`competition_match_videos` têm
+RLS ativa sem nenhuma policy — ninguém lhes acede diretamente, nem autenticado; todo o
+acesso passa por funções `security definer` (`competition_list_matches`,
+`competition_list_videos`, `competition_add_video_link`,
+`competition_delete_video_link`, `competition_set_zerozero_link`) que só devolvem ou
+alteram dados depois de validar o código (hash bcrypt, `crypt()` do `pgcrypto`) — ver
+`supabase/migrations/027_competition_calendar.sql`/`028_competition_video_links.sql` e
+"Acesso por código (sem login)" em `docs/architecture.md`.
+
+**Depois de correr a migração 027, troca imediatamente o código de exemplo**
+(`MUDA-ISTO`) no SQL Editor do Supabase:
+
+```sql
+update competition_access
+  set code_hash = crypt('O_TEU_CODIGO_AQUI', gen_salt('bf'))
+  where id = 1;
+```
 
 ## Relatórios gerados por IA (Edge Function)
 

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<!--
+  Análise de Jogo — pages/calendario-jogos.html
+  Calendário do campeonato (Zona Norte, Campeonato Distrital 1.ª Divisão
+  2026-2027): uma jornada de cada vez, com um botão por jogo para gerir
+  links de vídeo (vários por jogo) e o link do ZeroZero (um só), cada um
+  num popup próprio.
+
+  Página independente do resto da app: não tem login, não está associada a
+  nenhuma equipa/jogador/treinador, e não aparece em nenhuma navegação —
+  acede-se diretamente por este URL, protegido só por um código de acesso
+  (não uma conta). Lógica em ../js/calendario-jogos.js.
+
+  Versão: 1.2 (2026-09-15)
+  Histórico:
+    1.0 (2026-09-15) — criação: tabela única com todos os jogos + filtro.
+    1.1 (2026-09-15) — redesenho: uma jornada de cada vez (navegação ‹ ›,
+                        por omissão a mais próxima da data atual), links
+                        geridos em popup (`.link-overlay`/`.link-popup`,
+                        mesmo padrão de `.goal-overlay`/`.goal-popup` em
+                        match.html), e vários links de vídeo por jogo.
+    1.2 (2026-09-15) — navegação reorganizada (setas numa linha própria, por
+                        cima dos filtros, tudo centrado) e novo filtro por
+                        equipa (mostra todos os jogos dessa equipa na época,
+                        em vez de uma jornada); coluna "Jornada" de volta à
+                        tabela, para se perceber a que jornada pertence cada
+                        jogo nesse modo.
+-->
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calendário de Jogos</title>
+<link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+  <h1 class="page-title">Calendário de Jogos</h1>
+
+  <div class="auth-card" id="code-screen">
+    <h2 class="tracker-title">Acesso</h2>
+    <div class="auth-form">
+      <input type="password" id="access-code" placeholder="Código de acesso" autocomplete="off">
+      <div class="auth-actions">
+        <button class="action" id="btn-enter-code">Entrar</button>
+      </div>
+      <p class="hint" id="code-error"></p>
+    </div>
+  </div>
+
+  <div class="players-card" id="calendar-screen" hidden>
+    <h2 class="tracker-title">Campeonato Distrital 1.ª Divisão — Zona Norte 2026/2027</h2>
+
+    <div class="jornada-nav">
+      <div class="jornada-arrows">
+        <button class="action" id="btn-jornada-prev" title="Jornada anterior">‹</button>
+        <div class="jornada-nav-label">
+          <strong id="jornada-titulo"></strong>
+          <span class="hint" id="jornada-data"></span>
+        </div>
+        <button class="action" id="btn-jornada-next" title="Jornada seguinte">›</button>
+      </div>
+      <div class="jornada-filters">
+        <select id="jornada-select"></select>
+        <select id="filtro-equipa"></select>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table class="players-table">
+        <thead>
+          <tr><th>Jornada</th><th>Data</th><th>Casa</th><th>Fora</th><th>Vídeo</th><th>ZeroZero</th></tr>
+        </thead>
+        <tbody id="matches-body"></tbody>
+      </table>
+    </div>
+
+    <button class="action" id="btn-logout-code">Sair</button>
+  </div>
+
+<script type="module" src="../js/calendario-jogos.js"></script>
+</body>
+</html>

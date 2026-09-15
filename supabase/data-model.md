@@ -7,7 +7,7 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.16 (2026-09-15)
+  Versão: 1.19 (2026-09-15)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
@@ -42,6 +42,17 @@
                          gerar-insights via API da Claude).
     1.16 (2026-09-15) — matches ganha "pre_epoca" (boolean): jogo continua acessível
                          normalmente, mas fica fora do agregado da tab Relatórios.
+    1.17 (2026-09-15) — novas tabelas competition_matches/competition_access:
+                         calendário do campeonato (Zona Norte) numa página sem login,
+                         protegida por código em vez de conta — sem team_id/user_id e
+                         sem nenhuma policy de RLS (só funções security definer).
+    1.18 (2026-09-15) — competition_matches ganha "unique (jornada, equipa_casa,
+                         equipa_fora)", depois de a migração ter sido corrida duas
+                         vezes num projeto real e duplicado os 182 jogos.
+    1.19 (2026-09-15) — nova tabela competition_match_videos (vários links de vídeo
+                         por jogo); competition_matches.video_url fica obsoleta.
+                         competition_set_links() é substituída por
+                         competition_set_zerozero_link() (só o link do ZeroZero).
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -80,6 +91,7 @@ erDiagram
   TEAMS ||--o{ TRAINING_DAYS : "team_id"
   TEAMS ||--o{ REPORT_INSIGHTS : "team_id"
   MATCHES ||--o{ REPORT_INSIGHTS : "match_id"
+  COMPETITION_MATCHES ||--o{ COMPETITION_MATCH_VIDEOS : "match_id"
 
   USERS {
     uuid id PK
@@ -222,6 +234,33 @@ erDiagram
     text tipo
     jsonb conteudo
     timestamptz gerado_em
+  }
+
+  %% Sem relação com TEAMS/PLAYERS/USERS de propósito — calendário do
+  %% campeonato, alheio ao resto do modelo (ver "Acesso por código" abaixo).
+  COMPETITION_MATCHES {
+    uuid id PK
+    text zona
+    int jornada
+    date data
+    time hora
+    text equipa_casa
+    text equipa_fora
+    text video_url
+    text zerozero_url
+    timestamptz created_at
+  }
+
+  COMPETITION_MATCH_VIDEOS {
+    uuid id PK
+    uuid match_id FK
+    text url
+    timestamptz created_at
+  }
+
+  COMPETITION_ACCESS {
+    int id PK
+    text code_hash
   }
 ```
 
@@ -410,6 +449,41 @@ Cache da análise em prosa ("insights") dos relatórios Geral e Transições de 
 
 Só uma policy, `report_insights_team_member` (`for all`, exige `team_members`) — o cliente lê com `select` normal e escreve com `upsert({ onConflict: 'match_id,tipo' })`, tal como `training_days`.
 
+### `competition_matches`
+Calendário do campeonato (Zona Norte, Campeonato Distrital 1.ª Divisão 2026-2027), com um link de ZeroZero por jogo — usada só por `pages/calendario-jogos.html`, uma página sem login, sem `team_id`/`user_id`, não associada a nenhuma equipa/jogador/treinador da app. Ver "Acesso por código (sem login)" abaixo.
+
+| Coluna | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | uuid | sim (PK) | |
+| `zona` | text | sim (default `'Norte'`) | preparado para outras zonas no futuro; hoje só tem `'Norte'` |
+| `jornada` | int | sim | 1 a 26 (13 jornadas × 2 voltas); jornada 14 = 1ª jornada da 2ª volta |
+| `data` | date | sim | |
+| `hora` | time | não | |
+| `equipa_casa` / `equipa_fora` | text | sim | nomes como aparecem no comunicado oficial da AF Aveiro — sem ligação a nenhuma tabela `teams`/`players` da app; `unique (jornada, equipa_casa, equipa_fora)` evita duplicados se a migração for corrida mais do que uma vez |
+| `video_url` | text | não | **obsoleta** (migração 028) — um jogo pode ter vários vídeos, ver `competition_match_videos`; a coluna fica na tabela sem ser lida/escrita, para não perder nada já gravado |
+| `zerozero_url` | text | não | um único link por jogo, escrito por `competition_set_zerozero_link()` |
+| `created_at` | timestamptz | sim | |
+
+### `competition_match_videos`
+Vários links de vídeo por jogo (ex: câmaras diferentes) — um registo por link, ligado a `competition_matches` por `match_id`.
+
+| Coluna | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | uuid | sim (PK) | |
+| `match_id` | uuid | sim (FK → `competition_matches`, `on delete cascade`) | |
+| `url` | text | sim | |
+| `created_at` | timestamptz | sim | ordena a lista de links de um jogo (mais antigo primeiro) |
+
+### `competition_access`
+Uma única linha (`id` sempre `1`) com o hash (bcrypt, via `pgcrypto`) do código de acesso a `competition_matches`/`competition_match_videos`.
+
+| Coluna | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | int | sim (PK, sempre `1`) | `check (id = 1)` — garante que só existe uma linha |
+| `code_hash` | text | sim | `crypt(codigo, gen_salt('bf'))`; troca-se com um `update` direto no SQL Editor |
+
+**Acesso por código (sem login):** ao contrário de todas as outras tabelas, `competition_matches`, `competition_match_videos` e `competition_access` têm RLS ativa **sem nenhuma policy** — nem `anon` nem `authenticated` lhes tocam diretamente (nem `select`). Todo o acesso passa por funções `security definer` (executam como o dono do schema) que validam o código com `crypt()` antes de ler/escrever: `competition_list_matches(p_code)`, `competition_list_videos(p_code)`, `competition_add_video_link(p_code, p_match_id, p_url)`, `competition_delete_video_link(p_code, p_link_id)`, `competition_set_zerozero_link(p_code, p_id, p_url)` — ver `supabase/migrations/027_competition_calendar.sql`/`028_competition_video_links.sql`.
+
 ### `events_normalizado` (view, não tabela)
 Junta `events` com `matches` e roda 180º (`100 - x_pct`, `100 - y_pct`) os pontos da parte cuja orientação de ataque não é a de referência (`E-D`), para que a 1ª e a 2ª parte fiquem representadas no mesmo sentido de ataque.
 
@@ -422,5 +496,5 @@ Junta `events` com `matches` e roda 180º (`100 - x_pct`, `100 - y_pct`) os pont
 ## Convenções gerais
 
 - Todas as chaves primárias são `uuid`, geradas com `gen_random_uuid()`.
-- Toda a escrita/leitura passa por Row Level Security baseada em `team_members` — nunca diretamente por `user_id`.
+- Toda a escrita/leitura passa por Row Level Security baseada em `team_members` — nunca diretamente por `user_id`. Exceção: `competition_matches`/`competition_access` (sem `team_id`), que não têm nenhuma policy e só são acedidas via funções `security definer` que validam um código de acesso — ver `competition_matches` acima.
 - Datas/horas são sempre `timestamptz` (com fuso), exceto `matches.data`, que é só a data do jogo (`date`).

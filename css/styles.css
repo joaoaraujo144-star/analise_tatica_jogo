@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.38 (2026-09-01)
+ * Versão: 1.41 (2026-09-15)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -91,6 +91,19 @@
  *                        da convocatória.
  *   1.38 (2026-09-01) — ".switch"/".training-day-row": interruptor "dia de treino" no
  *                        topo da tab Wellness.
+ *   1.39 (2026-09-15) — ".link-cell"/".link-open": input + ícone de abrir por célula,
+ *                        para os links de Vídeo/ZeroZero em pages/calendario-jogos.html
+ *                        (página sem login, protegida por código de acesso).
+ *   1.40 (2026-09-15) — redesenho do calendário do campeonato: ".jornada-nav" (uma
+ *                        jornada de cada vez, com ‹ ›/select) e ".link-overlay"/
+ *                        ".link-popup*" (popup de gestão de links, mesma estrutura
+ *                        visual de ".goal-overlay"/".goal-popup" em match.html) —
+ *                        substituem ".link-input"/".link-open" (inputs sempre visíveis
+ *                        na tabela), que saem.
+ *   1.41 (2026-09-15) — ".jornada-nav" passa a coluna (".jornada-arrows" numa linha,
+ *                        ".jornada-filters" — jornada + equipa — centrados por baixo);
+ *                        ".link-open-btn" fica maior/mais destacado que
+ *                        ".link-manage-btn" (abrir é a ação mais usada).
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -1238,3 +1251,120 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
   width: 55px;
   text-align: center;
 }
+
+/* ---------- Calendário do campeonato (pages/calendario-jogos.html, sem login) ---------- */
+
+/* Setas + título/data numa linha própria, os dois seletores (jornada e
+   equipa) centrados por baixo, numa segunda linha — mantém tudo legível
+   mesmo em ecrãs estreitos, em vez de espremer tudo na mesma linha. */
+.jornada-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.jornada-arrows {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+.jornada-nav-label { display: flex; flex-direction: column; align-items: center; min-width: 140px; }
+.jornada-filters {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.jornada-filters select {
+  background: #1c242c;
+  border: 1px solid #333;
+  color: #eee;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.95em;
+}
+.jornada-filters select:disabled { opacity: 0.5; }
+
+/* Botões "▶"/"↗" que abrem um link já guardado, e o botão que abre o popup
+   de gestão — vivem juntos na célula da tabela (uma linha por jogo). Abrir
+   é a ação mais usada, por isso fica maior/mais destacada; gerir/editar é
+   secundária, por isso fica mais discreta. */
+.link-cell { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.link-open-btn {
+  color: var(--y-color);
+  text-decoration: none;
+  font-size: 1.4em;
+  font-weight: bold;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 4px 12px;
+  background: #1c242c;
+  line-height: 1;
+}
+.link-open-btn:hover { border-color: var(--y-color); }
+.link-manage-btn { padding: 3px 8px; font-size: 0.7em; opacity: 0.75; }
+.link-manage-btn:hover { opacity: 1; }
+
+/* Popup de vídeo/ZeroZero — mesma estrutura visual de ".goal-overlay"/
+   ".goal-popup" (js/match.js), reaproveitada aqui à parte porque este
+   ficheiro não depende de mais nada de match.html/css. */
+.link-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 60; padding: 16px;
+}
+.link-popup {
+  background: #151b21;
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 18px;
+  max-width: 420px;
+  width: 100%;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.link-popup-title { font-size: 1em; font-weight: bold; color: #fff; }
+.link-popup-sub { font-size: 0.8em; color: #888; margin-top: -6px; }
+.link-popup > input[type="url"] {
+  background: #1c242c;
+  border: 1px solid #333;
+  color: #eee;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.95em;
+  width: 100%;
+}
+.link-popup-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+.link-popup-row {
+  display: flex; align-items: center; gap: 8px;
+  background: #1c242c;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.link-popup-url { flex: 1; font-size: 0.85em; color: #bbb; overflow-wrap: anywhere; }
+.link-remove-btn {
+  background: none;
+  border: none;
+  color: #ef8a8a;
+  cursor: pointer;
+  font-size: 1em;
+  flex-shrink: 0;
+}
+.link-popup-add { display: flex; gap: 8px; }
+.link-popup-add input[type="url"] {
+  flex: 1;
+  background: #1c242c;
+  border: 1px solid #333;
+  color: #eee;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.95em;
+}
+.link-popup-actions { display: flex; gap: 10px; justify-content: flex-end; }

@@ -9,7 +9,7 @@
   (tabelas/colunas), ver supabase/data-model.md; para funcionalidades e
   setup, ver o README.md.
 
-  Versão: 1.34 (2026-09-15)
+  Versão: 1.36 (2026-09-15)
   Histórico:
     1.0 (2026-07-14) — criação.
     1.1 (2026-07-15) — popup de escolha de jogador após o clique, no Registo de Jogo.
@@ -116,6 +116,18 @@
                          mas é excluído do agregado da tab Relatórios (dashboard.js,
                          loadReports()) — para não misturar estatísticas de pré-época
                          com as da época.
+    1.35 (2026-09-15) — nova página pages/calendario-jogos.html: calendário do
+                         campeonato (Zona Norte), fora do mapa de navegação normal e
+                         sem Supabase Auth — primeira página protegida por código de
+                         acesso em vez de login. Ver "Acesso por código (sem login)"
+                         em Modelo de segurança.
+    1.36 (2026-09-15) — redesenho de calendario-jogos.html: mostra uma jornada de
+                         cada vez (por omissão a mais próxima da data atual) em vez
+                         da tabela toda; links geridos em popup (mesmo padrão de
+                         ".goal-overlay"/".goal-popup"); vídeo passa a aceitar vários
+                         links por jogo (nova tabela competition_match_videos) — ver
+                         "Calendário do campeonato" e "Popup de gestão de links" na
+                         secção de padrões de código.
 -->
 
 # Arquitetura — Análise de Jogo
@@ -189,6 +201,8 @@ flowchart LR
 
 Cada página valida os pré-requisitos antes de se mostrar, e redireciona "para trás" se algum faltar — ver [Guardas de navegação](#guardas-de-navegação-por-página). `jogador.html` fica completamente à parte do resto (nunca leva a `teams.html`/`dashboard.html`/`match.html`) — é a única página pensada para outro tipo de utilizador, não o treinador.
 
+`pages/calendario-jogos.html` fica de fora deste mapa por completo: não tem nenhuma ligação de/para as páginas acima, não usa Supabase Auth, e não depende de `current_team_id`/`current_match_id`. É acedida diretamente pelo URL e protegida por um código de acesso em vez de login — ver "Acesso por código (sem login)" em [Modelo de segurança](#modelo-de-segurança).
+
 ## Autenticação e sessão
 
 Há **dois tipos de utilizador**, ambos autenticados da mesma forma (Supabase Auth, email + palavra-passe), mas com vistas completamente diferentes:
@@ -237,6 +251,7 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 - **Funções RPC `security definer`** (`create_team`, `join_team_by_code`): usadas quando uma operação precisa de escrever em mais do que uma tabela de forma atómica (criar equipa + inserir o "owner" em `team_members`), contornando a RLS só dentro da própria função, de forma controlada.
 - **Storage** (bucket `team-logos`, público para leitura): upload/substituição de um emblema só é permitido a membros da equipa dona desse emblema, validado pelo caminho do ficheiro (`<team_id>/...`) contra `team_members`.
 - **Chave anon pública**: é suposto ser pública (fica no código-fonte, em `js/supabase-client.js`); a segurança nunca depende de a esconder, só das políticas RLS acima.
+- **Acesso por código (sem login)** — `pages/calendario-jogos.html`: única página sem Supabase Auth. `competition_matches`/`competition_match_videos`/`competition_access` têm RLS ativa **sem nenhuma policy** (nem para `anon`, nem para `authenticated` — ninguém lhes toca diretamente, nem com `select`). O único acesso possível é através de funções `security definer` (`competition_list_matches`, `competition_list_videos`, `competition_add_video_link`, `competition_delete_video_link`, `competition_set_zerozero_link`) que comparam `p_code` (hash bcrypt, `crypt()` do `pgcrypto`) contra `competition_access.code_hash` e só devolvem/alteram dados se bater certo — ver `supabase/migrations/027_competition_calendar.sql`/`028_competition_video_links.sql`. `calendario-jogos.js` guarda o código validado em `localStorage` (chave `competition_access_code`) só por conveniência (evitar repetir o código a cada visita); a segurança real está inteiramente do lado do Postgres, não do cliente. **Gotcha de `search_path`**: as funções definem `set search_path = public, extensions` (não só `public`) — em muitos projetos Supabase o `pgcrypto` (`crypt()`/`gen_salt()`) vive no schema `extensions`, não em `public`; esquecer o `extensions` aqui dá `function crypt(text, text) does not exist` mesmo com a extensão instalada.
 
 ## Padrões de código usados em várias páginas
 
@@ -265,6 +280,8 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 - **Gráficos de evolução do Wellness**: 2ª exceção — `wellness-jogador.js` importa [Chart.js](https://www.chartjs.org) (`chart.js/auto`, via CDN `esm.sh`) para 5 gráficos de linha, um por métrica (Dores/Stress/Fadiga/Sono 0-10, e Peso à parte por ter escala diferente) — cada cartão já mostra o nome na `h2.tracker-title`, por isso a legenda do Chart.js fica desligada em cada um. O toggle Semana/Mês/Total é sempre uma **janela deslizante** a partir de hoje (últimos 7/30 dias, ou tudo), não fixa ao calendário como a exportação semanal — para mostrar sempre a tendência mais recente, seja qual for o dia em que o treinador está a ver. Os gráficos são recriados (`chart.destroy()` + `new Chart(...)`) sempre que a janela muda ou uma resposta é editada, em vez de atualizados in-place; guardados no objeto `charts` (por id de métrica), não em variáveis separadas.
 - **Exportações de `wellness-jogador.html`**: os dois botões reutilizam padrões já existentes em vez de inventar um terceiro — "Exportar gráficos (PDF)" é só `window.print()` com regras `@media print` (mesma abordagem do relatório do jogo em `match.js`; os `<canvas>` do Chart.js imprimem bem tal como estão, sem tratamento especial); "Exportar tabela (Excel)" usa o SheetJS já importado para os exports do dashboard.
 - **Dia de treino** (`training_days`, topo da tab Wellness): flag por equipa por dia (`treino`) e, quando ligada, `duracao_minutos` — ao contrário de `wellness_responses`/`wellness_rpe`, não está ligada a nenhum jogador, é uma propriedade do dia em si (por isso uma linha por `team_id`+`data`, `unique (team_id, data)`, sem `player_id`). `loadTrainingDay()`/`wireTrainingDay()` (`dashboard.js`) usam sempre `upsert({ onConflict: 'team_id,data' })`, o mesmo padrão do RPE — nunca insert/update em separado. O interruptor (`.switch`, `css/styles.css`) é um `<input type="checkbox">` visualmente escondido dentro de um `<label>`: clicar em qualquer ponto da linha (não só no próprio input) alterna o estado, porque o `<label>` encaminha o clique para o descendente associado — por isso `#training-duration-row[hidden]` precisa da mesma regra explícita já documentada acima em `.players-card[hidden]` (uma classe de layout como `.player-form` vence sempre o `[hidden]` por omissão do browser). Desligar a flag limpa e grava `duracao_minutos = null` (não faz sentido guardar uma duração para um dia que não é de treino); a duração só é gravada se for um inteiro positivo (`Number.isInteger` + `> 0` no cliente, e `check (duracao_minutos > 0)` na base de dados, à prova de bypass do input). A coluna **Carga** da tabela Wellness (RPE × `duracao_minutos`) é puramente derivada — `calcCarga(rpe, duracaoMinutos)` (`dashboard.js`) não tem coluna nem tabela própria, é recalculada em cada `renderWellness()` a partir dos dois valores já carregados; devolve `null` (mostrado como "—") sempre que falte um dos dois, nunca `0`, para não confundir "sem carga calculada" com "carga zero". Como o RPE é por jogador (`wellness_rpe`) e a duração é por equipa (`training_days`), qualquer alteração a um dos dois invalida a coluna inteira — por isso tanto o `change` do `.rpe-input` (`wireWellnessTable()`) como os dois handlers de `wireTrainingDay()` terminam com `await loadWellness()`, para recarregar a tabela toda em vez de tentar atualizar só a célula que mudou. As exportações (`exportWellnessDaily()`/`exportWellnessWeekly()`) replicam o mesmo cálculo com os dados já pedidos a Supabase para o CSV/Excel, para nunca desalinhar do que aparece no ecrã.
+- **Calendário do campeonato — uma jornada de cada vez** (`pages/calendario-jogos.html`, `js/calendario-jogos.js`): em vez de uma tabela só com os 182 jogos, mostra sempre os jogos de **uma única jornada**, com navegação `‹`/`›` e um `<select>` para saltar diretamente (`irParaJornada()`). Por omissão abre na jornada mais próxima da data atual — `jornadaMaisProximaDeHoje()` calcula, para cada jornada, a sua "data típica" (`dataTipicaDaJornada()`: a data mais frequente entre os 7 jogos, para ignorar o 1-2 jogos antecipados para sábado) e escolhe a jornada cuja data típica está mais perto de hoje (funciona tanto antes da época começar como depois de terminar, escolhendo sempre a mais próxima em qualquer direção).
+- **Popup de gestão de links** (mesmo jogo, dois popups diferentes): reutiliza a estrutura visual de `.goal-overlay`/`.goal-popup` (`js/match.js`, ver "Golos ligados a eventos" acima) através das classes próprias `.link-overlay`/`.link-popup*` (`css/styles.css`) — backdrop escurecido, popup centrado, fecha ao clicar fora (`overlay.addEventListener('click', e => { if (e.target === overlay) closeLinkPopup(); })`) ou no botão "Fechar"/"Cancelar". `openVideoPopup(match)` mostra uma lista de links já guardados (cada um com botão "▶ Abrir" e "✕ Remover") mais um campo para adicionar outro — um jogo pode ter **vários** vídeos (`competition_match_videos`, uma linha por link). `openZerozeroPopup(match)` é mais simples, um único input pré-preenchido com o valor atual — só um link de ZeroZero por jogo (`competition_matches.zerozero_url`). Ambos chamam a função RPC correspondente (`competition_add_video_link`/`competition_delete_video_link`/`competition_set_zerozero_link`) e voltam a desenhar a jornada atual (`renderJornada()`) para a tabela refletir logo o novo estado, sem esperar por um reload da página.
 
 ## Onde encontrar cada coisa
 
