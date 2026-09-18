@@ -57,6 +57,8 @@
       <button class="action" id="btn-sign-out">Sair</button>
     </div>
 
+    <p class="hint" id="trial-banner" hidden></p>
+
     <div class="tabs" id="tabs">
       <button class="tab-btn active" data-tab="jogos">Jogos</button>
       <button class="tab-btn" data-tab="plantel">Plantel</button>
@@ -68,7 +70,7 @@
     <div class="tab-panel" id="tab-jogos">
       <div class="players-card">
         <h2 class="tracker-title">Novo Jogo</h2>
-        <div class="player-form">
+        <div class="player-form" id="novo-jogo-form">
           <input type="date" id="match-date">
           <input type="text" id="match-opponent" placeholder="Adversário">
           <label class="hint" style="display:flex;align-items:center;gap:4px;">
@@ -76,6 +78,7 @@
           </label>
           <button class="action" id="btn-create-match">Criar Jogo</button>
         </div>
+        <p class="hint" id="novo-jogo-limite" hidden>Versão de teste: já usaste o teu único jogo.</p>
       </div>
 
       <div class="players-card">

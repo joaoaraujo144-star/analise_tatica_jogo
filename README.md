@@ -66,6 +66,13 @@ pages/
   calendario-jogos.html   Calendário do campeonato (Zona Norte), com links de Vídeo/ZeroZero
                            por jogo — página à parte, sem login, protegida por código de
                            acesso; não aparece em nenhuma navegação da app.
+  trial.html              Entrada do modo de teste público — em vez de conta, pede um
+                           código e cria uma equipa de teste (1 jogo, expira em 10 dias)
+                           via login anónimo do Supabase; a partir daí usa dashboard.html/
+                           match.html normalmente.
+  trial-admin.html        Painel só para o treinador (código próprio, diferente dos dados
+                           ao público) para criar/bloquear códigos de teste e ver as
+                           equipas de teste ativas com os dias até expirarem.
 js/
   supabase-client.js       Inicializa o cliente Supabase — partilhado por todas as páginas.
   login.js, teams.js, dashboard.js, match.js, jogador.js, wellness-jogador.js
@@ -78,6 +85,10 @@ js/
                             Lógica de pages/relatorio.html e pages/transicoes.html.
   calendario-jogos.js       Lógica de pages/calendario-jogos.html — valida o código de
                             acesso via RPC em vez de Supabase Auth.
+  trial.js                  Lógica de pages/trial.html — signInAnonymously() + start_trial(),
+                            depois abre a equipa de teste como teams.js abre uma equipa normal.
+  trial-admin.js            Lógica de pages/trial-admin.html — valida o código de admin via
+                            RPC (admin_*) em vez de Supabase Auth.
 css/
   styles.css                Estilos partilhados entre todas as páginas.
 assets/
@@ -100,7 +111,9 @@ supabase/
                              020_wellness_rpe, 021_goals, 022_events_normalizado_goal,
                              023_goals_sofridos, 024_training_days, 025_report_insights,
                              026_matches_pre_epoca, 027_competition_calendar,
-                             028_competition_video_links.
+                             028_competition_video_links, 029_trial_mode,
+                             030_trial_resume, 031_trial_admin, 032_trial_admin_delete,
+                             033_trial_one_team_per_code.
   functions/
     gerar-insights/index.ts  Edge Function (Deno): gera a análise em prosa dos relatórios
                               Geral/Transições via API da Claude — ver "Relatórios gerados
@@ -188,6 +201,60 @@ alteram dados depois de validar o código (hash bcrypt, `crypt()` do `pgcrypto`)
 update competition_access
   set code_hash = crypt('O_TEU_CODIGO_AQUI', gen_salt('bf'))
   where id = 1;
+```
+
+## Modo de teste público (1 jogo, 10 dias)
+
+`pages/trial.html` (ver `docs/architecture.md` § "Modo de teste público") deixa
+alguém experimentar a app sem conta: entra com um **código de acesso** (podes ter vários
+códigos ativos ao mesmo tempo, ex: um por clube/pessoa — ver `trial_codes` em
+`supabase/data-model.md`), o browser faz login anónimo do Supabase
+(`supabase.auth.signInAnonymously()`) e `start_trial()` dá-lhe acesso à **equipa fixa**
+desse código — cria-a na 1ª vez que o código é usado; a partir daí, entrar com o mesmo
+código, de qualquer dispositivo, leva sempre à mesma equipa (útil, por ex., para vários
+membros de um clube experimentarem juntos a mesma equipa de teste). `dashboard.html`/
+`match.html` funcionam sem nenhuma alteração, com dois limites reforçados na base de
+dados: **só 1 jogo** (trigger em `matches`) e **10 dias** (depois disso, um job `pg_cron`
+diário apaga a equipa e tudo o que lhe pertence, em cascata).
+
+Configurar (uma vez por projeto):
+
+1. **Authentication → Sign In / Providers → Anonymous Sign-Ins** → ligar (vem desligado
+   por omissão; sem isto `signInAnonymously()` falha).
+2. Correr `supabase/migrations/029_trial_mode.sql`, `030_trial_resume.sql`,
+   `031_trial_admin.sql`, `032_trial_admin_delete.sql` e
+   `033_trial_one_team_per_code.sql` no SQL Editor, por esta ordem.
+3. **Criar pelo menos um código** — mais fácil pelo painel `pages/trial-admin.html` (ver
+   secção própria abaixo) do que por SQL direto.
+4. **Reimplantar a Edge Function** (só se já a tinhas implantado antes desta versão —
+   ver "Relatórios gerados por IA" abaixo): `supabase functions deploy gerar-insights`.
+   Sem isto, o bloqueio da IA para contas de teste não entra em vigor (o resto do modo
+   de teste não depende da Edge Function e funciona sem este passo).
+
+Numa equipa de teste, a tab Wellness e "Criar login" (Plantel) ficam escondidas, e o botão
+"Gerar análise" (relatórios com IA) fica escondido — a própria Edge Function
+`gerar-insights` recusa (403) qualquer pedido de uma conta anónima (todas as contas do
+modo de teste são anónimas por construção), para nunca chamar (e pagar) a API da Claude a
+partir de uma equipa de teste.
+
+## Painel de administração do teste
+
+`pages/trial-admin.html` é só para ti — nunca partilhes o link nem o código com quem vai
+experimentar a app. Deixa: criar um código novo (com uma nota tua e um **limite de usos**
+opcional — quantos *dispositivos/pessoas diferentes* se podem juntar, todos à **mesma**
+equipa, através desse código; não tem nada a ver com dias), bloquear/reativar um código já
+criado sem o apagar (mantém o histórico de quem o usou), ver as equipas de teste ativas —
+de que código vieram, quantos jogos já têm, e quantos dias faltam para expirarem sozinhas
+(10 dias por equipa, sempre, fixo) — e **apagar uma equipa de teste na hora**, sem esperar
+pelos 10 dias (o código volta a ficar "por estrear": a próxima vez que for usado cria uma
+equipa nova).
+
+Protegido por um **código próprio**, diferente dos códigos que dás ao público
+(`trial_codes`) — não vem nenhum por omissão, define-se depois de correr a migração 031:
+
+```sql
+insert into admin_access (id, code_hash) values (1, crypt('O_TEU_CODIGO_AQUI', gen_salt('bf')))
+  on conflict (id) do update set code_hash = excluded.code_hash;
 ```
 
 ## Relatórios gerados por IA (Edge Function)

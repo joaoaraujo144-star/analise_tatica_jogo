@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 028.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 033.)
 --
--- Versão: 1.29 (2026-09-15) — reflete sempre o estado final cumulativo,
+-- Versão: 1.34 (2026-09-17) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -72,6 +72,30 @@
 --                        competition_delete_video_link. competition_set_links()
 --                        (video+zerozero juntos) é substituída por
 --                        competition_set_zerozero_link() (só o link do ZeroZero).
+--   1.30 (2026-09-17) — modo de teste público: trial_codes (vários códigos,
+--                        geríveis à parte, cada um com limite de usos opcional)/
+--                        trial_teams, start_trial() (login anónimo + código, cria
+--                        uma equipa normal), trigger que limita a 1 jogo, e um job
+--                        pg_cron diário que apaga equipas de teste expiradas (10 dias).
+--   1.31 (2026-09-17) — corrige start_trial(): passa a devolver a equipa de teste
+--                        já existente da sessão atual (se não tiver expirado), em
+--                        vez de criar sempre uma equipa nova — sem isto, "Sair"
+--                        (sem destruir a sessão) + voltar a entrar com o mesmo
+--                        código criava sempre uma equipa (e dados) diferentes.
+--   1.32 (2026-09-17) — admin_access + funções admin_* (SECURITY DEFINER):
+--                        painel pages/trial-admin.html, só para o treinador, para
+--                        criar/bloquear códigos de teste (trial_codes) e ver as
+--                        equipas de teste ativas com os dias até expirarem.
+--   1.33 (2026-09-17) — admin_delete_trial_team(): apagar manualmente uma equipa
+--                        de teste a partir do painel, em vez de esperar 10 dias
+--                        (só apaga equipas marcadas em trial_teams, nunca outras).
+--   1.34 (2026-09-17) — corrige o modelo do modo de teste: trial_codes ganha
+--                        "team_id" — 1 código passa a ligar-se para sempre à
+--                        mesma equipa (criada na 1ª vez que é usado), em vez de
+--                        criar uma equipa nova a cada uso; "usos"/"max_usos"
+--                        passam a contar dispositivos/sessões diferentes na
+--                        mesma equipa. admin_delete_trial_team() repõe o código
+--                        a zeros (team_id/usos) para poder ser reutilizado.
 
 create extension if not exists "pgcrypto";
 
@@ -932,5 +956,302 @@ insert into competition_matches (jornada, data, hora, equipa_casa, equipa_fora) 
   (26, '2027-05-09', '17:00', 'Real Cl. Nogueirense', 'Romariz FC'),
   (26, '2027-05-09', '17:00', 'CD Arrifanense', 'UD Mansores')
 on conflict (jornada, equipa_casa, equipa_fora) do nothing;
+
+-- ---------- Modo de teste público (1 jogo, 10 dias, limpeza automática) ----------
+-- Público experimenta a app sem conta, via login anónimo do Supabase + um
+-- dos códigos ativos (start_trial()). Cria uma equipa normal (mesma RLS de
+-- sempre, baseada em team_members) — só passa a ter um limite de 1 jogo
+-- (trigger em matches) e um prazo (trial_teams.expires_at, limpo por um
+-- job pg_cron diário que apaga a equipa e tudo em cascata).
+
+-- ---------- Códigos de acesso ao teste (vários, geríveis à parte) ----------
+
+create table if not exists trial_codes (
+  id uuid primary key default gen_random_uuid(),
+  label text,
+  code_hash text not null,
+  max_usos int check (max_usos > 0),
+  usos int not null default 0,
+  ativo boolean not null default true,
+  created_at timestamptz not null default now(),
+  -- Cada código fica ligado para sempre à mesma equipa (definido na 1ª vez
+  -- que é usado, em start_trial()) — 1 código = 1 equipa, não uma equipa
+  -- nova a cada uso.
+  team_id uuid references teams(id) on delete set null
+);
+
+alter table trial_codes enable row level security;
+-- Sem nenhuma policy, de propósito — só start_trial() (security definer)
+-- lhe toca, depois de validar o código.
+
+-- ---------- Marca de equipa de teste ----------
+
+create table if not exists trial_teams (
+  team_id uuid primary key references teams(id) on delete cascade,
+  trial_code_id uuid references trial_codes(id) on delete set null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+alter table trial_teams enable row level security;
+
+-- Um membro da própria equipa pode ler o prazo (para mostrar o aviso
+-- "expira em N dias" e esconder Wellness/IA) — nunca escreve aqui
+-- diretamente, só start_trial()/a limpeza automática o fazem.
+create policy "trial_teams_team_member" on trial_teams
+  for select
+  using (exists (select 1 from team_members tm where tm.team_id = trial_teams.team_id and tm.user_id = auth.uid()));
+
+-- ---------- Criar uma equipa de teste ----------
+
+create or replace function start_trial(p_code text)
+returns teams
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_team teams;
+  v_codigo trial_codes;
+  v_ja_membro boolean;
+begin
+  select * into v_codigo
+    from trial_codes
+    where ativo and code_hash = crypt(p_code, code_hash)
+    for update
+    limit 1;
+
+  if not found then
+    raise exception 'Código inválido';
+  end if;
+
+  if v_codigo.team_id is not null then
+    -- Este código já tem equipa própria — junta esta sessão a ela (se
+    -- ainda não for membro) e devolve sempre a mesma equipa, nunca cria
+    -- outra. "usos"/"max_usos" contam dispositivos/sessões diferentes,
+    -- não jogos nem dias — voltar a entrar com uma sessão já membro não
+    -- consome nenhum uso.
+    select exists(
+      select 1 from team_members where team_id = v_codigo.team_id and user_id = auth.uid()
+    ) into v_ja_membro;
+
+    if not v_ja_membro then
+      if v_codigo.max_usos is not null and v_codigo.usos >= v_codigo.max_usos then
+        raise exception 'Código esgotado';
+      end if;
+      insert into team_members (team_id, user_id, role) values (v_codigo.team_id, auth.uid(), 'membro');
+      update trial_codes set usos = usos + 1 where id = v_codigo.id;
+    end if;
+
+    select * into v_team from teams where id = v_codigo.team_id;
+    return v_team;
+  end if;
+
+  -- Primeira vez que este código é usado: cria a equipa de teste e liga-a
+  -- a este código para sempre (trial_codes.team_id), para todas as
+  -- próximas entradas com o mesmo código caírem sempre aqui.
+  update trial_codes set usos = usos + 1 where id = v_codigo.id;
+
+  insert into teams (nome, join_code, created_by)
+    values ('Equipa de Teste', upper(substr(md5(random()::text), 1, 6)), auth.uid())
+    returning * into v_team;
+
+  insert into team_members (team_id, user_id, role)
+    values (v_team.id, auth.uid(), 'owner');
+
+  insert into trial_teams (team_id, trial_code_id, expires_at)
+    values (v_team.id, v_codigo.id, now() + interval '10 days');
+
+  update trial_codes set team_id = v_team.id where id = v_codigo.id;
+
+  return v_team;
+end;
+$$;
+
+-- Só "authenticated" (inclui sessões anónimas — role continua "authenticated"
+-- no JWT, só ganham o claim "is_anonymous"): exige sessão via
+-- supabase.auth.signInAnonymously() antes de chamar esta função.
+grant execute on function start_trial(text) to authenticated;
+
+-- ---------- Limite de 1 jogo por equipa de teste (reforçado na BD) ----------
+
+create or replace function enforce_trial_one_match()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if exists (select 1 from trial_teams where team_id = new.team_id)
+     and exists (select 1 from matches where team_id = new.team_id) then
+    raise exception 'A versão de teste permite só 1 jogo.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_trial_one_match on matches;
+create trigger trg_trial_one_match
+  before insert on matches
+  for each row
+  execute function enforce_trial_one_match();
+
+-- ---------- Limpeza automática (pg_cron, 1x por dia) ----------
+
+create extension if not exists pg_cron;
+
+-- Apagar a equipa cascata (on delete cascade) todos os jogadores, jogos,
+-- eventos, golos, wellness, etc. dessa equipa — nada fica órfão.
+create or replace function cleanup_expired_trials()
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  delete from teams where id in (select team_id from trial_teams where expires_at < now());
+$$;
+
+do $$
+begin
+  perform cron.unschedule('cleanup-expired-trials');
+exception when others then
+  null; -- ainda não existia, nada a fazer
+end $$;
+
+select cron.schedule('cleanup-expired-trials', '0 3 * * *', $$select cleanup_expired_trials();$$);
+
+-- ---------- Painel de administração do modo de teste ----------
+-- pages/trial-admin.html é só para o treinador — protegida por um código
+-- próprio (admin_access), diferente dos códigos dados ao público
+-- (trial_codes). Mesmo padrão: sem login, RLS sem nenhuma policy, só as
+-- funções admin_* (SECURITY DEFINER) tocam nestas tabelas.
+
+create table if not exists admin_access (
+  id int primary key default 1,
+  code_hash text not null,
+  constraint admin_access_single_row check (id = 1)
+);
+
+alter table admin_access enable row level security;
+-- Sem nenhuma policy, de propósito — só as funções admin_* (security
+-- definer) lhe tocam, depois de validar o código.
+
+create or replace function admin_list_trial_codes(p_code text)
+returns setof trial_codes
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if not exists (select 1 from admin_access where id = 1 and code_hash = crypt(p_code, code_hash)) then
+    raise exception 'Código inválido';
+  end if;
+  return query select * from trial_codes order by created_at desc;
+end;
+$$;
+
+create or replace function admin_create_trial_code(p_code text, p_label text, p_new_code text, p_max_usos int)
+returns trial_codes
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_row trial_codes;
+begin
+  if not exists (select 1 from admin_access where id = 1 and code_hash = crypt(p_code, code_hash)) then
+    raise exception 'Código inválido';
+  end if;
+  if trim(coalesce(p_new_code, '')) = '' then
+    raise exception 'Código vazio';
+  end if;
+  insert into trial_codes (label, code_hash, max_usos)
+    values (nullif(trim(p_label), ''), crypt(p_new_code, gen_salt('bf')), p_max_usos)
+    returning * into v_row;
+  return v_row;
+end;
+$$;
+
+create or replace function admin_set_trial_code_active(p_code text, p_id uuid, p_ativo boolean)
+returns trial_codes
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_row trial_codes;
+begin
+  if not exists (select 1 from admin_access where id = 1 and code_hash = crypt(p_code, code_hash)) then
+    raise exception 'Código inválido';
+  end if;
+  update trial_codes set ativo = p_ativo where id = p_id returning * into v_row;
+  if not found then
+    raise exception 'Código de teste não encontrado';
+  end if;
+  return v_row;
+end;
+$$;
+
+-- Equipas de teste ainda por expirar, com o código que as criou e quantos
+-- jogos já têm (para perceberes se estão mesmo a ser usadas).
+create or replace function admin_list_trial_teams(p_code text)
+returns table (
+  team_id uuid,
+  nome text,
+  trial_code_label text,
+  expires_at timestamptz,
+  created_at timestamptz,
+  jogos int
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if not exists (select 1 from admin_access where id = 1 and code_hash = crypt(p_code, code_hash)) then
+    raise exception 'Código inválido';
+  end if;
+  return query
+    select tt.team_id, t.nome, tc.label, tt.expires_at, tt.created_at,
+           (select count(*)::int from matches m where m.team_id = tt.team_id)
+    from trial_teams tt
+    join teams t on t.id = tt.team_id
+    left join trial_codes tc on tc.id = tt.trial_code_id
+    order by tt.expires_at asc;
+end;
+$$;
+
+create or replace function admin_delete_trial_team(p_code text, p_team_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_trial_code_id uuid;
+begin
+  if not exists (select 1 from admin_access where id = 1 and code_hash = crypt(p_code, code_hash)) then
+    raise exception 'Código inválido';
+  end if;
+
+  select trial_code_id into v_trial_code_id from trial_teams where team_id = p_team_id;
+
+  -- O "and id in (...)" garante que esta função só consegue apagar
+  -- equipas marcadas como de teste, nunca uma equipa normal.
+  delete from teams where id = p_team_id and id in (select team_id from trial_teams);
+
+  -- Deixa o código "por estrear" outra vez — a próxima vez que for usado
+  -- cria uma equipa nova, como se nunca tivesse sido usado.
+  if v_trial_code_id is not null then
+    update trial_codes set team_id = null, usos = 0 where id = v_trial_code_id;
+  end if;
+end;
+$$;
+
+grant execute on function admin_list_trial_codes(text) to anon, authenticated;
+grant execute on function admin_create_trial_code(text, text, text, int) to anon, authenticated;
+grant execute on function admin_set_trial_code_active(text, uuid, boolean) to anon, authenticated;
+grant execute on function admin_list_trial_teams(text) to anon, authenticated;
+grant execute on function admin_delete_trial_team(text, uuid) to anon, authenticated;
 
 notify pgrst, 'reload schema';

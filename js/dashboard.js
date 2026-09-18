@@ -5,7 +5,7 @@
  * Wellness (vista do treinador sobre o questionário diário dos jogadores)
  * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.21 (2026-09-15)
+ * Versão: 1.24 (2026-09-17)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -51,6 +51,21 @@
  *                        alternável na listagem, tab Jogos); loadReports() passa a
  *                        excluir esses jogos do Relatório de Equipa, mantendo-os
  *                        intactos e acessíveis normalmente dentro do próprio jogo.
+ *   1.22 (2026-09-17) — restrições do modo de teste (equipas criadas via
+ *                        pages/trial.html, ver trial_teams): banner "expira em N
+ *                        dias", tab Wellness escondida, "Criar login" (Plantel)
+ *                        substituído por "—", e o formulário "Novo Jogo" esconde-se
+ *                        assim que já existe 1 jogo (o limite real é reforçado na
+ *                        base de dados, isto é só para não mostrar um formulário
+ *                        que ia falhar).
+ *   1.23 (2026-09-17) — numa equipa de teste, "Trocar de equipa" fica escondido
+ *                        (só têm a equipa de teste, não há para onde trocar) e
+ *                        "Sair" leva a trial.html em vez de login.html (não têm
+ *                        conta nenhuma para lá entrar).
+ *   1.24 (2026-09-17) — corrige "Sair" numa equipa de teste: deixa de chamar
+ *                        supabase.auth.signOut() (destruía a sessão anónima —
+ *                        sem ela, entrar com o mesmo código em trial.html criava
+ *                        sempre uma equipa nova, "perdendo" os dados da anterior).
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -72,6 +87,28 @@ let currentTeam = null;
 let matchesCache = [];
 let rosterCache = [];
 let creatingLoginForId = null;
+let isTrialTeam = false;
+
+// ---------- Modo de teste (equipa criada via pages/trial.html) ----------
+
+async function loadTrialStatus() {
+  const { data } = await supabase.from('trial_teams').select('expires_at').eq('team_id', currentTeamId).maybeSingle();
+  if (!data) return;
+  isTrialTeam = true;
+
+  const diasRestantes = Math.max(0, Math.ceil((new Date(data.expires_at) - new Date()) / 86400000));
+  const banner = el('trial-banner');
+  banner.textContent = `Versão de teste — expira em ${diasRestantes} dia${diasRestantes === 1 ? '' : 's'}. Sem Wellness nem análise por IA; só é possível criar 1 jogo.`;
+  banner.hidden = false;
+
+  const wellnessTab = document.querySelector('.tab-btn[data-tab="wellness"]');
+  if (wellnessTab) wellnessTab.hidden = true;
+
+  // Não fazem sentido para quem entrou sem conta, só com o código: só têm
+  // esta equipa (não há outra para onde "trocar"), e "Sair" tem de os
+  // levar de volta a trial.html, não a login.html (não têm conta nenhuma).
+  el('btn-switch-team').hidden = true;
+}
 
 // ---------- Topo (indicador de equipa, sair, trocar de equipa) ----------
 
@@ -83,6 +120,14 @@ function wireAuthForm() {
   el('btn-sign-out').addEventListener('click', async () => {
     localStorage.removeItem('current_team_id');
     localStorage.removeItem('current_match_id');
+    if (isTrialTeam) {
+      // Não faz supabase.auth.signOut(): destruiria de vez a sessão anónima
+      // (não há conta nenhuma para lá voltar), e sem ela start_trial() deixa
+      // de conseguir devolver esta mesma equipa da próxima vez que entrares
+      // com o código — passavas sempre a começar uma equipa de teste nova.
+      window.location.href = 'trial.html';
+      return;
+    }
     await supabase.auth.signOut();
     window.location.href = 'login.html';
   });
@@ -154,6 +199,11 @@ function renderMatches() {
     body.appendChild(tr);
   });
   el('matches-empty').hidden = matchesCache.length > 0;
+  if (isTrialTeam) {
+    const limiteAtingido = matchesCache.length > 0;
+    el('novo-jogo-form').hidden = limiteAtingido;
+    el('novo-jogo-limite').hidden = !limiteAtingido;
+  }
   body.querySelectorAll('button[data-id]').forEach(btn => {
     btn.addEventListener('click', () => openMatch(btn.dataset.id));
   });
@@ -294,6 +344,9 @@ function generateLoginUsername(nome) {
 function accessCellHtml(p) {
   if (p.auth_user_id) {
     return `<span class="access-badge" title="Login criado">🔑 ${p.login_email || ''}</span>`;
+  }
+  if (isTrialTeam) {
+    return `<span class="hint" title="Indisponível na versão de teste">—</span>`;
   }
   if (creatingLoginForId === p.id) {
     return `
@@ -773,6 +826,7 @@ async function init() {
   if (teamError || !team) { window.location.href = 'teams.html'; return; }
   currentTeam = team;
   updateTeamIndicator();
+  await loadTrialStatus();
 
   wireAuthForm();
   wireTabs();
@@ -784,7 +838,7 @@ async function init() {
   wireImport();
 
   supabase.auth.onAuthStateChange((_event, newSession) => {
-    if (!newSession) window.location.href = 'login.html';
+    if (!newSession) window.location.href = isTrialTeam ? 'trial.html' : 'login.html';
   });
 
   await loadMatches();

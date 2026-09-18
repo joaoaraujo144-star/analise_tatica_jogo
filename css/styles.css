@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.41 (2026-09-15)
+ * Versão: 1.42 (2026-09-17)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -104,6 +104,10 @@
  *                        ".jornada-filters" — jornada + equipa — centrados por baixo);
  *                        ".link-open-btn" fica maior/mais destacado que
  *                        ".link-manage-btn" (abrir é a ação mais usada).
+ *   1.42 (2026-09-17) — ".player-form" passa a estilizar também
+ *                        input[type="number"] (usado no limite de usos de
+ *                        pages/trial-admin.html) e ganha a regra de largura
+ *                        "#new-code-max-usos".
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -531,7 +535,7 @@ button.action.danger-outline:hover { background: #2a1414; }
   gap: 16px;
 }
 .player-form { display: flex; gap: 8px; flex-wrap: wrap; }
-.player-form input[type="text"], .player-form input[type="date"], .player-form select {
+.player-form input[type="text"], .player-form input[type="date"], .player-form input[type="number"], .player-form select {
   background: #1c242c;
   border: 1px solid #333;
   color: #eee;
@@ -541,6 +545,7 @@ button.action.danger-outline:hover { background: #2a1414; }
 }
 .player-form input#roster-number { width: 60px; }
 .player-form input#roster-name, .player-form input#match-opponent, .player-form select#convocar-select { flex: 1; min-width: 120px; }
+.player-form input#new-code-max-usos { width: 100px; }
 
 .file-label {
   display: inline-flex;

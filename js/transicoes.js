@@ -6,12 +6,23 @@
  * numa conversa anterior. Agregação em js/relatorio-dados.js (partilhado
  * com relatorio.js); este ficheiro só desenha.
  *
- * Versão: 1.1 (2026-09-14)
+ * Versão: 1.4 (2026-09-17)
  * Histórico:
  *   1.0 (2026-09-14) — criação, com o tema escuro partilhado (css/styles.css).
  *   1.1 (2026-09-14) — cor do destaque "GOLO"/zona da grelha passa a var(--bad)/
  *                       var(--accent), a acompanhar o visual próprio novo de
  *                       pages/transicoes.html.
+ *   1.2 (2026-09-17) — botão "Gerar análise" fica escondido numa equipa de
+ *                       teste (trial_teams) — a Edge Function gerar-insights
+ *                       também recusa o pedido, isto só evita mostrar um botão
+ *                       que ia falhar.
+ *   1.3 (2026-09-17) — "Sair" numa equipa de teste leva a trial.html em vez de
+ *                       login.html (reaproveita a mesma verificação de
+ *                       trial_teams feita para o botão "Gerar análise").
+ *   1.4 (2026-09-17) — corrige "Sair" numa equipa de teste: deixa de chamar
+ *                       supabase.auth.signOut() (destruía a sessão anónima que
+ *                       liga a equipa de teste, impedindo start_trial() de a
+ *                       reconhecer da próxima vez).
  */
 
 import { supabase } from './supabase-client.js';
@@ -29,6 +40,7 @@ const TRACKER_LC = { faltas: 'faltas', perdas: 'perda de bola', remates: 'remate
 const currentTeamId = localStorage.getItem('current_team_id') || null;
 const currentMatchId = localStorage.getItem('current_match_id') || null;
 
+let isTrialTeam = false;
 let D = null;
 let defensivas, ofensivas, crossFavor, crossContra, faltasPerda, faltasGanho, contextoGolos;
 
@@ -270,9 +282,18 @@ async function init() {
   if (!currentTeamId) { window.location.href = 'teams.html'; return; }
   if (!currentMatchId) { window.location.href = 'dashboard.html'; return; }
 
+  const { data: trial } = await supabase.from('trial_teams').select('team_id').eq('team_id', currentTeamId).maybeSingle();
+  isTrialTeam = !!trial;
+
   el('btn-sign-out').addEventListener('click', async () => {
     localStorage.removeItem('current_team_id');
     localStorage.removeItem('current_match_id');
+    if (isTrialTeam) {
+      // Não faz supabase.auth.signOut(): destruiria de vez a sessão anónima,
+      // impedindo start_trial() de reconhecer esta equipa da próxima vez.
+      window.location.href = 'trial.html';
+      return;
+    }
     await supabase.auth.signOut();
     window.location.href = 'login.html';
   });
@@ -297,8 +318,17 @@ async function init() {
   renderGolosContexto();
   renderCrossSections();
   renderFaltaFunnels();
-  wireInsights();
-  await carregarInsightsCache();
+
+  // Equipas de teste (pages/trial.html, ver trial_teams) não têm acesso à
+  // análise por IA — a Edge Function também recusa o pedido, isto é só
+  // para não mostrar um botão que ia falhar.
+  if (isTrialTeam) {
+    el('btn-gerar-insights').hidden = true;
+    el('insights-status').textContent = 'Análise por IA indisponível na versão de teste.';
+  } else {
+    wireInsights();
+    await carregarInsightsCache();
+  }
 }
 
 init();

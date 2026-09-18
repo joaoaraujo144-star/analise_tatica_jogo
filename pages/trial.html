@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<!--
+  Análise de Jogo — pages/trial.html
+  Ecrã de entrada do modo de teste público: em vez de conta, pede um
+  código de acesso (trial_codes) e cria uma equipa de teste (1 jogo,
+  expira em 10 dias) através de login anónimo do Supabase + start_trial().
+  Lógica em ../js/trial.js.
+
+  Versão: 1.0 (2026-09-17)
+-->
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise de Jogo — Teste</title>
+<link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+  <h1 class="page-title">Análise de Jogo</h1>
+
+  <div class="auth-card" id="trial-screen">
+    <h2 class="tracker-title">Experimentar</h2>
+    <p class="hint">
+      Acesso de teste: dá para experimentar o registo ao vivo, a convocatória e os
+      relatórios (incluindo os gerados por IA) num jogo. Sem conta, sem Wellness — e a
+      equipa de teste apaga-se sozinha ao fim de 10 dias.
+    </p>
+    <div class="auth-form">
+      <input type="text" id="trial-code" placeholder="Código de acesso" autocomplete="off">
+      <div class="auth-actions">
+        <button class="action" id="btn-start-trial">Começar teste</button>
+      </div>
+      <p class="hint" id="trial-error"></p>
+    </div>
+  </div>
+
+<script type="module" src="../js/trial.js"></script>
+</body>
+</html>

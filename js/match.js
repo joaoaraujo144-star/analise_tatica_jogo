@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.40 (2026-09-14)
+ * Versão: 1.42 (2026-09-17)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -134,6 +134,13 @@
  *   1.40 (2026-09-14) — wireRelatoriosGerados(): dois botões novos na tab Relatórios
  *                        que abrem pages/relatorio.html / pages/transicoes.html
  *                        (navegação simples, os dois IDs já estão em localStorage).
+ *   1.41 (2026-09-17) — numa equipa de teste (trial_teams), "Trocar de equipa"
+ *                        fica escondido e "Sair" leva a trial.html em vez de
+ *                        login.html — mesma lógica já aplicada a dashboard.js.
+ *   1.42 (2026-09-17) — corrige "Sair" numa equipa de teste: deixa de chamar
+ *                        supabase.auth.signOut() (destruía a sessão anónima que
+ *                        liga a equipa de teste — sem ela, start_trial() deixava
+ *                        de a reconhecer e criava sempre uma equipa nova).
  */
 
 import { supabase } from './supabase-client.js';
@@ -160,6 +167,7 @@ let currentTeamId = localStorage.getItem('current_team_id') || null;
 let currentTeam = null;
 let currentMatchId = localStorage.getItem('current_match_id') || null;
 let currentMatch = null;
+let isTrialTeam = false;
 let rosterCache = [];
 let matchPlayersCache = [];
 let goalsCache = [];
@@ -408,9 +416,17 @@ function wireTopBar() {
   el('btn-sign-out').addEventListener('click', async () => {
     localStorage.removeItem('current_team_id');
     localStorage.removeItem('current_match_id');
+    if (isTrialTeam) {
+      // Não faz supabase.auth.signOut(): destruiria de vez a sessão anónima,
+      // impedindo start_trial() de reconhecer esta equipa da próxima vez.
+      window.location.href = 'trial.html';
+      return;
+    }
     await supabase.auth.signOut();
     window.location.href = 'login.html';
   });
+
+  if (isTrialTeam) el('btn-switch-team').hidden = true;
 
   el('btn-switch-team').addEventListener('click', () => {
     localStorage.removeItem('current_match_id');
@@ -1766,6 +1782,9 @@ async function init() {
   if (teamError || !team) { window.location.href = 'teams.html'; return; }
   currentTeam = team;
 
+  const { data: trial } = await supabase.from('trial_teams').select('team_id').eq('team_id', currentTeamId).maybeSingle();
+  isTrialTeam = !!trial;
+
   if (!currentMatchId) { window.location.href = 'dashboard.html'; return; }
   const { data: match, error: matchError } = await supabase
     .from('matches')
@@ -1793,7 +1812,7 @@ async function init() {
   applyLockState();
 
   supabase.auth.onAuthStateChange((_event, newSession) => {
-    if (!newSession) window.location.href = 'login.html';
+    if (!newSession) window.location.href = isTrialTeam ? 'trial.html' : 'login.html';
   });
 
   await loadRoster();

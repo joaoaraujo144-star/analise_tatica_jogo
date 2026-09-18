@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<!--
+  Análise de Jogo — pages/trial-admin.html
+  Painel de administração do modo de teste: criar/bloquear códigos de
+  acesso (trial_codes) e ver as equipas de teste ativas com os dias que
+  faltam para expirarem. Só para o treinador — protegida por um código
+  próprio (admin_access), diferente dos códigos dados ao público.
+  Lógica em ../js/trial-admin.js.
+
+  Versão: 1.2 (2026-09-17)
+  Histórico:
+    1.0 (2026-09-17) — criação.
+    1.1 (2026-09-17) — coluna extra na tabela de equipas de teste, com botão
+                        "Apagar" (admin_delete_trial_team()).
+    1.2 (2026-09-17) — coluna "Equipa" na tabela de códigos (1 código = 1
+                        equipa fixa, ver 033_trial_one_team_per_code.sql).
+-->
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Modo de Teste</title>
+<link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+  <h1 class="page-title">Admin — Modo de Teste</h1>
+
+  <div class="auth-card" id="code-screen">
+    <h2 class="tracker-title">Acesso</h2>
+    <div class="auth-form">
+      <input type="password" id="access-code" placeholder="Código de administração" autocomplete="off">
+      <div class="auth-actions">
+        <button class="action" id="btn-enter-code">Entrar</button>
+      </div>
+      <p class="hint" id="code-error"></p>
+    </div>
+  </div>
+
+  <div class="players-card" id="admin-screen" hidden>
+    <h2 class="tracker-title">Novo código de teste</h2>
+    <div class="player-form">
+      <input type="text" id="new-code-label" placeholder="Nota (ex: Clube X) — opcional">
+      <input type="text" id="new-code-value" placeholder="Código a partilhar">
+      <input type="number" id="new-code-max-usos" placeholder="Limite de usos (opcional)" min="1">
+      <button class="action" id="btn-create-code">Criar código</button>
+    </div>
+    <p class="hint" id="create-code-error"></p>
+  </div>
+
+  <div class="players-card" id="codes-card" hidden>
+    <h2 class="tracker-title">Códigos de teste</h2>
+    <div class="table-scroll">
+      <table class="players-table">
+        <thead><tr><th>Nota</th><th>Equipa</th><th>Estado</th><th>Usos</th><th>Criado</th><th></th></tr></thead>
+        <tbody id="codes-body"></tbody>
+      </table>
+    </div>
+    <p class="hint" id="codes-empty">Ainda não criaste nenhum código.</p>
+  </div>
+
+  <div class="players-card" id="teams-card" hidden>
+    <h2 class="tracker-title">Equipas de teste ativas</h2>
+    <p class="hint">Apagam-se sozinhas (com todos os dados) quando expiram — a limpeza corre uma vez por dia.</p>
+    <div class="table-scroll">
+      <table class="players-table">
+        <thead><tr><th>Equipa</th><th>Código usado</th><th>Jogos</th><th>Expira em</th><th></th></tr></thead>
+        <tbody id="teams-body"></tbody>
+      </table>
+    </div>
+    <p class="hint" id="teams-empty">Nenhuma equipa de teste ativa neste momento.</p>
+  </div>
+
+<script type="module" src="../js/trial-admin.js"></script>
+</body>
+</html>

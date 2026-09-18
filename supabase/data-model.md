@@ -7,7 +7,7 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.19 (2026-09-15)
+  Versão: 1.24 (2026-09-17)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
@@ -53,6 +53,25 @@
                          por jogo); competition_matches.video_url fica obsoleta.
                          competition_set_links() é substituída por
                          competition_set_zerozero_link() (só o link do ZeroZero).
+    1.20 (2026-09-17) — novas tabelas trial_codes (vários códigos, geríveis à
+                         parte)/trial_teams: modo de teste público (login anónimo +
+                         código, via start_trial()) — uma equipa normal com um
+                         limite de 1 jogo (trigger em matches) e prazo de 10 dias
+                         (limpeza automática via pg_cron).
+    1.21 (2026-09-17) — start_trial() passa a devolver a equipa de teste já
+                         existente da sessão atual (se não tiver expirado), em
+                         vez de criar sempre uma equipa nova.
+    1.22 (2026-09-17) — nova tabela admin_access + funções admin_*: painel
+                         pages/trial-admin.html (só o treinador) para criar/
+                         bloquear códigos de trial_codes e ver as equipas de
+                         teste ativas com os dias até expirarem.
+    1.23 (2026-09-17) — admin_delete_trial_team(): apagar manualmente uma
+                         equipa de teste no painel, sem esperar 10 dias.
+    1.24 (2026-09-17) — corrige o modelo do modo de teste: trial_codes ganha
+                         "team_id" — 1 código liga-se para sempre à mesma
+                         equipa (criada na 1ª vez que é usado), em vez de criar
+                         uma equipa nova a cada uso; "usos"/"max_usos" passam a
+                         contar dispositivos/sessões diferentes na mesma equipa.
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -92,6 +111,9 @@ erDiagram
   TEAMS ||--o{ REPORT_INSIGHTS : "team_id"
   MATCHES ||--o{ REPORT_INSIGHTS : "match_id"
   COMPETITION_MATCHES ||--o{ COMPETITION_MATCH_VIDEOS : "match_id"
+  TEAMS ||--o| TRIAL_TEAMS : "team_id"
+  TRIAL_CODES ||--o{ TRIAL_TEAMS : "trial_code_id (opcional)"
+  TEAMS ||--o| TRIAL_CODES : "team_id (opcional, 1 código = 1 equipa)"
 
   USERS {
     uuid id PK
@@ -259,6 +281,30 @@ erDiagram
   }
 
   COMPETITION_ACCESS {
+    int id PK
+    text code_hash
+  }
+
+  TRIAL_TEAMS {
+    uuid team_id PK
+    uuid trial_code_id FK
+    timestamptz expires_at
+    timestamptz created_at
+  }
+
+  TRIAL_CODES {
+    uuid id PK
+    text label
+    text code_hash
+    uuid team_id FK
+    int max_usos
+    int usos
+    boolean ativo
+    timestamptz created_at
+  }
+
+  %% Sem relação com as outras tabelas — só dá acesso a pages/trial-admin.html.
+  ADMIN_ACCESS {
     int id PK
     text code_hash
   }
@@ -483,6 +529,51 @@ Uma única linha (`id` sempre `1`) com o hash (bcrypt, via `pgcrypto`) do códig
 | `code_hash` | text | sim | `crypt(codigo, gen_salt('bf'))`; troca-se com um `update` direto no SQL Editor |
 
 **Acesso por código (sem login):** ao contrário de todas as outras tabelas, `competition_matches`, `competition_match_videos` e `competition_access` têm RLS ativa **sem nenhuma policy** — nem `anon` nem `authenticated` lhes tocam diretamente (nem `select`). Todo o acesso passa por funções `security definer` (executam como o dono do schema) que validam o código com `crypt()` antes de ler/escrever: `competition_list_matches(p_code)`, `competition_list_videos(p_code)`, `competition_add_video_link(p_code, p_match_id, p_url)`, `competition_delete_video_link(p_code, p_link_id)`, `competition_set_zerozero_link(p_code, p_id, p_url)` — ver `supabase/migrations/027_competition_calendar.sql`/`028_competition_video_links.sql`.
+
+### `trial_codes`
+Vários códigos de acesso ao modo de teste público, geríveis à parte (ex: um por clube/pessoa) — ao contrário de `competition_access`/`trial_access` (versão anterior), não é uma linha única.
+
+| Coluna | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | uuid | sim (PK) | |
+| `label` | text | não | nota livre do treinador, para saber a quem deu este código (ex: `'Demo LinkedIn'`) — nunca mostrada a quem usa o código |
+| `code_hash` | text | sim | `crypt(codigo, gen_salt('bf'))` |
+| `team_id` | uuid | não (FK → `teams`, `on delete set null`) | **1 código = 1 equipa fixa**: fica `null` até à 1ª vez que o código é usado; a partir daí, todas as entradas com o mesmo código devolvem sempre esta equipa (nunca criam outra) |
+| `max_usos` | int | não | `check (max_usos > 0)`; `null` = sem limite. Conta **dispositivos/sessões diferentes** que já se juntaram à equipa deste código — não tem nada a ver com dias nem com o número de jogos |
+| `usos` | int | sim (default `0`) | incrementado por `start_trial()` só quando um `auth.uid()` novo se junta à equipa (voltar a entrar com uma sessão já membro não conta) |
+| `ativo` | boolean | sim (default `true`) | desativar em vez de apagar preserva o histórico em `trial_teams.trial_code_id` |
+| `created_at` | timestamptz | sim | |
+
+### `trial_teams`
+Marca uma linha de `teams` como equipa de teste (criada por `start_trial()`), com prazo de expiração. Uma equipa de teste é, em tudo o resto, uma equipa normal — mesma RLS baseada em `team_members`, mesmas páginas.
+
+| Coluna | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `team_id` | uuid | sim (PK, FK → `teams`, `on delete cascade`) | |
+| `trial_code_id` | uuid | não (FK → `trial_codes`, `on delete set null`) | qual código gerou esta equipa — só para consulta/estatística, nunca usado em controlo de acesso |
+| `expires_at` | timestamptz | sim | `now() + 10 dias`, definido em `start_trial()` |
+| `created_at` | timestamptz | sim | |
+
+Só uma policy, `trial_teams_team_member` (`for select`, exige `team_members`) — um membro da equipa vê o prazo (para o aviso "expira em N dias" e para esconder Wellness/IA no cliente), mas nunca escreve aqui diretamente. **Acesso e ciclo de vida:**
+- `start_trial(p_code)` (`security definer`) procura em `trial_codes` um código ativo cujo hash bata com `p_code` (`for update`, para duas sessões a entrar no mesmo instante não duplicarem a criação). Se `trial_codes.team_id` já estiver definido, junta a sessão atual a essa equipa como `membro` (se ainda não for, e se `usos < max_usos`) e devolve-a sempre — nunca cria outra. Se for a 1ª vez, cria a equipa (`teams`), o `owner` (`team_members`) e a linha em `trial_teams`, e liga o código a ela (`trial_codes.team_id`). Chamada por um utilizador já autenticado (login anónimo do Supabase, `supabase.auth.signInAnonymously()`), nunca pelo `anon` role diretamente.
+- Um trigger em `matches` (`enforce_trial_one_match()`) recusa um 2º jogo se `team_id` estiver em `trial_teams` — reforçado na base de dados, não só escondido na interface.
+- Um job `pg_cron` diário (`cleanup_expired_trials()`) apaga de `teams` todas as equipas cujo `trial_teams.expires_at` já passou — o `on delete cascade` de cada tabela trata sozinho de limpar jogadores, jogos, eventos, golos, etc., sem nada ficar órfão.
+- Ver `supabase/migrations/029_trial_mode.sql`.
+
+### `admin_access`
+Uma única linha (`id` sempre `1`) com o hash do código de administração do modo de teste — dá acesso a `pages/trial-admin.html` (só o treinador, nunca partilhado com o público). Mesmo padrão de `competition_access`/`trial_access` (versão inicial do modo de teste).
+
+| Coluna | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | int | sim (PK, sempre `1`) | `check (id = 1)` |
+| `code_hash` | text | sim | `crypt(codigo, gen_salt('bf'))` — não vem nenhum por omissão, define-se ao correr `supabase/migrations/031_trial_admin.sql` |
+
+Sem nenhuma policy, de propósito — só as funções abaixo (`security definer`) lhe tocam, depois de validar o código:
+- `admin_list_trial_codes(p_code)` — devolve todos os `trial_codes`.
+- `admin_create_trial_code(p_code, p_label, p_new_code, p_max_usos)` — cria um código novo.
+- `admin_set_trial_code_active(p_code, p_id, p_ativo)` — bloqueia/reativa um código sem o apagar.
+- `admin_list_trial_teams(p_code)` — devolve as equipas de teste ainda não expiradas, com o `label` do código que as criou e quantos jogos já têm (junta `trial_teams`+`teams`+`trial_codes`, algo que a policy `trial_teams_team_member` normal não permitiria a partir de fora de cada equipa).
+- `admin_delete_trial_team(p_code, p_team_id)` — apaga uma equipa de teste na hora, em vez de esperar pelos 10 dias/`pg_cron`; o `delete ... where id = p_team_id and id in (select team_id from trial_teams)` garante que só apaga equipas marcadas como de teste, nunca uma equipa normal, mesmo com privilégios de `security definer`. Repõe também `trial_codes.team_id`/`usos` a zero, para o código voltar a ficar "por estrear" (a próxima vez que for usado cria uma equipa nova).
 
 ### `events_normalizado` (view, não tabela)
 Junta `events` com `matches` e roda 180º (`100 - x_pct`, `100 - y_pct`) os pontos da parte cuja orientação de ataque não é a de referência (`E-D`), para que a 1ª e a 2ª parte fiquem representadas no mesmo sentido de ataque.

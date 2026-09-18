@@ -9,7 +9,7 @@
   (tabelas/colunas), ver supabase/data-model.md; para funcionalidades e
   setup, ver o README.md.
 
-  Versão: 1.36 (2026-09-15)
+  Versão: 1.45 (2026-09-17)
   Histórico:
     1.0 (2026-07-14) — criação.
     1.1 (2026-07-15) — popup de escolha de jogador após o clique, no Registo de Jogo.
@@ -128,6 +128,42 @@
                          links por jogo (nova tabela competition_match_videos) — ver
                          "Calendário do campeonato" e "Popup de gestão de links" na
                          secção de padrões de código.
+    1.37 (2026-09-17) — modo de teste público (pages/trial.html, ainda por criar):
+                         3º tipo de utilizador, via login anónimo do Supabase +
+                         código (start_trial()) — cria uma equipa normal, com um
+                         limite de 1 jogo e prazo de 10 dias. Ver "Modo de teste
+                         público" em Modelo de segurança.
+    1.38 (2026-09-17) — start_trial() passa a validar contra vários códigos
+                         possíveis (trial_codes, cada um com "label"/"max_usos"/
+                         "ativo" próprios), não um código único partilhado.
+    1.39 (2026-09-17) — pages/trial.html criada: entra no mapa de navegação como
+                         ponto de entrada alternativo a login.html/teams.html
+                         (leva a dashboard.html), nunca um destino de volta.
+    1.40 (2026-09-17) — restrições de uma equipa de teste aplicadas: tab Wellness
+                         e "Criar login" escondidos (dashboard.js), botão "Gerar
+                         análise" escondido (relatorio.js/transicoes.js) e
+                         recusado (403) na Edge Function gerar-insights via
+                         claim "is_anonymous" do JWT — sem depender de nenhum
+                         team_id enviado pelo cliente.
+    1.41 (2026-09-17) — numa equipa de teste, "Trocar de equipa" fica escondido e
+                         "Sair" leva a trial.html em vez de login.html (dashboard.js).
+    1.42 (2026-09-17) — corrige "Sair" numa equipa de teste: deixa de chamar
+                         supabase.auth.signOut() (destruía a sessão anónima,
+                         impedindo start_trial() de reconhecer a equipa da
+                         próxima vez) — ver "Sair sem destruir a sessão" em
+                         Modelo de segurança.
+    1.43 (2026-09-17) — nova página pages/trial-admin.html: painel só para o
+                         treinador (código próprio, admin_access) para criar/
+                         bloquear códigos de teste e ver as equipas de teste
+                         ativas com os dias até expirarem. Ver "Painel de
+                         administração do teste" em Modelo de segurança.
+    1.44 (2026-09-17) — admin_delete_trial_team(): botão "Apagar" por equipa de
+                         teste no painel, sem esperar 10 dias.
+    1.45 (2026-09-17) — corrige o modelo do modo de teste: 1 código passa a
+                         ligar-se para sempre à mesma equipa (trial_codes.team_id),
+                         em vez de criar uma equipa nova a cada uso — o desenho
+                         inicial (1.30) estava errado. "usos"/"max_usos" passam a
+                         contar dispositivos/sessões diferentes na mesma equipa.
 -->
 
 # Arquitetura — Análise de Jogo
@@ -175,10 +211,12 @@ flowchart LR
   TR["pages/transicoes.html<br/>(Transições e Cruzamentos gerado)"]
   J["pages/jogador.html<br/>(questionário de wellness)"]
   W["pages/wellness-jogador.html<br/>(gráficos + edição, um jogador)"]
+  TP["pages/trial.html<br/>(entrar sem conta, com código)"]
 
   L -->|"sessão válida (treinador)"| T
   L -->|"sessão válida (jogador)"| J
   T -->|abrir equipa| D
+  TP -->|"código válido → equipa de teste"| D
   D -->|abrir jogo| M
   M -->|"Ver Relatório Geral"| R
   M -->|"Ver Transições e Cruzamentos"| TR
@@ -192,6 +230,7 @@ flowchart LR
   W -->|"Trocar de equipa"| T
   T -->|"Sair"| L
   D -->|"Sair"| L
+  D -->|"Sair (equipa de teste)"| TP
   M -->|"Sair"| L
   R -->|"Sair"| L
   TR -->|"Sair"| L
@@ -203,11 +242,14 @@ Cada página valida os pré-requisitos antes de se mostrar, e redireciona "para 
 
 `pages/calendario-jogos.html` fica de fora deste mapa por completo: não tem nenhuma ligação de/para as páginas acima, não usa Supabase Auth, e não depende de `current_team_id`/`current_match_id`. É acedida diretamente pelo URL e protegida por um código de acesso em vez de login — ver "Acesso por código (sem login)" em [Modelo de segurança](#modelo-de-segurança).
 
+`pages/trial.html` já entra no mapa (leva a `dashboard.html`, exatamente como `teams.html`), mas só nesse sentido — é um ponto de entrada alternativo a `login.html`/`teams.html`. Numa equipa de teste, "Sair" leva de volta a `trial.html` (não a `login.html` — não há conta nenhuma para lá entrar), e "Trocar de equipa" fica escondido (só têm a equipa de teste, não há para onde trocar) — ver a verificação de `isTrialTeam` em `dashboard.js`.
+
 ## Autenticação e sessão
 
-Há **dois tipos de utilizador**, ambos autenticados da mesma forma (Supabase Auth, email + palavra-passe), mas com vistas completamente diferentes:
-- **Treinador/adjunto**: cria a própria conta em `login.html`, junta-se a uma equipa (`team_members`) e usa `teams.html`/`dashboard.html`/`match.html`.
+Há **três tipos de utilizador**, com vistas completamente diferentes:
+- **Treinador/adjunto**: cria a própria conta em `login.html` (Supabase Auth, email + palavra-passe), junta-se a uma equipa (`team_members`) e usa `teams.html`/`dashboard.html`/`match.html`.
 - **Jogador**: não cria a própria conta — o treinador cria o login por ele, na tab Plantel de `dashboard.html` (ver [Padrões de código](#padrões-de-código-usados-em-várias-páginas)). Fica associado a uma linha em `players` via `auth_user_id`, e só vê `jogador.html`.
+- **Teste público** (`pages/trial.html`): entra com um código em vez de conta — o browser faz `supabase.auth.signInAnonymously()` (sessão real, `auth.uid()` funciona normalmente) e depois `start_trial(codigo)` dá-lhe acesso à equipa **fixa** desse código (cria-a na 1ª vez que o código é usado; da 2ª vez em diante devolve sempre a mesma, mesmo de outro dispositivo/sessão). Usa `dashboard.html`/`match.html` como qualquer treinador, só que a equipa tem um limite de 1 jogo e um prazo de 10 dias — ver "Modo de teste público" em [Modelo de segurança](#modelo-de-segurança).
 
 - **Login/registo** (`js/login.js`): `supabase.auth.signInWithPassword` / `supabase.auth.signUp`, com validação simples de campos não vazios no cliente (evita cair no fluxo de login anónimo do Supabase quando os campos ficam em branco). Depois de entrar, verifica se a conta está associada a um jogador (`players.auth_user_id`) — se estiver, redireciona para `jogador.html`; senão, para `teams.html` (fluxo do treinador).
 - **Persistência de sessão**: gerida inteiramente pelo `supabase-js` (guarda o token no `localStorage` do browser, sob as suas próprias chaves — não confundir com as chaves de estado da app descritas abaixo). Não há gestão manual de tokens no código da app.
@@ -252,6 +294,8 @@ Este padrão (validar de fora para dentro: sessão → equipa → jogo) repete-s
 - **Storage** (bucket `team-logos`, público para leitura): upload/substituição de um emblema só é permitido a membros da equipa dona desse emblema, validado pelo caminho do ficheiro (`<team_id>/...`) contra `team_members`.
 - **Chave anon pública**: é suposto ser pública (fica no código-fonte, em `js/supabase-client.js`); a segurança nunca depende de a esconder, só das políticas RLS acima.
 - **Acesso por código (sem login)** — `pages/calendario-jogos.html`: única página sem Supabase Auth. `competition_matches`/`competition_match_videos`/`competition_access` têm RLS ativa **sem nenhuma policy** (nem para `anon`, nem para `authenticated` — ninguém lhes toca diretamente, nem com `select`). O único acesso possível é através de funções `security definer` (`competition_list_matches`, `competition_list_videos`, `competition_add_video_link`, `competition_delete_video_link`, `competition_set_zerozero_link`) que comparam `p_code` (hash bcrypt, `crypt()` do `pgcrypto`) contra `competition_access.code_hash` e só devolvem/alteram dados se bater certo — ver `supabase/migrations/027_competition_calendar.sql`/`028_competition_video_links.sql`. `calendario-jogos.js` guarda o código validado em `localStorage` (chave `competition_access_code`) só por conveniência (evitar repetir o código a cada visita); a segurança real está inteiramente do lado do Postgres, não do cliente. **Gotcha de `search_path`**: as funções definem `set search_path = public, extensions` (não só `public`) — em muitos projetos Supabase o `pgcrypto` (`crypt()`/`gen_salt()`) vive no schema `extensions`, não em `public`; esquecer o `extensions` aqui dá `function crypt(text, text) does not exist` mesmo com a extensão instalada.
+- **Modo de teste público** — `pages/trial.html`: diferente do ponto anterior, aqui **há** sessão (login anónimo do Supabase, `supabase.auth.signInAnonymously()`), só não há conta/palavra-passe. **1 código = 1 equipa fixa**, não uma equipa nova a cada uso: `start_trial(p_code)` (`security definer`) procura em `trial_codes` (vários códigos possíveis, geríveis à parte — não uma linha única como `competition_access`) um código ativo cujo hash bata com `p_code` (`for update`, para duas sessões a entrar no mesmo instante não passarem ambas pelo mesmo caminho de criação). Se `trial_codes.team_id` já estiver definido (código já usado antes), junta a sessão atual a essa equipa como `membro` (se ainda não for) e devolve-a sempre — nunca cria outra, mesmo de um dispositivo/browser totalmente diferente. Se for a 1ª vez que o código é usado, cria a equipa **normal** (`teams`+`team_members`, owner = `auth.uid()` da sessão anónima), uma linha em `trial_teams` com `expires_at = now() + 10 dias`, e liga o código a essa equipa (`trial_codes.team_id`) para todas as próximas entradas caírem ali. `usos`/`max_usos` contam quantos dispositivos/sessões diferentes já se juntaram à equipa (uma sessão que volta a entrar, já sendo membro, não consome nenhum uso) — não têm nada a ver com os 10 dias, que são sempre fixos por equipa. A partir daí a equipa de teste é indistinguível de qualquer outra para efeitos de RLS — usa `dashboard.html`/`match.html` sem nenhuma alteração ao modelo de segurança. Duas garantias adicionais, ambas na base de dados (não só na interface): um trigger em `matches` (`enforce_trial_one_match()`) recusa um 2º jogo se `team_id` estiver em `trial_teams`; e um job `pg_cron` diário (`cleanup_expired_trials()`) apaga de `teams` as equipas cujo prazo já passou, limpando tudo em cascata (`on delete cascade` já existente em cada tabela). `trial_teams_team_member` é a única policy de `trial_teams` (`for select`), para o cliente saber que está numa equipa de teste e quanto falta — ver `supabase/migrations/029_trial_mode.sql`/`033_trial_one_team_per_code.sql`. **Restrições da equipa de teste** (`dashboard.js`/`relatorio.js`/`transicoes.js`, verificadas com `select ... from trial_teams where team_id = ...`): tab Wellness escondida, "Criar login" (Plantel) substituído por um traço, e "Novo Jogo" esconde-se assim que já existe 1 jogo (o limite a sério é o trigger, isto só evita mostrar um formulário que ia falhar). **A análise por IA é bloqueada em dois sítios**: no cliente (botão "Gerar análise" escondido) e, mais importante, na própria Edge Function `gerar-insights` — que lê o claim `is_anonymous` do JWT já verificado pelo Supabase e recusa (403) qualquer pedido de uma conta anónima, sem precisar de saber `team_id` nem consultar a base de dados (toda a conta do modo de teste é anónima por construção). Isto significa que alterações a essa função só fazem efeito depois de `supabase functions deploy gerar-insights`. **"Sair" sem destruir a sessão**: os quatro "Sair" (`dashboard.js`/`match.js`/`relatorio.js`/`transicoes.js`) já não chamam `supabase.auth.signOut()` numa equipa de teste — só limpam `current_team_id`/`current_match_id` e voltam a `trial.html`. Não é indispensável para a continuidade (o código já resolve sempre para a mesma equipa, mesmo com uma sessão nova), mas evita que "sair e voltar a entrar" no mesmo dispositivo conte como mais um "uso" (uma sessão anónima nova seria sempre um membro novo, gastando um lugar de `max_usos` sem ser realmente outra pessoa).
+- **Painel de administração do teste** — `pages/trial-admin.html`: só para o treinador, nunca partilhada com o público. Protegida por um código próprio (`admin_access`), diferente dos códigos que o treinador dá a quem experimenta a app (`trial_codes`) — mesmo padrão de `competition_access`/`trial_codes` (RLS sem nenhuma policy, só funções `security definer` tocam nas tabelas). `admin_list_trial_codes`/`admin_create_trial_code`/`admin_set_trial_code_active` gerem `trial_codes` (criar, bloquear/reativar sem apagar — preserva o histórico em `trial_teams.trial_code_id`); `admin_list_trial_teams` junta `trial_teams`+`teams`+`trial_codes` para mostrar cada equipa de teste ativa, qual código a criou, quantos jogos já tem, e quanto falta para `expires_at` — algo que a policy `trial_teams_team_member` (por equipa) não permite a partir de fora de cada equipa. Não corre nenhum código de exemplo nesta migração: o painel fica inacessível (nem o próprio treinador entra) até se definir um código com um `insert`/`update` direto em `admin_access` — ver `supabase/migrations/031_trial_admin.sql`. `admin_delete_trial_team(p_code, p_team_id)` (`supabase/migrations/032_trial_admin_delete.sql`) apaga uma equipa de teste na hora, sem esperar pelos 10 dias/`pg_cron` — o `where id in (select team_id from trial_teams)` garante que só apaga equipas marcadas como de teste, nunca uma equipa normal; repõe também `trial_codes.team_id`/`usos` a zero, para o código voltar a ficar "por estrear" (a próxima vez que for usado cria uma equipa nova).
 
 ## Padrões de código usados em várias páginas
 

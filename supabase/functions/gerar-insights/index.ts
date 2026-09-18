@@ -16,7 +16,19 @@
 //   supabase functions deploy gerar-insights
 //   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 //
-// Versão: 1.0 (2026-09-14)
+// Versão: 1.1 (2026-09-17)
+// Histórico:
+//   1.0 (2026-09-14) — criação.
+//   1.1 (2026-09-17) — recusa pedidos de contas anónimas (modo de teste
+//                       público, ver supabase/migrations/029_trial_mode.sql):
+//                       toda a conta criada via pages/trial.html é anónima
+//                       por construção (signInAnonymously()), por isso basta
+//                       ler o claim "is_anonymous" do JWT já verificado pelo
+//                       Supabase — sem precisar de saber team_id nem consultar
+//                       a base de dados. relatorio.js/transicoes.js já
+//                       escondem o botão "Gerar análise" nesse caso; isto é
+//                       o reforço do lado do servidor, para nunca pagar a
+//                       API da Claude a partir de uma chamada direta à função.
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
 const ANTHROPIC_MODEL = 'claude-sonnet-5';
@@ -43,6 +55,22 @@ Regras obrigatórias:
 Devolve APENAS um array JSON válido, sem markdown à volta, no formato:
 [{ "level": "good" | "info" | "concern" | "bad", "badge": "Rótulo curto", "text": "Frase(s) do insight." }]`;
 
+// O Supabase já verificou a assinatura do JWT antes de o pedido chegar
+// aqui (verify_jwt, por omissão) — só falta ler o claim "is_anonymous" do
+// payload para saber se é uma conta de teste (pages/trial.html).
+function isAnonymousRequest(req: Request): boolean {
+  const auth = req.headers.get('Authorization') || '';
+  const token = auth.replace(/^Bearer\s+/i, '');
+  const payloadB64 = token.split('.')[1];
+  if (!payloadB64) return false;
+  try {
+    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+    return payload.is_anonymous === true;
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: CORS_HEADERS });
@@ -50,6 +78,11 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Método não permitido.' }), {
       status: 405, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+  }
+  if (isAnonymousRequest(req)) {
+    return new Response(JSON.stringify({ error: 'Análise por IA indisponível na versão de teste.' }), {
+      status: 403, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });
   }
   if (!ANTHROPIC_API_KEY) {
