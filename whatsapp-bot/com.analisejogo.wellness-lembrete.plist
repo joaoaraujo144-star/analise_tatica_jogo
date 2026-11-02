@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Análise de Jogo — whatsapp-bot/com.analisejogo.wellness-lembrete.plist
+  Template de LaunchAgent do macOS: mantém whatsapp-bot/index.mjs sempre a
+  correr (reinicia sozinho se rebentar, ou quando o Mac reinicia). Ver
+  "Correr sempre ligado (launchd)" em whatsapp-bot/README.md para instalar.
+
+  O caminho de "node" abaixo é o deste Mac (confirmado com "which node");
+  confirma no teu se fores copiar isto para outra máquina.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.analisejogo.wellness-lembrete</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>--env-file=.env</string>
+    <string>index.mjs</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/joaoaraujo/AnaliseJogo/whatsapp-bot</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/joaoaraujo/AnaliseJogo/whatsapp-bot/bot.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/joaoaraujo/AnaliseJogo/whatsapp-bot/bot.error.log</string>
+</dict>
+</plist>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Análise de Jogo — whatsapp-bot/com.analisejogo.wellness-lembrete-watchdog.plist
+  Corre watchdog.sh a cada 2 minutos: mata o processo principal
+  (com.analisejogo.wellness-lembrete) se bot.log ficar sem atualizações
+  por mais de 4 minutos — sinal de que ficou preso, sem nunca crashar
+  sozinho (já aconteceu mais do que uma vez). O launchd do processo
+  principal (KeepAlive: true) reinicia-o sozinho a seguir.
+
+  O caminho de "bash" abaixo é o deste Mac; confirma no teu se fores
+  copiar isto para outra máquina.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.analisejogo.wellness-lembrete-watchdog</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/joaoaraujo/AnaliseJogo/whatsapp-bot/watchdog.sh</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>120</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/joaoaraujo/AnaliseJogo/whatsapp-bot/watchdog-launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/joaoaraujo/AnaliseJogo/whatsapp-bot/watchdog-launchd.error.log</string>
+</dict>
+</plist>

@@ -1,0 +1,15 @@
+{
+  "name": "analise-jogo-whatsapp-bot",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Bot local (não-oficial, fora do site) que posta no grupo de WhatsApp da equipa quantos jogadores já responderam ao Wellness de hoje, às 10h/12h30.",
+  "scripts": {
+    "start": "node index.mjs",
+    "list-groups": "node list-groups.mjs"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.9",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
