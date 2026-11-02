@@ -30,8 +30,8 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/*
   - **Jogador (opcional)**: depois de marcares um ponto, aparece um popup junto ao clique com números de camisola dos jogadores atualmente em campo (titulares que não saíram + suplentes que já entraram — não os 18/20 convocados todos), para dizeres opcionalmente quem fez a ação. O ponto já ficou gravado antes disso, por isso ignorar o popup não trava o ritmo de quem está a apontar ao vivo. Fecha ao tocar num número, ao tocar fora, ou automaticamente no clique seguinte. O que ficar por atribuir corrige-se depois — na própria tabela de registo de cada campo (durante o jogo) ou na secção "Registo de Jogo normalizado" dos Relatórios (depois de terminar).
 - **Relatórios**, em dois níveis:
   - Na página de um jogo: estatísticas só dos convocados desse jogo. Quando o jogo termina, aparece também o **Registo de Jogo normalizado**: os pontos da 1ª e 2ª parte juntos, rodados 180º conforme a orientação de ataque de cada parte, para ficarem representados no mesmo sentido de ataque. Cada campo tem um botão para trocar entre a vista de **Pontos** (marcadores individuais) e **Mapa de Calor** (grelha 6×4 sobre o campo, mais intensa onde há mais eventos — pensada para funcionar bem mesmo com poucos pontos por jogo), com um segundo seletor para escolher qual dos dois tipos (ex: "A Favor"/"Contra", "Ganhos"/"Perdas") mostrar de cada vez — misturá-los não faria sentido. A zona de cada ponto (para o mapa de calor) é calculada na base de dados, não no browser, para poder ser consultada diretamente por SQL no futuro. Um botão **"Exportar relatório (PDF)"** abre a vista de impressão do browser (guardar como PDF) já só com a tab Relatórios, mostrando sempre os dois mapas de calor (ex: "Ganhos" e "Perdas") lado a lado por campo, independentemente do que estiver escolhido no ecrã.
-  - No dashboard da equipa: totais agregados por jogador (jogos, golos, assistências, cartões) ao longo de **todos** os jogos da equipa, exceto os marcados como **Pré-época**.
-  - **Dois relatórios gerados** (botões "Ver Relatório Geral" / "Ver Transições e Cruzamentos" na tab Relatórios de um jogo): domínio por métrica, evolução por parte e por momento, distribuição por zona do campo (grelha 4×3), resumo por bloco de 15 min e por jogador (Relatório Geral); funis de transição defensiva/ofensiva, remates provenientes de cruzamento, e faltas provocadas por perda/ganho de bola com a zona onde caíram (Transições) — mais uma análise em prosa por botão ("Gerar análise"), escrita pela API da Claude a partir dos números já calculados no browser (nunca dados em bruto) através de uma Edge Function do Supabase, e guardada em cache (`report_insights`) para não voltar a chamar a API sempre que o relatório é reaberto. Ver "Relatórios gerados por IA" abaixo para configurar.
+  - No dashboard da equipa: totais agregados por jogador (jogos convocados vs jogos jogados, minutos jogados, golos, assistências, cartões) ao longo de **todos** os jogos da equipa, exceto os marcados como **Pré-época**.
+  - **Dois relatórios gerados** (botões "Ver Relatório Geral" / "Ver Transições e Cruzamentos" na tab Relatórios de um jogo): domínio por métrica, evolução por parte e por momento, distribuição por zona do campo (grelha 4×3), resumo por bloco de 15 min e por jogador (com minutos jogados nesse jogo, Relatório Geral); funis de transição defensiva/ofensiva, remates provenientes de cruzamento, e faltas provocadas por perda/ganho de bola com a zona onde caíram (Transições) — mais uma análise em prosa por botão ("Gerar análise"), escrita pela API da Claude a partir dos números já calculados no browser (nunca dados em bruto) através de uma Edge Function do Supabase, e guardada em cache (`report_insights`) para não voltar a chamar a API sempre que o relatório é reaberto. Ver "Relatórios gerados por IA" abaixo para configurar.
 - **Histórico de ações**: cada clique na convocatória (cartões, assistências, golos, estado, substituição — incluindo quando desligas/subtrais algo) fica registado com data e hora, tal como já acontecia com cada coordenada marcada no Registo de Jogo.
 - **Exportação CSV**: descarrega um único ficheiro com todos os dados do jogo atualmente selecionado — jogadores convocados, os golos marcados e sofridos (minuto, marcador quando há, e a cadeia de eventos que lhes deu origem), todos os cliques dos 5 campos (cada um com uma coluna "Golo", a indicar a que golo esse clique está ligado, se estiver), e o histórico de ações com data/hora.
 - **Importação de dados locais**: se existirem dados de uma versão anterior (guardados no `localStorage` do browser), a app oferece um botão para os importar como um novo jogo da equipa atual.
@@ -100,7 +100,7 @@ docs/
 supabase/
   schema.sql                Esquema completo — para configurar um projeto Supabase novo de raiz.
   data-model.md             Logical Data Model: diagrama de entidades/relações + dicionário de dados.
-  migrations/               Migrações incrementais, por ordem (001 a 023) — só necessárias em
+  migrations/               Migrações incrementais, por ordem (001 a 034) — só necessárias em
                              projetos já existentes, correr uma vez cada uma, por esta ordem:
                              001_teams, 002_team_logos, 003_substituicao, 004_amarelo2,
                              005_player_events, 006_partes, 007_orientacao, 008_events_parte,
@@ -113,7 +113,7 @@ supabase/
                              026_matches_pre_epoca, 027_competition_calendar,
                              028_competition_video_links, 029_trial_mode,
                              030_trial_resume, 031_trial_admin, 032_trial_admin_delete,
-                             033_trial_one_team_per_code.
+                             033_trial_one_team_per_code, 034_match_players_minutos.
   functions/
     gerar-insights/index.ts  Edge Function (Deno): gera a análise em prosa dos relatórios
                               Geral/Transições via API da Claude — ver "Relatórios gerados
@@ -368,3 +368,14 @@ git push
 ```
 
 Fica disponível em `https://joaoaraujo144-star.github.io/analise_tatica_jogo/` cerca de 1 minuto depois.
+
+## Bot de WhatsApp — resumo do Wellness no grupo da equipa
+
+`whatsapp-bot/` é uma ferramenta à parte do site (não faz deploy, corre só
+localmente, sempre ligada num Mac) que posta no grupo de WhatsApp da
+equipa, nas horas configuradas (`HORAS_ENVIO` no `.env`, por omissão
+10h/12h30), quantos jogadores já responderam ao Wellness de hoje. **Não é
+a API oficial do WhatsApp Business** (essa não permite
+publicar em grupos) — liga-se a uma sessão pessoal de WhatsApp, o que
+viola os Termos de Serviço do WhatsApp (risco baixo mas real de bloqueio
+do número). Ver `whatsapp-bot/README.md` para a configuração completa.

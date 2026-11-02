@@ -5,7 +5,7 @@
  * Wellness (vista do treinador sobre o questionário diário dos jogadores)
  * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.24 (2026-09-17)
+ * Versão: 1.26 (2026-11-02)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -66,6 +66,13 @@
  *                        supabase.auth.signOut() (destruía a sessão anónima —
  *                        sem ela, entrar com o mesmo código em trial.html criava
  *                        sempre uma equipa nova, "perdendo" os dados da anterior).
+ *   1.25 (2026-11-02) — Relatório de Equipa: "Jogos" passa a "Conv."
+ *                        (convocado) + "Jogados" (entrou em campo, como
+ *                        titular ou suplente que entrou), mais a coluna
+ *                        "Min." (minutos jogados, via minutosJogados() —
+ *                        ver supabase/migrations/034_match_players_minutos.sql).
+ *   1.26 (2026-11-02) — tabela da tab Relatórios passa a ordenar por
+ *                        minutos jogados (antes golos/assistências).
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -374,13 +381,41 @@ function renderRoster() {
 
 // ---------- Relatórios ----------
 
+// Mesma lógica de js/relatorio-dados.js (minutosJogados/jogou) — duplicada
+// de propósito, como é norma neste projeto (cada página tem os seus
+// próprios helpers pequenos); ver "Minutos jogados" em docs/architecture.md.
+function duracaoParte(inicio, fim) {
+  if (!inicio || !fim) return 0;
+  return Math.max(0, Math.round((new Date(fim) - new Date(inicio)) / 60000));
+}
+
+function minutosJogados(mp, match) {
+  const d1 = duracaoParte(match.parte1_inicio, match.parte1_fim);
+  const d2 = duracaoParte(match.parte2_inicio, match.parte2_fim);
+  if (mp.estado === 'Titular') {
+    if (mp.substituicao === 'Saiu' && mp.parte_substituicao && mp.minuto_substituicao != null) {
+      return mp.parte_substituicao === 1 ? Math.min(mp.minuto_substituicao, d1) : d1 + Math.min(mp.minuto_substituicao, d2);
+    }
+    return d1 + d2;
+  }
+  if (mp.substituicao === 'Entrou' && mp.parte_substituicao && mp.minuto_substituicao != null) {
+    const entrada = mp.parte_substituicao === 1 ? Math.min(mp.minuto_substituicao, d1) : d1 + Math.min(mp.minuto_substituicao, d2);
+    return Math.max(0, d1 + d2 - entrada);
+  }
+  return 0;
+}
+
+function jogou(mp) {
+  return mp.estado === 'Titular' || mp.substituicao === 'Entrou';
+}
+
 async function loadReports() {
   // Jogos de pré-época ficam de fora deste agregado (mas continuam intactos
   // e acessíveis no seu próprio relatório dentro do jogo) — daí o inner join
   // com matches filtrado por pre_epoca=false.
   const { data, error } = await supabase
     .from('match_players')
-    .select('golo, assistencias, amarelo, amarelo2, vermelho, players(id, numero, nome), matches!inner(pre_epoca)')
+    .select('estado, substituicao, parte_substituicao, minuto_substituicao, golo, assistencias, amarelo, amarelo2, vermelho, players(id, numero, nome), matches!inner(pre_epoca, parte1_inicio, parte1_fim, parte2_inicio, parte2_fim)')
     .eq('team_id', currentTeamId)
     .eq('matches.pre_epoca', false);
   if (error) { console.error(error); return; }
@@ -390,17 +425,19 @@ async function loadReports() {
     const p = row.players;
     if (!p) return;
     if (!byPlayer.has(p.id)) {
-      byPlayer.set(p.id, { numero: p.numero, nome: p.nome, jogos: 0, golo: 0, assistencias: 0, amarelo: 0, vermelho: 0 });
+      byPlayer.set(p.id, { numero: p.numero, nome: p.nome, jogosConvocado: 0, jogosJogado: 0, minutos: 0, golo: 0, assistencias: 0, amarelo: 0, vermelho: 0 });
     }
     const agg = byPlayer.get(p.id);
-    agg.jogos += 1;
+    agg.jogosConvocado += 1;
+    if (jogou(row)) agg.jogosJogado += 1;
+    agg.minutos += minutosJogados(row, row.matches);
     agg.golo += row.golo || 0;
     agg.assistencias += row.assistencias || 0;
     agg.amarelo += (row.amarelo || 0) + (row.amarelo2 || 0);
     agg.vermelho += row.vermelho || 0;
   });
 
-  const rows = Array.from(byPlayer.values()).sort((a, b) => b.golo - a.golo || b.assistencias - a.assistencias);
+  const rows = Array.from(byPlayer.values()).sort((a, b) => b.minutos - a.minutos || b.golo - a.golo || b.assistencias - a.assistencias);
   renderReports(rows);
 }
 
@@ -409,7 +446,7 @@ function renderReports(rows) {
   body.innerHTML = '';
   rows.forEach(r => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.numero || ''}</td><td>${r.nome}</td><td>${r.jogos}</td><td>${r.golo}</td><td>${r.assistencias}</td><td>${r.amarelo}</td><td>${r.vermelho}</td>`;
+    tr.innerHTML = `<td>${r.numero || ''}</td><td>${r.nome}</td><td>${r.jogosConvocado}</td><td>${r.jogosJogado}</td><td>${r.minutos}</td><td>${r.golo}</td><td>${r.assistencias}</td><td>${r.amarelo}</td><td>${r.vermelho}</td>`;
     body.appendChild(tr);
   });
   el('reports-empty').hidden = rows.length > 0;

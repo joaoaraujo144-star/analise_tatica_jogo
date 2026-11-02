@@ -6,7 +6,7 @@
   questionário diário) e Relatórios (agregado de todos os jogos).
   Lógica em ../js/dashboard.js.
 
-  Versão: 1.16 (2026-09-15)
+  Versão: 1.17 (2026-11-02)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-08) — passa a ser específico de uma equipa (troca de equipa).
@@ -37,6 +37,9 @@
     1.16 (2026-09-15) — tab Jogos ganha o checkbox "Pré-época" (na criação e,
                          alternável, na listagem) — jogos marcados assim ficam
                          fora do agregado da tab Relatórios.
+    1.17 (2026-11-02) — tabela da tab Relatórios: "Jogos" passa a "Conv."
+                         (convocado) + "Jogados" (entrou em campo), mais
+                         a coluna "Min." (minutos jogados na época).
 -->
 <html lang="pt">
 <head>
@@ -170,7 +173,7 @@
         <p class="hint">Totais agregados de todos os jogos guardados.</p>
         <div class="table-scroll">
         <table class="players-table">
-          <thead><tr><th>Nº</th><th>Nome</th><th>Jogos</th><th>Golos</th><th>Assist.</th><th>🟨</th><th>🟥</th></tr></thead>
+          <thead><tr><th>Nº</th><th>Nome</th><th>Conv.</th><th>Jogados</th><th>Min.</th><th>Golos</th><th>Assist.</th><th>🟨</th><th>🟥</th></tr></thead>
           <tbody id="reports-body"></tbody>
         </table>
         </div>

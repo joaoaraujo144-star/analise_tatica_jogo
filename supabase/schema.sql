@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 033.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 034.)
 --
--- Versão: 1.34 (2026-09-17) — reflete sempre o estado final cumulativo,
+-- Versão: 1.35 (2026-11-02) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -96,6 +96,10 @@
 --                        passam a contar dispositivos/sessões diferentes na
 --                        mesma equipa. admin_delete_trial_team() repõe o código
 --                        a zeros (team_id/usos) para poder ser reutilizado.
+--   1.35 (2026-11-02) — match_players ganha parte_substituicao/
+--                        minuto_substituicao, para calcular quantos
+--                        minutos cada jogador jogou (ver
+--                        034_match_players_minutos.sql).
 
 create extension if not exists "pgcrypto";
 
@@ -171,6 +175,12 @@ create table if not exists match_players (
   assistencias int not null default 0,
   golo int not null default 0,
   substituicao text check (substituicao in ('Saiu', 'Entrou')),
+  -- Minuto da substituição, relativo ao início da própria parte (0, 1,
+  -- 2... igual a events.minuto/goals.minuto) — usado para calcular
+  -- quantos minutos o jogador jogou (ver minutosJogados() em
+  -- dashboard.js/relatorio-dados.js).
+  parte_substituicao int check (parte_substituicao in (1, 2)),
+  minuto_substituicao int,
   unique (match_id, player_id)
 );
 

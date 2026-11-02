@@ -8,7 +8,7 @@
  * Toda a agregação vem de js/relatorio-dados.js (partilhado com
  * transicoes.js) — este ficheiro só desenha.
  *
- * Versão: 1.5 (2026-09-17)
+ * Versão: 1.6 (2026-11-02)
  * Histórico:
  *   1.0 (2026-09-14) — criação, com o tema escuro partilhado (css/styles.css).
  *   1.1 (2026-09-14) — cores das barras/legenda passam a var(--accent) (com
@@ -32,6 +32,11 @@
  *                       supabase.auth.signOut() (destruía a sessão anónima que
  *                       liga a equipa de teste, impedindo start_trial() de a
  *                       reconhecer da próxima vez).
+ *   1.6 (2026-11-02) — tabela "Por jogador" passa a listar todos os
+ *                       convocados (antes só quem tinha pelo menos uma
+ *                       ação registada) e ganha a coluna "Min." (minutos
+ *                       jogados, via minutosJogados() em
+ *                       relatorio-dados.js).
  */
 
 import { supabase } from './supabase-client.js';
@@ -40,6 +45,7 @@ import {
   dominioPorMetrica, evolucaoPorParte, construirBlocos, calcularTimeline,
   resumoPorBloco, calcularZonaCampo, ZONA_COL_LABELS, ZONA_ROW_LABELS,
   calcularPorJogador, golosPorJogador, marcadoresComAssistencia,
+  minutosJogados, jogou,
 } from './relatorio-dados.js';
 
 const el = (id) => document.getElementById(id);
@@ -364,7 +370,13 @@ function wireZonaFiltros() {
 // ---------- Por jogador ----------
 
 function renderTabelaJogadores() {
+  // calcularPorJogador() só agrega quem teve pelo menos uma ação nos 5
+  // campos — por isso passa a servir só de fonte dos totais por
+  // jogador (Map), e D.matchPlayers (todos os convocados) é que define
+  // as linhas da tabela, para um jogador sem nenhuma ação não deixar de
+  // aparecer (ex: um defesa discreto que ainda assim jogou 90 minutos).
   const { table, completude } = calcularPorJogador(D.events, D.matchPlayers);
+  const acoesPorJogador = new Map(table.map(r => [r.playerId, r]));
   const golos = golosPorJogador(D.goals);
 
   const partial = Object.entries(completude).filter(([, v]) => v.pctSem > 0);
@@ -373,10 +385,18 @@ function renderTabelaJogadores() {
     : '';
 
   const cols = [['faltas_X', 'Faltas Real.'], ['faltas_Y', 'Faltas Sofr.'], ['perdas_X', 'Bolas Ganhas'], ['perdas_Y', 'Perdas'], ['remates_X', 'Remates'], ['cruzamentos_X', 'Cruz.']];
-  let html = '<thead><tr><th>Jogador</th><th>Golos</th>' + cols.map(c => `<th>${c[1]}</th>`).join('') + '<th>Total</th></tr></thead><tbody>';
-  table.forEach(r => {
-    const nGolos = golos.get(r.playerId) || 0;
-    html += `<tr><td>${r.nome}</td><td>${nGolos || '—'}</td>` + cols.map(c => `<td>${r[c[0]] || '—'}</td>`).join('') + `<td>${r.total}</td></tr>`;
+  let html = '<thead><tr><th>Jogador</th><th>Min.</th><th>Golos</th>' + cols.map(c => `<th>${c[1]}</th>`).join('') + '<th>Total</th></tr></thead><tbody>';
+
+  const linhas = D.matchPlayers
+    .map(mp => ({ mp, minutos: minutosJogados(mp, D.match), acoes: acoesPorJogador.get(mp.player_id) }))
+    .sort((a, b) => b.minutos - a.minutos);
+
+  linhas.forEach(({ mp, minutos, acoes }) => {
+    const nGolos = golos.get(mp.player_id) || 0;
+    const total = acoes ? acoes.total : 0;
+    html += `<tr><td>${mp.players?.nome || '?'}</td><td>${jogou(mp) ? minutos : '—'}</td><td>${nGolos || '—'}</td>` +
+      cols.map(c => `<td>${(acoes && acoes[c[0]]) || '—'}</td>`).join('') +
+      `<td>${total || '—'}</td></tr>`;
   });
   html += '</tbody>';
   el('tabela-jogadores').innerHTML = html;

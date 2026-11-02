@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.42 (2026-09-17)
+ * Versão: 1.43 (2026-11-02)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -141,6 +141,11 @@
  *                        supabase.auth.signOut() (destruía a sessão anónima que
  *                        liga a equipa de teste — sem ela, start_trial() deixava
  *                        de a reconhecer e criava sempre uma equipa nova).
+ *   1.43 (2026-11-02) — setSubstituicao() passa a gravar também
+ *                        parte_substituicao/minuto_substituicao (mesma
+ *                        lógica de golos/eventos) — usados para calcular
+ *                        quantos minutos cada jogador jogou no Relatório
+ *                        de Equipa e no relatório de um jogo.
  */
 
 import { supabase } from './supabase-client.js';
@@ -585,9 +590,11 @@ function wireConvocatoria() {
       const mp = matchPlayersCache.find(x => x.id === substCell.dataset.id);
       if (!mp) return;
       mp.substituicao = null;
+      mp.parte_substituicao = null;
+      mp.minuto_substituicao = null;
       renderMatchPlayers();
       await Promise.all([
-        supabase.from('match_players').update({ substituicao: null }).eq('id', mp.id),
+        supabase.from('match_players').update({ substituicao: null, parte_substituicao: null, minuto_substituicao: null }).eq('id', mp.id),
         logPlayerActions(mp, { substituicao: null })
       ]);
       return;
@@ -1125,13 +1132,26 @@ function showJogadorPopup(clientX, clientY, onPick) {
 
 // Grava a substituição de um jogador (usado tanto pelo clique direto no
 // badge como pelo popup "Quem entra?" a seguir a marcar alguém "Saiu").
+// Grava também o minuto exato (parte_substituicao/minuto_substituicao,
+// mesma lógica de golos/eventos) — usado depois para calcular quantos
+// minutos o jogador jogou (ver minutosJogados() em dashboard.js/
+// relatorio-dados.js). Ao desfazer (value null), limpa os dois outra
+// vez, para não ficar um minuto órfão de uma substituição já desfeita.
 async function setSubstituicao(mp, value) {
-  const patch = { substituicao: value };
+  const patch = {
+    substituicao: value,
+    parte_substituicao: value ? currentParte() : null,
+    minuto_substituicao: value ? currentMinutoNoJogo() : null,
+  };
   Object.assign(mp, patch);
   renderMatchPlayers();
   await Promise.all([
     supabase.from('match_players').update(patch).eq('id', mp.id),
-    logPlayerActions(mp, patch)
+    // Só "substituicao" vai para o histórico de ações — parte/minuto
+    // não são uma ação em si, e tipo tem um conjunto fechado de valores
+    // documentado (amarelo, golo, substituicao, ...) que não vale a pena
+    // alargar para isto.
+    logPlayerActions(mp, { substituicao: value })
   ]);
 }
 

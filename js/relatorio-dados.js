@@ -27,7 +27,14 @@
  * ficar dessincronizado por um clique errado na convocatória — ver o
  * jogo Desportivo de Ronfe vs Ruivanense).
  *
- * Versão: 1.0 (2026-09-14)
+ * Versão: 1.1 (2026-11-02)
+ * Histórico:
+ *   1.0 (2026-09-14) — criação.
+ *   1.1 (2026-11-02) — minutosJogados()/jogou(): quantos minutos um
+ *                       jogador jogou num jogo, e se jogou de facto
+ *                       (titular ou entrou), a partir de
+ *                       match_players.parte_substituicao/
+ *                       minuto_substituicao — usado por relatorio.js.
  */
 
 import { supabase } from './supabase-client.js';
@@ -67,6 +74,41 @@ export function nomeJogador(matchPlayers, playerId) {
   if (!playerId) return null;
   const mp = matchPlayers.find(m => m.player_id === playerId);
   return mp ? (mp.players?.nome || null) : null;
+}
+
+// ---------- Minutos jogados ----------
+// match_players.minuto_substituicao é sempre relativo ao início da
+// própria parte (0, 1, 2... igual a events.minuto/goals.minuto), nunca
+// cumulativo — ver supabase/migrations/034_match_players_minutos.sql.
+// Para titulares que nunca saíram e suplentes que nunca entraram, dá
+// para calcular sem essa coluna, só com a duração das partes.
+
+function duracaoParte(inicio, fim) {
+  if (!inicio || !fim) return 0;
+  return Math.max(0, Math.round((new Date(fim) - new Date(inicio)) / 60000));
+}
+
+export function minutosJogados(mp, match) {
+  const d1 = duracaoParte(match.parte1_inicio, match.parte1_fim);
+  const d2 = duracaoParte(match.parte2_inicio, match.parte2_fim);
+  if (mp.estado === 'Titular') {
+    if (mp.substituicao === 'Saiu' && mp.parte_substituicao && mp.minuto_substituicao != null) {
+      return mp.parte_substituicao === 1 ? Math.min(mp.minuto_substituicao, d1) : d1 + Math.min(mp.minuto_substituicao, d2);
+    }
+    return d1 + d2;
+  }
+  if (mp.substituicao === 'Entrou' && mp.parte_substituicao && mp.minuto_substituicao != null) {
+    const entrada = mp.parte_substituicao === 1 ? Math.min(mp.minuto_substituicao, d1) : d1 + Math.min(mp.minuto_substituicao, d2);
+    return Math.max(0, d1 + d2 - entrada);
+  }
+  return 0;
+}
+
+// "Jogou" (para contagens tipo "jogos jogados") não depende dos minutos
+// serem calculáveis — um titular num jogo a decorrer já jogou, mesmo
+// sem parte1_fim ainda.
+export function jogou(mp) {
+  return mp.estado === 'Titular' || mp.substituicao === 'Entrou';
 }
 
 export function numeroJogador(mp) {

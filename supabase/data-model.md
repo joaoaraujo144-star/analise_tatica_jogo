@@ -7,7 +7,7 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.24 (2026-09-17)
+  Versão: 1.25 (2026-11-02)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
@@ -72,6 +72,9 @@
                          equipa (criada na 1ª vez que é usado), em vez de criar
                          uma equipa nova a cada uso; "usos"/"max_usos" passam a
                          contar dispositivos/sessões diferentes na mesma equipa.
+    1.25 (2026-11-02) — match_players ganha parte_substituicao/
+                         minuto_substituicao, para calcular minutos jogados
+                         (Relatório de Equipa + relatório de um jogo).
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -385,6 +388,8 @@ Convocatória e estatísticas de um jogador num jogo específico.
 | `assistencias` | int | sim (default 0) | |
 | `golo` | int | sim (default 0) | |
 | `substituicao` | text | não | `Saiu` ou `Entrou` (consoante o `estado`) |
+| `parte_substituicao` | int | não | `1` ou `2` — parte em que a substituição aconteceu |
+| `minuto_substituicao` | int | não | minuto da substituição, relativo ao início dessa parte (igual a `events.minuto`/`goals.minuto`) — usado para calcular quantos minutos o jogador jogou (`minutosJogados()` em `relatorio-dados.js`/`dashboard.js`) |
 
 ### `events`
 Cliques nos 5 campos do Registo de Jogo (Faltas, Perdas de Bola, Remates, Cruzamentos, Cantos), por parte.
