@@ -29,7 +29,7 @@
  * ficar dessincronizado por um clique errado na convocatória — ver o
  * jogo Desportivo de Ronfe vs Ruivanense).
  *
- * Versão: 1.1 (2026-11-02)
+ * Versão: 1.2 (2026-11-17)
  * Histórico:
  *   1.0 (2026-09-14) — criação.
  *   1.1 (2026-11-02) — minutosJogados()/jogou(): quantos minutos um
@@ -37,6 +37,8 @@
  *                       (titular ou entrou), a partir de
  *                       match_players.parte_substituicao/
  *                       minuto_substituicao — usado por relatorio.js.
+ *   1.2 (2026-11-17) — convocados trazem players.posicao (ordem por
+ *                       posição no relatório).
  */
 
 import { supabase } from './supabase-client.js';
@@ -57,7 +59,7 @@ export const CROSS_WINDOW_S = 20;      // janela independente, remate-de-cruzame
 export async function fetchMatchData(matchId, teamId) {
   const [matchRes, matchPlayersRes, goalsRes, eventsRes, playerEventsRes] = await Promise.all([
     supabase.from('matches').select('*').eq('id', matchId).eq('team_id', teamId).single(),
-    supabase.from('match_players').select('*, players(numero, nome)').eq('match_id', matchId),
+    supabase.from('match_players').select('*, players(numero, nome, posicao)').eq('match_id', matchId),
     supabase.from('goals').select('*').eq('match_id', matchId).order('minuto', { ascending: true }),
     supabase.from('events_normalizado').select('*').eq('match_id', matchId).order('created_at', { ascending: true }),
     supabase.from('player_events').select('*, players(numero, nome)').eq('match_id', matchId).order('created_at', { ascending: true }),

@@ -10,9 +10,10 @@
  * favor / contra), jogo, jogador e momento do jogo. O período
  * competitivo vem dos filtros globais (atual vs. anterior).
  *
- * Versão: 1.1 (2026-11-17)
+ * Versão: 1.2 (2026-11-17)
  *
  * Histórico:
+ *   1.2 — lista de jogadores por posição (../../posicoes.js).
  *   1.1 — desenho do campo passou para ../campo.js (partilhado com a
  *         Performance Individual).
  *   1.0 — criação (fase 4).
@@ -24,6 +25,7 @@ import {
 } from '../territorial.js';
 import { esc, num, dataCurta, ND } from '../ui.js';
 import { rgbDe, campoHtml, legendaIntensidade } from '../campo.js';
+import { compararJogadores } from '../../posicoes.js';
 
 const EVENTOS = {
   perdas: { label: 'Ganhos / perdas de bola', X: 'Ganhos de bola', Y: 'Perdas de bola' },
@@ -44,7 +46,7 @@ const estadoPagina = { tracker: 'perdas', tipo: 'Y', jogo: '', jogador: '', mome
 function jogadoresDe(convocados) {
   const m = new Map();
   convocados.forEach(c => { if (c.players) m.set(c.players.id, c.players); });
-  return [...m.values()].sort((a, b) => (a.numero ?? 999) - (b.numero ?? 999));
+  return [...m.values()].sort(compararJogadores);
 }
 
 function baseFiltro(extra = {}) {

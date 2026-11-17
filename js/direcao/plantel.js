@@ -23,9 +23,10 @@
  * dados: FONTES_FUTURAS documenta o que seria preciso, e a interface
  * mostra "Dados indisponíveis" em vez de os simular.
  *
- * Versão: 1.1 (2026-11-17)
+ * Versão: 1.2 (2026-11-17)
  *
  * Histórico:
+ *   1.2 — POSICOES vem de ../posicoes.js (mesma ordem em toda a app).
  *   1.1 — dependência só sem nenhuma alternativa (com titular + suplente
  *         quase todas as posições apareciam como dependência).
  *   1.0 — criação (fase 6).
@@ -33,8 +34,9 @@
 
 import { estatisticasJogador } from './individual.js';
 import { variacaoPct } from './metricas.js';
+import { ORDEM_POSICOES } from '../posicoes.js';
 
-export const POSICOES = ['GR', 'DD', 'DC', 'DE', 'MDC', 'MC', 'MO', 'ED', 'EE', 'PL'];
+export const POSICOES = ORDEM_POSICOES; // ordem partilhada com o resto da app
 export const POSICAO_LABEL = {
   GR: 'Guarda-redes', DD: 'Lateral direito', DC: 'Defesa central', DE: 'Lateral esquerdo',
   MDC: 'Médio defensivo', MC: 'Médio centro', MO: 'Médio ofensivo', ED: 'Extremo direito',

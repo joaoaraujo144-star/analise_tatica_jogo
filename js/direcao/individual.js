@@ -16,10 +16,15 @@
  * (numerador e denominador dos mesmos jogos) e pelo menos minMinutos no
  * total — abaixo disso o valor é demasiado instável e fica n/d.
  *
- * Versão: 1.0 (2026-11-17)
+ * Versão: 1.1 (2026-11-17)
+ *
+ * Histórico:
+ *   1.1 — jogadoresDoPeriodo() ordena por posição (../posicoes.js).
+ *   1.0 — criação (fase 5).
  */
 
 import { minutosJogados, por90, racio, TERCOS } from './metricas.js';
+import { compararJogadores } from '../posicoes.js';
 
 // Ações atribuíveis a um jogador da equipa (as "contra" de remates,
 // cruzamentos e cantos são do adversário e não entram).
@@ -102,10 +107,11 @@ export function cobertura(eventos, jogos) {
   }));
 }
 
-// Jogadores convocados em pelo menos um dos jogos, por número.
+// Jogadores convocados em pelo menos um dos jogos, por posição (GR →
+// defesas → médios → avançados) e depois número.
 export function jogadoresDoPeriodo(convocados, jogos) {
   const ids = new Set(jogos.map(j => j.id));
   const m = new Map();
   convocados.forEach(c => { if (ids.has(c.match_id) && c.players) m.set(c.players.id, c.players); });
-  return [...m.values()].sort((a, b) => (Number(a.numero) || 999) - (Number(b.numero) || 999));
+  return [...m.values()].sort(compararJogadores);
 }

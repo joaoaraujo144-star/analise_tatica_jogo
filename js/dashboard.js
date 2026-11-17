@@ -5,7 +5,7 @@
  * Wellness (vista do treinador sobre o questionário diário dos jogadores)
  * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.27 (2026-11-17)
+ * Versão: 1.28 (2026-11-17)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -77,11 +77,16 @@
  *                        jogos ganham casa/fora, competição e codificação
  *                        (no "Novo Jogo" e editáveis na lista); Plantel
  *                        ganha a coluna "Posição".
+ *   1.28 (2026-11-17) — jogadores ordenados por posição (GR → defesas →
+ *                        médios → avançados, js/posicoes.js) no Plantel,
+ *                        Wellness e Relatórios (aqui, por minutos dentro
+ *                        de cada posição).
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase-client.js';
+import { compararJogadores, porPosicao } from './posicoes.js';
 
 const TRACKERS = [
   { id: 'faltas', title: 'Faltas', xLabel: 'Realizadas', yLabel: 'Sofridas' },
@@ -385,7 +390,9 @@ async function loadRoster() {
     .eq('team_id', currentTeamId)
     .order('nome', { ascending: true });
   if (error) { console.error(error); return; }
-  rosterCache = data || [];
+  // Por posição (GR → defesas → médios → avançados), depois número —
+  // a mesma ordem no Plantel e no Wellness (que também usam rosterCache).
+  rosterCache = (data || []).sort(compararJogadores);
   renderRoster();
 }
 
@@ -481,7 +488,7 @@ async function loadReports() {
   // com matches filtrado por pre_epoca=false.
   const { data, error } = await supabase
     .from('match_players')
-    .select('estado, substituicao, parte_substituicao, minuto_substituicao, golo, assistencias, amarelo, amarelo2, vermelho, players(id, numero, nome), matches!inner(pre_epoca, parte1_inicio, parte1_fim, parte2_inicio, parte2_fim)')
+    .select('estado, substituicao, parte_substituicao, minuto_substituicao, golo, assistencias, amarelo, amarelo2, vermelho, players(id, numero, nome, posicao), matches!inner(pre_epoca, parte1_inicio, parte1_fim, parte2_inicio, parte2_fim)')
     .eq('team_id', currentTeamId)
     .eq('matches.pre_epoca', false);
   if (error) { console.error(error); return; }
@@ -491,7 +498,7 @@ async function loadReports() {
     const p = row.players;
     if (!p) return;
     if (!byPlayer.has(p.id)) {
-      byPlayer.set(p.id, { numero: p.numero, nome: p.nome, jogosConvocado: 0, jogosJogado: 0, minutos: 0, golo: 0, assistencias: 0, amarelo: 0, vermelho: 0 });
+      byPlayer.set(p.id, { numero: p.numero, nome: p.nome, posicao: p.posicao, jogosConvocado: 0, jogosJogado: 0, minutos: 0, golo: 0, assistencias: 0, amarelo: 0, vermelho: 0 });
     }
     const agg = byPlayer.get(p.id);
     agg.jogosConvocado += 1;
@@ -503,7 +510,7 @@ async function loadReports() {
     agg.vermelho += row.vermelho || 0;
   });
 
-  const rows = Array.from(byPlayer.values()).sort((a, b) => b.minutos - a.minutos || b.golo - a.golo || b.assistencias - a.assistencias);
+  const rows = Array.from(byPlayer.values()).sort((a, b) => porPosicao(a, b) || b.minutos - a.minutos || b.golo - a.golo || b.assistencias - a.assistencias);
   renderReports(rows);
 }
 

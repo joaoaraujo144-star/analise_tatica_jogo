@@ -12,7 +12,11 @@
  *    atribuído (a cobertura aparece no topo);
  *  - por 90 só com minutos fiáveis e pelo menos MIN_MINUTOS_90.
  *
- * Versão: 1.0 (2026-11-17)
+ * Versão: 1.1 (2026-11-17)
+ *
+ * Histórico:
+ *   1.1 — ordem das posições de ../../posicoes.js; listas de jogadores por posição.
+ *   1.0 — versão anterior.
  */
 
 import { ACOES, MIN_MINUTOS_90, estatisticasJogador, cobertura, jogadoresDoPeriodo } from '../individual.js';
@@ -20,8 +24,8 @@ import { contagemValida, TERCOS } from '../metricas.js';
 import { esc, num, dataCurta, ND } from '../ui.js';
 import { COR, OPCOES_BASE, linha, criarGrafico } from '../graficos.js';
 import { RGB, rgbDe, campoHtml } from '../campo.js';
+import { ORDEM_POSICOES as POSICOES } from '../../posicoes.js';
 
-const POSICOES = ['GR', 'DD', 'DC', 'DE', 'MDC', 'MC', 'MO', 'ED', 'EE', 'PL'];
 const POSICAO_LABEL = {
   GR: 'Guarda-redes', DD: 'Lateral direito', DC: 'Defesa central', DE: 'Lateral esquerdo',
   MDC: 'Médio defensivo', MC: 'Médio centro', MO: 'Médio ofensivo', ED: 'Extremo direito',

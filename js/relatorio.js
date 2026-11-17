@@ -8,7 +8,7 @@
  * Toda a agregação vem de js/relatorio-dados.js (partilhado com
  * transicoes.js) — este ficheiro só desenha.
  *
- * Versão: 1.6 (2026-11-02)
+ * Versão: 1.7 (2026-11-17)
  * Histórico:
  *   1.0 (2026-09-14) — criação, com o tema escuro partilhado (css/styles.css).
  *   1.1 (2026-09-14) — cores das barras/legenda passam a var(--accent) (com
@@ -37,9 +37,13 @@
  *                       ação registada) e ganha a coluna "Min." (minutos
  *                       jogados, via minutosJogados() em
  *                       relatorio-dados.js).
+ *   1.7 (2026-11-17) — tabela por jogador ordenada por posição (GR →
+ *                       defesas → médios → avançados), minutos dentro de
+ *                       cada posição.
  */
 
 import { supabase } from './supabase-client.js';
+import { porPosicao } from './posicoes.js';
 import {
   TRACKERS, fetchMatchData, nomeJogador,
   dominioPorMetrica, evolucaoPorParte, construirBlocos, calcularTimeline,
@@ -389,7 +393,7 @@ function renderTabelaJogadores() {
 
   const linhas = D.matchPlayers
     .map(mp => ({ mp, minutos: minutosJogados(mp, D.match), acoes: acoesPorJogador.get(mp.player_id) }))
-    .sort((a, b) => b.minutos - a.minutos);
+    .sort((a, b) => porPosicao(a.mp.players, b.mp.players) || b.minutos - a.minutos);
 
   linhas.forEach(({ mp, minutos, acoes }) => {
     const nGolos = golos.get(mp.player_id) || 0;

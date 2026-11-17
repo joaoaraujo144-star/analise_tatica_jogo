@@ -5,7 +5,7 @@
  * por jogador, Registo de Jogo (5 campos clicáveis, por parte), relatório
  * normalizado de fim de jogo, e exportação CSV do jogo atual.
  *
- * Versão: 1.43 (2026-11-02)
+ * Versão: 1.44 (2026-11-17)
  * Histórico:
  *   1.0  (2026-07-08) — criação, ao migrar de localStorage para Supabase.
  *   1.1  (2026-07-08) — separado do login, que passa a ter página própria.
@@ -146,9 +146,14 @@
  *                        lógica de golos/eventos) — usados para calcular
  *                        quantos minutos cada jogador jogou no Relatório
  *                        de Equipa e no relatório de um jogo.
+ *   1.44 (2026-11-17) — jogadores ordenados por posição (js/posicoes.js)
+ *                        na convocatória, nos popups "Quem fez?", nas
+ *                        estatísticas do jogo (golos dentro de cada
+ *                        posição) e no CSV.
  */
 
 import { supabase } from './supabase-client.js';
+import { compararJogadores, porPosicao } from './posicoes.js';
 
 // Ordem pedida pelo treinador: Faltas, Perdas, Remates, Cruzamentos, Cantos —
 // controla a ordem dos campos no Registo de Jogo, dos mapas no Relatório
@@ -466,7 +471,7 @@ async function loadRoster() {
     .eq('team_id', currentTeamId)
     .order('nome', { ascending: true });
   if (error) { console.error(error); return; }
-  rosterCache = data || [];
+  rosterCache = (data || []).sort(compararJogadores);
   renderConvocarOptions();
 }
 
@@ -642,7 +647,7 @@ function wireConvocatoria() {
 async function loadMatchPlayers() {
   const { data, error } = await supabase
     .from('match_players')
-    .select('*, players(numero, nome)')
+    .select('*, players(numero, nome, posicao)')
     .eq('match_id', currentMatchId);
   if (error) { console.error(error); return; }
   matchPlayersCache = data || [];
@@ -663,15 +668,11 @@ function matchPlayerNumero(mp) {
   return mp.numero || mp.players?.numero || '';
 }
 
+// Por posição (GR → defesas → médios → avançados, js/posicoes.js), depois
+// pelo número deste jogo.
 function sortedMatchPlayers() {
-  return [...matchPlayersCache].sort((a, b) => {
-    const na = parseInt(matchPlayerNumero(a), 10);
-    const nb = parseInt(matchPlayerNumero(b), 10);
-    if (isNaN(na) && isNaN(nb)) return 0;
-    if (isNaN(na)) return 1;
-    if (isNaN(nb)) return -1;
-    return na - nb;
-  });
+  const chave = (mp) => ({ posicao: mp.players?.posicao, numero: matchPlayerNumero(mp), nome: mp.players?.nome });
+  return [...matchPlayersCache].sort((a, b) => compararJogadores(chave(a), chave(b)));
 }
 
 // Está em campo neste preciso momento: titular que ainda não saiu, ou
@@ -1386,7 +1387,7 @@ function reloadAllTrackers() {
 // ---------- Relatórios (só deste jogo) ----------
 
 function loadReports() {
-  const rows = [...matchPlayersCache].sort((a, b) => (b.golo || 0) - (a.golo || 0) || (b.assistencias || 0) - (a.assistencias || 0));
+  const rows = [...matchPlayersCache].sort((a, b) => porPosicao(a.players, b.players) || (b.golo || 0) - (a.golo || 0) || (b.assistencias || 0) - (a.assistencias || 0));
   renderReports(rows);
 }
 
@@ -1640,7 +1641,7 @@ function wireDownloadSession() {
 
     lines.push('=== JOGADORES ===');
     lines.push(['Número', 'Nome', 'Estado', 'Amarelos', 'Vermelho', 'Assistências', 'Golos', 'Substituição'].join(','));
-    matchPlayersCache.forEach(mp => {
+    sortedMatchPlayers().forEach(mp => {
       lines.push([
         csvField(matchPlayerNumero(mp)),
         csvField(mp.players?.nome || ''),
