@@ -4,7 +4,9 @@
  * (relatorio.html e transicoes.html) — buscar os dados de um jogo e
  * calcular tudo o que os dois relatórios precisam (domínio por métrica,
  * evolução por parte/momento, zona do campo, por jogador, transições,
- * remates de cruzamento, faltas provocadas).
+ * remates de cruzamento, faltas provocadas). relatorio-6-jogos.html
+ * importa só a constante TRACKERS daqui (agregação de vários jogos é
+ * suficientemente diferente para ter a sua própria lógica).
  *
  * Exceção deliberada à convenção do projeto (normalmente cada página
  * duplica os seus próprios helpers pequenos, sem js/utils.js): esta

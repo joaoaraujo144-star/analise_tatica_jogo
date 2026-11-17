@@ -1,0 +1,366 @@
+/**
+ * Análise de Jogo — direcao.css
+ * Estilo do Dashboard Executivo (pages/direcao.html). Mesmo visual já
+ * aprovado em pages/relatorio-6-jogos.html (sidebar + KPIs + cartões),
+ * com o prefixo de classes "dx-" — não usa css/styles.css (tema
+ * partilhado do resto da app), pela mesma razão: é uma área à parte,
+ * com um visual bastante diferente do tema vermelho/azul das páginas
+ * do jogo.
+ *
+ * Paleta: os acentos claros (--green/--orange/--red) são só para
+ * interface (texto de delta, pontos de legenda, contornos). Os gráficos
+ * usam os tons --chart-* (mais escuros), validados com o
+ * scripts/validate_palette.js da skill dataviz em modo escuro contra a
+ * superfície #151e30 — os tons claros falham esse validador quando
+ * usados em marcas de dados densas.
+ *
+ * Versão: 1.8 (2026-11-17)
+ *
+ * Histórico:
+ *   1.8 — Botão e janela de exportação para PowerPoint.
+ *   1.7 — Retirados o formulário e o registo de decisões (só alertas).
+ *   1.6 — Gravidade, formulário e registo de decisões (Decisões e Alertas).
+ *   1.5 — Campos editáveis, barras de utilização e mensagens (Gestão do Plantel).
+ *   1.4 — Tabela por posição, terços e mini-evolução (Performance Individual).
+ *   1.3 — Campo, mini-mapas e barras de zona (Análise Territorial).
+ *   1.2 — Grelha de zonas e barras a favor/contra (Performance Coletiva).
+ *   1.1 — Classes do Executive Overview (tendências, conclusões).
+ *   1.0 — Base copiada de relatorio-6-jogos.css + filtros e estados.
+ */
+
+:root {
+  --bg: #0c1220;
+  --panel: #151e30;
+  --panel2: #1b2840;
+  --line: #2b3850;
+  --text: #edf4ff;
+  --muted: #9aacc5;
+  --green: #42d9a2;
+  --orange: #ffb86b;
+  --red: #f47d8d;
+
+  /* Tons de gráfico (validados — ver cabeçalho do ficheiro) */
+  --chart-favor: #239973;
+  --chart-contra: #c97a2e;
+  --chart-amarelo: #b8871f;
+  --chart-vermelho: #c9465a;
+  --chart-grid: #34445b;
+}
+
+* { box-sizing: border-box; }
+select {
+  background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  padding: 9px 11px; border-radius: 9px;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+button, select { font: inherit; }
+button { cursor: pointer; }
+
+.dx-app {
+  display: grid;
+  grid-template-columns: 235px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+/* ---------- Sidebar ---------- */
+.dx-sidebar {
+  background: #10192a;
+  border-right: 1px solid var(--line);
+  padding: 25px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.dx-brand { font-size: 23px; font-weight: 800; letter-spacing: -0.7px; margin: 0 10px 4px; }
+.dx-brand span { color: var(--green); }
+.dx-tag { color: var(--muted); font-size: 11px; margin: 0 10px 20px; }
+
+.dx-team-field { margin: 0 10px 22px; display: flex; flex-direction: column; gap: 6px; }
+.dx-team-field label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+.dx-team-field select {
+  background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  padding: 10px 11px; border-radius: 9px; width: 100%;
+}
+
+.dx-nav { display: grid; gap: 5px; }
+.dx-nav button {
+  border: 0; text-align: left; background: transparent; color: var(--muted);
+  padding: 13px; border-radius: 9px; font-size: 14px;
+}
+.dx-nav button.active, .dx-nav button:hover { background: #24344c; color: #fff; }
+
+.dx-sidebar-footer { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding: 0 10px; }
+.dx-sidebar-footer button {
+  border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+  padding: 9px 11px; border-radius: 9px; font-size: 12.5px; text-align: left;
+}
+.dx-sidebar-footer button:hover { color: #fff; border-color: #3a4d6e; }
+
+/* ---------- Main ---------- */
+.dx-main { padding: 28px 34px; min-width: 0; max-width: 1400px; width: 100%; margin: 0 auto; }
+
+.dx-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; flex-wrap: wrap; margin-bottom: 25px; }
+.dx-eyebrow { color: var(--green); text-transform: uppercase; letter-spacing: 2px; font-size: 11px; font-weight: 700; }
+.dx-top h1 { margin: 4px 0 5px; font-size: 29px; letter-spacing: -0.8px; }
+.dx-sub { color: var(--muted); }
+
+.dx-pill {
+  border: 1px solid var(--line); border-radius: 30px; padding: 5px 12px;
+  color: var(--muted); font-size: 11px; white-space: nowrap;
+}
+
+/* KPIs */
+.dx-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 15px; }
+.dx-kpis.dx-kpis-6 { grid-template-columns: repeat(6, 1fr); }
+
+/* Cartões */
+.dx-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 19px; min-width: 0;
+}
+.dx-kpi-label { color: var(--muted); font-size: 12px; }
+.dx-kpi-big { font-size: 28px; font-weight: 800; margin: 9px 0 4px; letter-spacing: -1px; }
+.dx-kpi-delta { font-size: 12px; color: var(--green); }
+.dx-kpi-delta.warn { color: var(--orange); }
+
+.dx-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 15px; margin-top: 15px; }
+.dx-grid-even { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+
+.dx-section-title { font-size: 16px; font-weight: 750; margin: 0 0 5px; }
+.dx-cardhead { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.dx-mini { font-size: 12px; color: var(--muted); line-height: 1.55; margin: 0; }
+
+.dx-legend { display: flex; gap: 15px; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+.dx-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+
+/* Tabela */
+.dx-table-scroll { overflow-x: auto; }
+.dx-table { width: 100%; border-collapse: collapse; }
+.dx-table th { text-align: left; color: var(--muted); font-size: 11px; font-weight: 600; padding: 11px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.dx-table td { padding: 12px 9px; border-bottom: 1px solid #ffffff12; white-space: nowrap; }
+.dx-table tr:last-child td { border: 0; }
+
+/* Insight callout */
+.dx-insight {
+  border-left: 3px solid var(--green); background: #1b2c3b; padding: 12px 14px;
+  border-radius: 0 8px 8px 0; margin-top: 12px; color: #dcece9; font-size: 13px;
+}
+.dx-insight.warning { border-color: var(--orange); }
+
+/* Gráficos */
+.dx-card canvas { max-height: 280px; }
+
+/* Mapa de calor (reaproveita assets/campo.png) */
+.dx-field-wrap { position: relative; max-width: 560px; width: 100%; margin: 0 auto; }
+.dx-field-wrap img { width: 100%; display: block; border-radius: 6px; }
+.dx-heat-grid { position: absolute; inset: 0; border-radius: 6px; overflow: hidden; }
+.dx-heat-cell { position: absolute; box-sizing: border-box; border: 1px solid #ffffff14; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 0.85em; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+
+.dx-hint { font-size: 0.85em; color: var(--muted); text-align: center; }
+
+@media (max-width: 1100px) {
+  .dx-kpis, .dx-kpis.dx-kpis-6 { grid-template-columns: repeat(2, 1fr); }
+  .dx-grid, .dx-grid-even { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .dx-app { grid-template-columns: 1fr; }
+  .dx-sidebar { padding: 12px; border-right: 0; border-bottom: 1px solid var(--line); flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .dx-brand { font-size: 20px; }
+  .dx-tag { display: none; }
+  .dx-team-field { margin: 0 6px; flex: 1 1 160px; }
+  .dx-nav { display: flex; overflow-x: auto; flex: 1 1 100%; order: 3; }
+  .dx-nav button { white-space: nowrap; padding: 9px 12px; }
+  .dx-sidebar-footer { flex-direction: row; margin: 0; order: 2; }
+  .dx-main { padding: 18px; }
+  .dx-kpis, .dx-kpis.dx-kpis-6 { grid-template-columns: repeat(2, 1fr); gap: 9px; }
+  .dx-card { padding: 14px; }
+  .dx-kpi-big { font-size: 23px; }
+  .dx-top h1 { font-size: 23px; }
+}
+
+/* ---------- Barra de filtros globais ---------- */
+.dx-filtros {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px 16px; margin-bottom: 18px;
+}
+.dx-filtro { display: flex; flex-direction: column; gap: 5px; min-width: 130px; }
+.dx-filtro label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+.dx-filtro input[type="date"] {
+  background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  padding: 8px 10px; border-radius: 9px; color-scheme: dark;
+}
+.dx-filtros-resumo { color: var(--muted); font-size: 12px; margin-left: auto; align-self: center; }
+
+/* ---------- Estados ---------- */
+.dx-estado {
+  background: var(--panel); border: 1px dashed var(--line); border-radius: 14px;
+  padding: 28px; text-align: center; color: var(--muted);
+}
+.dx-estado strong { display: block; color: var(--text); font-size: 15px; margin-bottom: 6px; }
+.dx-estado.erro { border-color: var(--red); }
+.dx-nd { color: var(--muted); font-weight: 600; } /* valor "não disponível" — nunca confundir com 0 */
+.dx-carregar { opacity: 0.45; transition: opacity 0.15s; pointer-events: none; }
+
+/* ---------- Executive Overview (fase 2) ---------- */
+/* Tendência: a cor nunca vem sozinha — vai sempre com seta e/ou texto
+   (Melhoria / Agravamento / Estável). good/bad já têm em conta a
+   direção favorável do indicador, não o sinal da variação. */
+.dx-kpi-delta.good { color: var(--green); }
+.dx-kpi-delta.bad { color: var(--red); }
+.dx-kpi-delta.neutral { color: var(--muted); }
+.dx-kpi-ref { color: var(--muted); }
+.dx-kpi-sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.dx-warn-txt { color: var(--orange); }
+
+.dx-tend { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; border: 1px solid currentColor; }
+.dx-tend.good { color: var(--green); }
+.dx-tend.bad { color: var(--red); }
+.dx-tend.neutral { color: var(--muted); }
+
+.dx-insight.info { border-color: #7aa7ff; }
+.dx-insight.neutral { border-color: var(--line); color: var(--muted); }
+.dx-insight strong { color: var(--text); }
+
+.dx-lista { margin: 0; padding-left: 18px; line-height: 1.8; }
+.dx-cardhead select { padding: 7px 10px; }
+
+/* ---------- Performance Coletiva (fase 3) ---------- */
+/* Grelha corredor × terço (referencial da equipa, ataque para a direita).
+   Intensidade = tom único (verde a favor / laranja contra) com opacidade
+   proporcional ao valor — escala sequencial de uma só cor. */
+.dx-zonas { display: grid; grid-template-columns: 74px repeat(3, 1fr); gap: 4px; }
+.dx-zona-rot { color: var(--muted); font-size: 11px; display: flex; align-items: center; }
+.dx-zona-col { justify-content: center; padding-bottom: 2px; }
+.dx-zona {
+  min-height: 62px; border-radius: 6px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px; color: var(--text);
+}
+.dx-zona strong { font-size: 17px; }
+.dx-zona span { font-size: 11px; color: #dbe6f5; }
+
+/* Barras a favor (direita) vs. contra (esquerda) a partir do centro */
+.dx-borbs { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.dx-borb { display: grid; grid-template-columns: 110px 1fr 1fr; align-items: center; gap: 2px; }
+.dx-borb-nome { display: flex; flex-direction: column; font-size: 13px; }
+.dx-borb-lado { display: flex; align-items: center; gap: 6px; min-height: 22px; }
+.dx-borb-lado.esq { justify-content: flex-end; border-right: 1px solid var(--line); padding-right: 2px; }
+.dx-borb-lado.dir { padding-left: 2px; }
+.dx-borb-barra { height: 16px; display: block; min-width: 0; }
+.dx-borb-barra.contra { background: var(--chart-contra); border-radius: 4px 0 0 4px; }
+.dx-borb-barra.favor { background: var(--chart-favor); border-radius: 0 4px 4px 0; }
+.dx-borb-val { font-size: 12px; color: var(--text); min-width: 28px; }
+.dx-borb-lado.esq .dx-borb-val { text-align: right; }
+@media (max-width: 700px) {
+  .dx-borb { grid-template-columns: 84px 1fr 1fr; }
+  .dx-zonas { grid-template-columns: 58px repeat(3, 1fr); }
+}
+
+/* ---------- Análise Territorial (fase 4) ---------- */
+.dx-filtros-pagina { margin-bottom: 15px; }
+.dx-subtitulo { font-size: 13px; font-weight: 700; margin: 14px 0 8px; }
+
+/* Linhas dos terços e corredores por cima do campo (tracejado discreto) */
+.dx-tercos { position: absolute; inset: 0; pointer-events: none; }
+.dx-tercos span { position: absolute; border: 0 dashed #ffffff55; }
+.dx-tercos span:nth-child(1) { left: 33.33%; top: 0; bottom: 0; border-left-width: 1px; }
+.dx-tercos span:nth-child(2) { left: 66.67%; top: 0; bottom: 0; border-left-width: 1px; }
+.dx-tercos span:nth-child(3) { top: 33.33%; left: 0; right: 0; border-top-width: 1px; }
+.dx-tercos span:nth-child(4) { top: 66.67%; left: 0; right: 0; border-top-width: 1px; }
+
+/* Pontos: 8px com anel na cor da superfície (marcas sobrepostas) */
+.dx-ponto {
+  position: absolute; width: 9px; height: 9px; border-radius: 50%;
+  transform: translate(-50%, -50%); border: 2px solid var(--panel);
+}
+
+.dx-toggles { display: flex; gap: 4px; }
+.dx-toggle {
+  background: var(--panel2); border: 1px solid var(--line); color: var(--muted);
+  padding: 6px 11px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 12px;
+}
+.dx-toggle.active { color: var(--text); border-color: var(--green); }
+
+.dx-legenda-int { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; color: var(--muted); justify-content: center; }
+.dx-legenda-barra { width: 120px; height: 8px; border-radius: 4px; display: inline-block; }
+
+.dx-zbar { display: grid; grid-template-columns: 84px 1fr 78px; gap: 8px; align-items: center; margin-bottom: 7px; font-size: 13px; }
+.dx-zbar-pista { height: 12px; background: var(--panel2); border-radius: 4px; overflow: hidden; }
+.dx-zbar-pista span { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.dx-zbar-val { color: var(--muted); font-size: 12px; text-align: right; }
+
+.dx-mapas-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 10px; }
+.dx-mapa-mini {
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+  padding: 8px; cursor: pointer; color: var(--text); font: inherit; text-align: left;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.dx-mapa-mini.active { border-color: var(--green); }
+.dx-mapa-mini-tit { font-size: 12px; font-weight: 600; }
+.dx-field-wrap.mini { max-width: none; }
+
+.dx-tr-grupo td { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; padding-top: 16px; }
+.dx-btn-link { background: none; border: 0; color: #7aa7ff; cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+
+@media (max-width: 1100px) { .dx-mapas-mini { grid-template-columns: repeat(2, 1fr); } }
+.dx-td-texto { white-space: normal !important; min-width: 260px; font-size: 12px; color: var(--muted); }
+
+/* ---------- Performance Individual (fase 5) ---------- */
+.dx-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.dx-table-click tbody tr[data-jogador] { cursor: pointer; }
+.dx-table-click tbody tr[data-jogador]:hover td { background: #ffffff08; }
+.dx-table-click tbody tr.ativo td { background: #42d9a214; }
+.dx-detalhe-titulo { font-size: 20px; margin: 0 0 12px; }
+
+/* Terços (defensivo → ofensivo) numa barra 100%: um só tom, 3 intensidades */
+.dx-tercos-mini { display: inline-flex; width: 90px; height: 10px; border-radius: 4px; overflow: hidden; gap: 2px; background: var(--panel); vertical-align: middle; }
+.dx-tercos-mini span { display: block; height: 100%; }
+
+/* Mini-evolução: ações por jogo; tracejado = não jogou */
+.dx-sparks { display: inline-flex; align-items: flex-end; gap: 3px; height: 24px; vertical-align: middle; }
+.dx-spark { width: 7px; background: var(--chart-favor); border-radius: 2px 2px 0 0; }
+.dx-spark-nd { width: 7px; height: 3px; background: var(--line); }
+
+/* ---------- Gestão do Plantel (fase 6) ---------- */
+.dx-input-num, .dx-input-txt {
+  background: var(--panel2); border: 1px solid var(--line); color: var(--text);
+  padding: 6px 8px; border-radius: 7px; font: inherit; font-size: 13px;
+}
+.dx-input-num { width: 64px; }
+.dx-input-txt { width: 120px; }
+.dx-uso { display: inline-block; width: 80px; height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; vertical-align: middle; }
+.dx-uso span { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.dx-msg { background: var(--panel); border: 1px solid var(--green); border-radius: 10px; padding: 10px 14px; margin-bottom: 15px; font-size: 13px; }
+.dx-msg.erro { border-color: var(--red); }
+.dx-estado-esq { text-align: left; margin-top: 15px; }
+
+/* ---------- Alertas (fase 7) ---------- */
+/* Gravidade: cor + texto (nunca só cor) */
+.dx-grav { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; border: 1px solid currentColor; }
+.dx-grav.alta { color: var(--red); }
+.dx-grav.media { color: var(--orange); }
+.dx-grav.baixa { color: var(--muted); }
+
+
+/* ---------- Exportar para PowerPoint ---------- */
+.dx-btn { background: var(--green); color: #0c1220; border: 0; border-radius: 9px; padding: 9px 16px; font: inherit; font-weight: 700; cursor: pointer; }
+.dx-btn:disabled { opacity: 0.6; cursor: wait; }
+.dx-btn-exportar {
+  background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  padding: 9px 14px; border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer;
+}
+.dx-btn-exportar:hover { border-color: var(--green); }
+.dx-dialogo {
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 16px;
+  padding: 22px; width: min(460px, calc(100vw - 32px));
+}
+.dx-dialogo::backdrop { background: rgba(5, 8, 15, 0.7); }
+.dx-dialogo h2 { margin: 0 0 6px; font-size: 18px; }
+.dx-dialogo-lista { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
+.dx-dialogo-lista label { display: flex; gap: 10px; align-items: center; font-size: 14px; cursor: pointer; }
+.dx-dialogo-botoes { display: flex; justify-content: flex-end; gap: 8px; }

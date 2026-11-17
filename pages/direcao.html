@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<!--
+  Análise de Jogo — pages/direcao.html
+  Gestão Desportiva → Dashboard Executivo. Seis páginas (Executive
+  Overview, Performance Coletiva, Análise Territorial, Performance
+  Individual, Gestão do Plantel, Alertas) que partilham os
+  mesmos filtros globais. Acessível a partir do botão "Gestão
+  Desportiva" no dashboard da equipa; usa a sessão normal da app.
+  (O ficheiro mantém o nome direcao.html para não mudar o endereço.)
+  Visual em ../css/direcao.css; lógica em ../js/direcao/.
+
+  Versão: 1.3 (2026-11-17)
+  Histórico:
+    1.0 (2026-11-17) — criação (6 páginas na sidebar, filtros globais).
+    1.1 (2026-11-17) — "Decisões e Alertas" passa a "Alertas" (sem registo
+                        de decisões).
+    1.2 (2026-11-17) — passa a chamar-se "Gestão Desportiva" (era
+                        "Direção Desportiva").
+    1.3 (2026-11-17) — botão "Exportar PowerPoint" + janela para escolher
+                        os slides.
+-->
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise de Jogo — Gestão Desportiva</title>
+<link rel="stylesheet" href="../css/direcao.css">
+</head>
+<body>
+
+  <div class="dx-app">
+
+    <aside class="dx-sidebar">
+      <div class="dx-brand">Analise<span>Jogo</span></div>
+      <div class="dx-tag">GESTÃO DESPORTIVA</div>
+
+      <div class="dx-team-field">
+        <label for="f-equipa">Equipa</label>
+        <select id="f-equipa"></select>
+      </div>
+
+      <nav class="dx-nav" id="nav">
+        <button class="active" data-pagina="overview">◫ &nbsp; Executive Overview</button>
+        <button data-pagina="coletiva">↗ &nbsp; Performance Coletiva</button>
+        <button data-pagina="territorial">▦ &nbsp; Análise Territorial</button>
+        <button data-pagina="individual">♙ &nbsp; Performance Individual</button>
+        <button data-pagina="plantel">☰ &nbsp; Gestão do Plantel</button>
+        <button data-pagina="alertas">! &nbsp; Alertas</button>
+      </nav>
+
+      <div class="dx-sidebar-footer">
+        <button id="btn-voltar">← Voltar ao Dashboard</button>
+        <button id="btn-sair">Sair</button>
+      </div>
+    </aside>
+
+    <main class="dx-main">
+
+      <header class="dx-top">
+        <div>
+          <div class="dx-eyebrow">Dashboard Executivo</div>
+          <h1 id="titulo-pagina">Executive Overview</h1>
+          <div class="dx-sub" id="subtitulo"></div>
+        </div>
+        <button type="button" class="dx-btn-exportar" id="btn-exportar" title="Gera um PowerPoint com os filtros atuais">⤓ Exportar PowerPoint</button>
+      </header>
+
+      <!-- Exportação para PowerPoint: escolher os slides (js/direcao/app.js + apresentacao.js) -->
+      <dialog class="dx-dialogo" id="dlg-exportar">
+        <form method="dialog" id="form-exportar">
+          <h2>Exportar para PowerPoint</h2>
+          <p class="dx-mini">Com os filtros escolhidos agora. Visual do template Matchday do clube; gráficos e tabelas editáveis no PowerPoint.</p>
+          <div class="dx-dialogo-lista" id="lista-slides"></div>
+          <p class="dx-mini" id="exportar-estado"></p>
+          <div class="dx-dialogo-botoes">
+            <button type="button" class="dx-toggle" id="btn-exportar-cancelar">Cancelar</button>
+            <button type="submit" class="dx-btn" id="btn-exportar-gerar">Gerar PowerPoint</button>
+          </div>
+        </form>
+      </dialog>
+
+      <section class="dx-filtros" id="filtros">
+        <div class="dx-filtro">
+          <label for="f-epoca">Época</label>
+          <select id="f-epoca"></select>
+        </div>
+        <div class="dx-filtro">
+          <label for="f-competicao">Competição</label>
+          <select id="f-competicao"></select>
+        </div>
+        <div class="dx-filtro">
+          <label for="f-janela">Período</label>
+          <select id="f-janela"></select>
+        </div>
+        <div class="dx-filtro" id="f-intervalo-desde" hidden>
+          <label for="f-desde">Desde</label>
+          <input type="date" id="f-desde">
+        </div>
+        <div class="dx-filtro" id="f-intervalo-ate" hidden>
+          <label for="f-ate">Até</label>
+          <input type="date" id="f-ate">
+        </div>
+        <div class="dx-filtro">
+          <label for="f-local">Casa/fora</label>
+          <select id="f-local">
+            <option value="">Todos</option>
+            <option value="casa">Casa</option>
+            <option value="fora">Fora</option>
+          </select>
+        </div>
+        <div class="dx-filtro">
+          <label for="f-adversario">Adversário</label>
+          <select id="f-adversario"></select>
+        </div>
+        <div class="dx-filtros-resumo" id="filtros-resumo"></div>
+      </section>
+
+      <div id="conteudo"></div>
+
+    </main>
+  </div>
+
+  <script type="module" src="../js/direcao/app.js"></script>
+</body>
+</html>

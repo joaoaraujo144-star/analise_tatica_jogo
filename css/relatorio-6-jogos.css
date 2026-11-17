@@ -1,0 +1,177 @@
+/**
+ * Análise de Jogo — relatorio-6-jogos.css
+ * Estilo próprio de pages/relatorio-6-jogos.html — não usa
+ * css/styles.css (tema partilhado do resto da app). Deliberado: esta
+ * página é um relatório à parte (fora da navegação principal, já sem
+ * nenhuma partilha de layout com o resto da app), e o pedido foi
+ * explicitamente para lhe dar um visual novo a partir de uma maqueta
+ * fornecida (sidebar + KPIs + cartões), que diverge bastante do tema
+ * vermelho/azul do resto do site — replicar isso dentro do styles.css
+ * partilhado fragmentaria o visual das páginas do jogo em si.
+ *
+ * Paleta: a maqueta original (verde #42d9a2 / laranja #ffb86b) serve
+ * bem como cor de interface (texto de delta, pontos de legenda,
+ * contorno de insight) mas falha o validador de acessibilidade da
+ * skill dataviz (scripts/validate_palette.js) quando usada em dados
+ * densos (linhas/barras) — por isso os GRÁFICOS usam tons mais escuros
+ * da mesma família (--chart-favor/--chart-contra/etc., todos validados
+ * em modo escuro contra a superfície #151e30: ver comentário em cada
+ * bloco "Gráficos" deste ficheiro ou o histórico de versão).
+ *
+ * Versão: 1.0 (2026-11-02)
+ */
+
+:root {
+  --bg: #0c1220;
+  --panel: #151e30;
+  --panel2: #1b2840;
+  --line: #2b3850;
+  --text: #edf4ff;
+  --muted: #9aacc5;
+  --green: #42d9a2;
+  --orange: #ffb86b;
+  --red: #f47d8d;
+
+  /* Tons de gráfico (validados — ver cabeçalho do ficheiro) */
+  --chart-favor: #239973;
+  --chart-contra: #c97a2e;
+  --chart-amarelo: #b8871f;
+  --chart-vermelho: #c9465a;
+  --chart-grid: #34445b;
+}
+
+* { box-sizing: border-box; }
+select {
+  background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  padding: 9px 11px; border-radius: 9px;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+button, select { font: inherit; }
+button { cursor: pointer; }
+
+.r6-app {
+  display: grid;
+  grid-template-columns: 235px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+/* ---------- Sidebar ---------- */
+.r6-sidebar {
+  background: #10192a;
+  border-right: 1px solid var(--line);
+  padding: 25px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.r6-brand { font-size: 23px; font-weight: 800; letter-spacing: -0.7px; margin: 0 10px 4px; }
+.r6-brand span { color: var(--green); }
+.r6-tag { color: var(--muted); font-size: 11px; margin: 0 10px 20px; }
+
+.r6-team-field { margin: 0 10px 22px; display: flex; flex-direction: column; gap: 6px; }
+.r6-team-field label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+.r6-team-field select {
+  background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  padding: 10px 11px; border-radius: 9px; width: 100%;
+}
+
+.r6-nav { display: grid; gap: 5px; }
+.r6-nav button {
+  border: 0; text-align: left; background: transparent; color: var(--muted);
+  padding: 13px; border-radius: 9px; font-size: 14px;
+}
+.r6-nav button.active, .r6-nav button:hover { background: #24344c; color: #fff; }
+
+.r6-sidebar-footer { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding: 0 10px; }
+.r6-sidebar-footer button {
+  border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+  padding: 9px 11px; border-radius: 9px; font-size: 12.5px; text-align: left;
+}
+.r6-sidebar-footer button:hover { color: #fff; border-color: #3a4d6e; }
+
+/* ---------- Main ---------- */
+.r6-main { padding: 28px 34px; min-width: 0; max-width: 1400px; width: 100%; margin: 0 auto; }
+
+.r6-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; flex-wrap: wrap; margin-bottom: 25px; }
+.r6-eyebrow { color: var(--green); text-transform: uppercase; letter-spacing: 2px; font-size: 11px; font-weight: 700; }
+.r6-top h1 { margin: 4px 0 5px; font-size: 29px; letter-spacing: -0.8px; }
+.r6-sub { color: var(--muted); }
+
+.r6-pill {
+  border: 1px solid var(--line); border-radius: 30px; padding: 5px 12px;
+  color: var(--muted); font-size: 11px; white-space: nowrap;
+}
+
+/* KPIs */
+.r6-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 15px; }
+.r6-kpis.r6-kpis-6 { grid-template-columns: repeat(6, 1fr); }
+
+/* Cartões */
+.r6-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 19px; min-width: 0;
+}
+.r6-kpi-label { color: var(--muted); font-size: 12px; }
+.r6-kpi-big { font-size: 28px; font-weight: 800; margin: 9px 0 4px; letter-spacing: -1px; }
+.r6-kpi-delta { font-size: 12px; color: var(--green); }
+.r6-kpi-delta.warn { color: var(--orange); }
+
+.r6-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 15px; margin-top: 15px; }
+.r6-grid-even { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+
+.r6-section-title { font-size: 16px; font-weight: 750; margin: 0 0 5px; }
+.r6-cardhead { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.r6-mini { font-size: 12px; color: var(--muted); line-height: 1.55; margin: 0; }
+
+.r6-legend { display: flex; gap: 15px; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+.r6-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+
+/* Tabela */
+.r6-table-scroll { overflow-x: auto; }
+.r6-table { width: 100%; border-collapse: collapse; }
+.r6-table th { text-align: left; color: var(--muted); font-size: 11px; font-weight: 600; padding: 11px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.r6-table td { padding: 12px 9px; border-bottom: 1px solid #ffffff12; white-space: nowrap; }
+.r6-table tr:last-child td { border: 0; }
+
+/* Insight callout */
+.r6-insight {
+  border-left: 3px solid var(--green); background: #1b2c3b; padding: 12px 14px;
+  border-radius: 0 8px 8px 0; margin-top: 12px; color: #dcece9; font-size: 13px;
+}
+.r6-insight.warning { border-color: var(--orange); }
+
+/* Gráficos */
+.r6-card canvas { max-height: 280px; }
+
+/* Mapa de calor (reaproveita assets/campo.png) */
+.r6-field-wrap { position: relative; max-width: 560px; width: 100%; margin: 0 auto; }
+.r6-field-wrap img { width: 100%; display: block; border-radius: 6px; }
+.r6-heat-grid { position: absolute; inset: 0; border-radius: 6px; overflow: hidden; }
+.r6-heat-cell { position: absolute; box-sizing: border-box; border: 1px solid #ffffff14; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 0.85em; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+
+.r6-hint { font-size: 0.85em; color: var(--muted); text-align: center; }
+
+@media (max-width: 1100px) {
+  .r6-kpis, .r6-kpis.r6-kpis-6 { grid-template-columns: repeat(2, 1fr); }
+  .r6-grid, .r6-grid-even { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .r6-app { grid-template-columns: 1fr; }
+  .r6-sidebar { padding: 12px; border-right: 0; border-bottom: 1px solid var(--line); flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .r6-brand { font-size: 20px; }
+  .r6-tag { display: none; }
+  .r6-team-field { margin: 0 6px; flex: 1 1 160px; }
+  .r6-nav { display: flex; overflow-x: auto; flex: 1 1 100%; order: 3; }
+  .r6-nav button { white-space: nowrap; padding: 9px 12px; }
+  .r6-sidebar-footer { flex-direction: row; margin: 0; order: 2; }
+  .r6-main { padding: 18px; }
+  .r6-kpis, .r6-kpis.r6-kpis-6 { grid-template-columns: repeat(2, 1fr); gap: 9px; }
+  .r6-card { padding: 14px; }
+  .r6-kpi-big { font-size: 23px; }
+  .r6-top h1 { font-size: 23px; }
+}

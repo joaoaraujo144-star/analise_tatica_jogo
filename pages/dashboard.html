@@ -6,7 +6,7 @@
   questionário diário) e Relatórios (agregado de todos os jogos).
   Lógica em ../js/dashboard.js.
 
-  Versão: 1.17 (2026-11-02)
+  Versão: 1.19 (2026-11-17)
   Histórico:
     1.0 (2026-07-08) — criação, ao separar o dashboard do login.
     1.1 (2026-07-08) — passa a ser específico de uma equipa (troca de equipa).
@@ -40,6 +40,11 @@
     1.17 (2026-11-02) — tabela da tab Relatórios: "Jogos" passa a "Conv."
                          (convocado) + "Jogados" (entrou em campo), mais
                          a coluna "Min." (minutos jogados na época).
+    1.18 (2026-11-17) — Dashboard Executivo: botão "Direção Desportiva";
+                         jogos ganham casa/fora, competição e estado da
+                         codificação (no "Novo Jogo" e editáveis na
+                         lista); Plantel ganha a coluna "Posição".
+    1.19 (2026-11-17) — botão passa a "Gestão Desportiva".
 -->
 <html lang="pt">
 <head>
@@ -56,6 +61,7 @@
 
     <div class="top-bar">
       <div class="match-indicator" id="team-indicator">Equipa</div>
+      <button class="action" id="btn-direcao">Gestão Desportiva</button>
       <button class="action" id="btn-switch-team">Trocar de equipa</button>
       <button class="action" id="btn-sign-out">Sair</button>
     </div>
@@ -76,6 +82,13 @@
         <div class="player-form" id="novo-jogo-form">
           <input type="date" id="match-date">
           <input type="text" id="match-opponent" placeholder="Adversário">
+          <select id="match-local" title="Casa ou fora (opcional)">
+            <option value="">Casa/fora</option>
+            <option value="casa">Casa</option>
+            <option value="fora">Fora</option>
+          </select>
+          <input type="text" id="match-competicao" placeholder="Competição (opcional)" list="competicoes-list">
+          <datalist id="competicoes-list"></datalist>
           <label class="hint" style="display:flex;align-items:center;gap:4px;">
             <input type="checkbox" id="match-pre-epoca"> Pré-época
           </label>
@@ -86,10 +99,10 @@
 
       <div class="players-card">
         <h2 class="tracker-title">Jogos</h2>
-        <p class="hint">Jogos marcados como "Pré-época" continuam disponíveis normalmente, mas ficam fora do Relatório de Equipa.</p>
+        <p class="hint">Jogos marcados como "Pré-época" continuam disponíveis normalmente, mas ficam fora do Relatório de Equipa. "Codificação" diz ao Dashboard Executivo se o jogo foi codificado por inteiro ("Completa", por omissão) — muda para "Parcial" quando não foi, e aí "nenhum evento" deixa de contar como zero.</p>
         <div class="table-scroll">
         <table class="players-table">
-          <thead><tr><th>Data</th><th>Adversário</th><th>Pré-época</th><th></th></tr></thead>
+          <thead><tr><th>Data</th><th>Adversário</th><th>Pré-época</th><th></th><th>Casa/fora</th><th>Competição</th><th>Codificação</th></tr></thead>
           <tbody id="matches-body"></tbody>
         </table>
         </div>
@@ -115,7 +128,7 @@
         </div>
         <div class="table-scroll">
         <table class="players-table">
-          <thead><tr><th>Nº</th><th>Nome</th><th>Acesso</th><th></th></tr></thead>
+          <thead><tr><th>Nº</th><th>Nome</th><th>Posição</th><th>Acesso</th><th></th></tr></thead>
           <tbody id="roster-body"></tbody>
         </table>
         </div>

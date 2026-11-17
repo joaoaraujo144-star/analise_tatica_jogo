@@ -1,9 +1,9 @@
 -- Análise de Jogo — esquema Supabase completo
 -- Corre este script uma vez no SQL Editor de um projeto Supabase novo.
 -- (Se já tinhas um projeto com o esquema antigo, usa antes, por ordem,
--- todos os ficheiros em supabase/migrations/, do 001 ao 034.)
+-- todos os ficheiros em supabase/migrations/, do 001 ao 036.)
 --
--- Versão: 1.35 (2026-11-02) — reflete sempre o estado final cumulativo,
+-- Versão: 1.37 (2026-11-17) — reflete sempre o estado final cumulativo,
 -- depois de todas as migrações em supabase/migrations/ terem sido aplicadas.
 -- Histórico:
 --   1.0  (2026-07-08) — criação: teams, matches, players, match_players, events.
@@ -100,6 +100,13 @@
 --                        minuto_substituicao, para calcular quantos
 --                        minutos cada jogador jogou (ver
 --                        034_match_players_minutos.sql).
+--   1.36 (2026-11-17) — Direção Desportiva: matches ganha local/competicao/
+--                        codificacao, players ganha posicao/posicoes_secundarias,
+--                        tabelas posicao_minimos/kpi_targets/decisoes,
+--                        events_normalizado ganha terco/corredor, nova view
+--                        v_jogo_resumo (ver 035_direcao_desportiva.sql).
+--   1.37 (2026-11-17) — matches.codificacao passa a 'completa' por omissão
+--                        (036_codificacao_completa_default.sql).
 
 create extension if not exists "pgcrypto";
 
@@ -136,6 +143,8 @@ create table if not exists players (
   auth_user_id uuid unique references auth.users(id) on delete set null,
   data_nascimento date,
   login_email text,
+  posicao text,
+  posicoes_secundarias text[] not null default '{}',
   created_at timestamptz not null default now()
 );
 
@@ -154,6 +163,12 @@ create table if not exists matches (
   -- Jogo de pré-época: continua acessível normalmente (dados, relatório do
   -- próprio jogo, etc.) mas fica fora do agregado do Relatório de Equipa.
   pre_epoca boolean not null default false,
+  -- Contexto competitivo (opcionais, null = desconhecido) e estado da
+  -- codificação — ver 035_direcao_desportiva.sql. A época não tem coluna:
+  -- deriva-se de "data" (epocaDe() em js/direcao/metricas.js).
+  local text check (local in ('casa', 'fora')),
+  competicao text,
+  codificacao text default 'completa' check (codificacao in ('completa', 'parcial')),
   created_at timestamptz not null default now()
 );
 
@@ -473,7 +488,29 @@ select
       else e.y_pct
     end) / 100.0 * 4
   )::int)) as zona_row,
-  e.goal_id
+  e.goal_id,
+  case
+    when (case
+            when (e.parte = 1 and coalesce(m.orientacao_parte1, 'E-D') = 'D-E')
+              or (e.parte = 2 and coalesce(m.orientacao_parte1, 'E-D') = 'E-D')
+            then 100 - e.x_pct else e.x_pct end) < 100.0 / 3 then 'defensivo'
+    when (case
+            when (e.parte = 1 and coalesce(m.orientacao_parte1, 'E-D') = 'D-E')
+              or (e.parte = 2 and coalesce(m.orientacao_parte1, 'E-D') = 'E-D')
+            then 100 - e.x_pct else e.x_pct end) < 200.0 / 3 then 'intermedio'
+    else 'ofensivo'
+  end as terco,
+  case
+    when (case
+            when (e.parte = 1 and coalesce(m.orientacao_parte1, 'E-D') = 'D-E')
+              or (e.parte = 2 and coalesce(m.orientacao_parte1, 'E-D') = 'E-D')
+            then 100 - e.y_pct else e.y_pct end) < 100.0 / 3 then 'esquerdo'
+    when (case
+            when (e.parte = 1 and coalesce(m.orientacao_parte1, 'E-D') = 'D-E')
+              or (e.parte = 2 and coalesce(m.orientacao_parte1, 'E-D') = 'E-D')
+            then 100 - e.y_pct else e.y_pct end) < 200.0 / 3 then 'central'
+    else 'direito'
+  end as corredor
 from events e
 join matches m on m.id = e.match_id;
 
@@ -1263,5 +1300,105 @@ grant execute on function admin_create_trial_code(text, text, text, int) to anon
 grant execute on function admin_set_trial_code_active(text, uuid, boolean) to anon, authenticated;
 grant execute on function admin_list_trial_teams(text) to anon, authenticated;
 grant execute on function admin_delete_trial_team(text, uuid) to anon, authenticated;
+
+-- =========== Direção Desportiva (Dashboard Executivo) ===========
+
+-- ---------- Mínimo desejado de jogadores por posição ----------
+create table if not exists posicao_minimos (
+  team_id uuid not null references teams(id) on delete cascade,
+  posicao text not null,
+  minimo int not null check (minimo >= 0),
+  primary key (team_id, posicao)
+);
+alter table posicao_minimos enable row level security;
+create policy "posicao_minimos_team_member" on posicao_minimos
+  for all
+  using (exists (select 1 from team_members tm where tm.team_id = posicao_minimos.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = posicao_minimos.team_id and tm.user_id = auth.uid()));
+
+-- ---------- Alertas: limites e direção favorável por indicador ----------
+-- "direcao": qual o sentido bom do indicador ('subir' = mais é melhor,
+-- 'descer' = menos é melhor) — nunca assumido, sempre configurado.
+-- "limite_pct": variação percentual (em valor absoluto) a partir da qual
+-- uma evolução no sentido mau gera alerta.
+create table if not exists kpi_targets (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references teams(id) on delete cascade,
+  indicador text not null,
+  direcao text not null check (direcao in ('subir', 'descer')),
+  limite_pct numeric not null check (limite_pct >= 0),
+  gravidade text not null default 'media' check (gravidade in ('baixa', 'media', 'alta')),
+  ativo boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (team_id, indicador)
+);
+alter table kpi_targets enable row level security;
+create policy "kpi_targets_team_member" on kpi_targets
+  for all
+  using (exists (select 1 from team_members tm where tm.team_id = kpi_targets.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = kpi_targets.team_id and tm.user_id = auth.uid()));
+
+-- ---------- Registo de decisões ----------
+create table if not exists decisoes (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references teams(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  data date not null default current_date,
+  diagnostico text not null,
+  recomendacao text,
+  responsavel text,
+  prioridade text not null default 'media' check (prioridade in ('baixa', 'media', 'alta')),
+  estado text not null default 'aberta' check (estado in ('aberta', 'em_curso', 'concluida', 'cancelada')),
+  resultado text,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_decisoes_team_data on decisoes(team_id, data desc);
+alter table decisoes enable row level security;
+create policy "decisoes_team_member" on decisoes
+  for all
+  using (exists (select 1 from team_members tm where tm.team_id = decisoes.team_id and tm.user_id = auth.uid()))
+  with check (exists (select 1 from team_members tm where tm.team_id = decisoes.team_id and tm.user_id = auth.uid()));
+
+-- ---------- v_jogo_resumo: uma linha por jogo ----------
+-- Golos vêm de "goals" (fonte fiável, um registo por golo). Como a
+-- tabela só existe desde 021 (sofridos desde 023), um jogo antigo pode
+-- não ter as linhas — "golos_consistentes" compara com o contador
+-- match_players.golo: se divergirem, o resultado não é fiável e o
+-- dashboard mostra-o como indisponível em vez de inventar um 0-0.
+-- minutos_jogo é null se faltar o início/fim de alguma parte.
+create or replace view v_jogo_resumo as
+select
+  m.id,
+  m.team_id,
+  m.data,
+  m.adversario,
+  m.local,
+  m.competicao,
+  m.pre_epoca,
+  m.codificacao,
+  (m.parte2_fim is not null) as terminado,
+  case
+    when m.parte1_inicio is null or m.parte1_fim is null
+      or m.parte2_inicio is null or m.parte2_fim is null then null
+    else round(extract(epoch from (m.parte1_fim - m.parte1_inicio)) / 60
+             + extract(epoch from (m.parte2_fim - m.parte2_inicio)) / 60)::int
+  end as minutos_jogo,
+  coalesce(g.marcados, 0) as golos_marcados,
+  coalesce(g.sofridos, 0) as golos_sofridos,
+  (coalesce(g.marcados, 0) = coalesce(mp.golos_contador, 0)) as golos_consistentes
+from matches m
+left join (
+  select match_id,
+         count(*) filter (where tipo = 'marcado') as marcados,
+         count(*) filter (where tipo = 'sofrido') as sofridos
+  from goals group by match_id
+) g on g.match_id = m.id
+left join (
+  select match_id, sum(golo) as golos_contador
+  from match_players group by match_id
+) mp on mp.match_id = m.id;
+
+alter view v_jogo_resumo set (security_invoker = true);
+grant select on v_jogo_resumo to authenticated;
 
 notify pgrst, 'reload schema';

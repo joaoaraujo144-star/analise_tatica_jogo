@@ -7,7 +7,7 @@
   nova tabela, nova relação) — idealmente na mesma alteração que cria a
   migração em supabase/migrations/.
 
-  Versão: 1.25 (2026-11-02)
+  Versão: 1.28 (2026-11-17)
   Histórico:
     1.0 (2026-07-14) — criação, a refletir o esquema depois da migração 011_cruzamentos.sql.
     1.1 (2026-07-15) — events ganha player_id (jogador que fez a ação, opcional).
@@ -75,6 +75,16 @@
     1.25 (2026-11-02) — match_players ganha parte_substituicao/
                          minuto_substituicao, para calcular minutos jogados
                          (Relatório de Equipa + relatório de um jogo).
+    1.26 (2026-11-17) — Dashboard Executivo (035_direcao_desportiva.sql):
+                         matches ganha local/competicao/codificacao, players
+                         ganha posicao/posicoes_secundarias, events_normalizado
+                         ganha terco/corredor, nova view v_jogo_resumo, novas
+                         tabelas posicao_minimos/kpi_targets/decisoes.
+    1.27 (2026-11-17) — matches.codificacao passa a 'completa' por omissão.
+    1.28 (2026-11-17) — documentado o uso de kpi_targets (ids aceites em
+                         "indicador", linha = sobrepõe a omissão) e de
+                         posicao_minimos pelo Dashboard Executivo; decisoes
+                         fica sem uso (sem alterações de esquema).
 -->
 
 # Logical Data Model — Análise de Jogo
@@ -353,6 +363,8 @@ Plantel reutilizável de uma equipa — cada jogador existe uma vez, é convocad
 | `auth_user_id` | uuid | não (FK → `auth.users`, único) | login próprio do jogador, criado pelo treinador na tab Plantel — dá acesso só a `pages/jogador.html` (perfil + wellness), nunca ao resto da equipa |
 | `data_nascimento` | date | não | preenchida pelo próprio jogador no primeiro login (não pelo treinador) |
 | `login_email` | text | não | cópia do email de login, só para o treinador se lembrar (o `auth.users.email` não é consultável via PostgREST) |
+| `posicao` | text | não | posição principal (abreviatura: GR, DD, DC, DE, MDC, MC, MO, ED, EE, PL), editável na tab Plantel — usada no Dashboard Executivo |
+| `posicoes_secundarias` | text[] | sim (default `{}`) | outras posições em que o jogador pode atuar (Gestão do Plantel) |
 | `created_at` | timestamptz | sim | |
 
 ### `matches`
@@ -369,6 +381,9 @@ Jogos de uma equipa, com o cronómetro e a orientação de ataque.
 | `parte2_inicio` / `parte2_fim` | timestamptz | não | hora de início/fim da 2ª parte; `parte2_fim` definido = jogo terminado (bloqueia edição) |
 | `orientacao_parte1` | text | não | `E-D` ou `D-E`; direção de ataque na 1ª parte (a 2ª é sempre o oposto) |
 | `pre_epoca` | boolean | sim | jogo de pré-época; continua acessível normalmente (dados, relatório do próprio jogo) mas fica fora do agregado da tab Relatórios do dashboard |
+| `local` | text | não | `casa` / `fora` (null = não indicado) |
+| `competicao` | text | não | texto livre (ex: "Distrital 1.ª Divisão", "Taça") |
+| `codificacao` | text | não (default `completa`) | `completa` / `parcial` (null = não indicado). Por omissão `completa` (036) — muda-se à mão para `parcial` quando um jogo não foi codificado por inteiro. Só num jogo `completa` é que "nenhum evento" de um tipo conta como zero no Dashboard Executivo. A época não tem coluna: deriva-se de `data` (julho→junho) |
 | `created_at` | timestamptz | sim | |
 
 ### `match_players`
@@ -588,6 +603,30 @@ Junta `events` com `matches` e roda 180º (`100 - x_pct`, `100 - y_pct`) os pont
 | `id`, `team_id`, `match_id`, `tracker_id`, `parte`, `minuto`, `tipo`, `created_at`, `x_pct`, `y_pct`, `player_id`, `goal_id` | `events` | valores originais, sem alteração |
 | `x_pct_normalizado` / `y_pct_normalizado` | calculado | `100 - x_pct` / `100 - y_pct` quando a parte atacou "ao contrário"; senão, igual ao original |
 | `zona_col` (0-5) / `zona_row` (0-3) | calculado | posição na grelha 6×4 usada pelo mapa de calor por zonas, derivada de `x_pct_normalizado`/`y_pct_normalizado`. Serve para agregar por zona diretamente em SQL, sem repetir a lógica de "binning" no cliente. |
+| `terco` | calculado | `defensivo` / `intermedio` / `ofensivo` — terços de `x_pct_normalizado` (a equipa ataca sempre para a direita) |
+| `corredor` | calculado | `esquerdo` / `central` / `direito` — terços de `y_pct_normalizado`; a atacar para a direita, a esquerda da equipa é o topo do campo (y pequeno) |
+
+### `v_jogo_resumo` (view, não tabela)
+Uma linha por jogo, para o Dashboard Executivo. `security_invoker` (respeita a RLS de `matches`/`goals`/`match_players`).
+
+| Coluna | Notas |
+|---|---|
+| `id`, `team_id`, `data`, `adversario`, `local`, `competicao`, `pre_epoca`, `codificacao` | de `matches` |
+| `terminado` | `parte2_fim is not null` |
+| `minutos_jogo` | soma da duração real das duas partes; null se faltar algum início/fim |
+| `golos_marcados` / `golos_sofridos` | contagem em `goals` |
+| `golos_consistentes` | `goals` marcados = soma de `match_players.golo`. Falso em jogos antigos (antes de existir `goals`): o resultado desses jogos aparece como indisponível, nunca como 0-0 |
+
+### `posicao_minimos`
+Número mínimo desejado de jogadores por posição (Gestão do Plantel). Chave `(team_id, posicao)`; RLS por `team_members`. Sem linha = mínimo não definido (o défice fica n/d); editado na própria página, apagar o valor apaga a linha.
+
+### `kpi_targets`
+Regras dos alertas (página Alertas): `indicador`, `direcao` (`subir` = mais é melhor, `descer` = menos é melhor — nunca assumido), `limite_pct` (variação a partir da qual gera alerta), `gravidade` (`baixa`/`media`/`alta`), `ativo`. Único por `(team_id, indicador)`; RLS por `team_members`.
+
+`indicador` é um id do catálogo `INDICADORES` de `js/direcao/metricas.js` (ex: `remates_f_90`, `perdas_terco_def_90`, `racio_gp`) ou um dos dois alertas especiais de `js/direcao/alertas.js`: `producao_individual` (limite = queda % de (ganhos + remates + cruzamentos) por 90 de um jogador) e `dependencia` (limite = quota mínima, em %, dos minutos da posição de um só jogador). **Sem linha, vale a omissão** (direção do catálogo; alertas ativos por omissão em `ALERTAS_PADRAO`); com linha, a `direcao` gravada vale em todo o dashboard (tendências e alertas). "Sem juízo" (ex: faltas) não se grava — a coluna exige direção — e corresponde a não ter linha. Editado na tabela "Configuração dos indicadores" da página Alertas; "repor" apaga a linha.
+
+### `decisoes`
+Registo de decisões da Direção Desportiva: `data`, `diagnostico`, `recomendacao`, `responsavel`, `prioridade` (`baixa`/`media`/`alta`), `estado` (`aberta`/`em_curso`/`concluida`/`cancelada`), `resultado`. RLS por `team_members`. **Sem uso de momento**: criada pela migração 035 para um registo de decisões que acabou por não ser pedido (a página ficou só com alertas). Mantida (não destrutivo, vazia); pode ser apagada com `drop table decisoes;` se não vier a ser usada.
 
 ## Convenções gerais
 

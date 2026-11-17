@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<!--
+  Análise de Jogo — pages/relatorio-6-jogos.html
+  Relatório dos últimos 6 jogos (terminados, não pré-época) de uma
+  equipa escolhida numa dropdown, organizado por separadores (sidebar à
+  esquerda) — por agora só "Overview" está completo, os restantes 6 vão
+  sendo definidos e preenchidos aos poucos. Fora da navegação principal
+  — só acessível pelo próprio URL (mesmo padrão de trial-admin.html) —
+  reaproveita a sessão Supabase já aberta no browser. Visual próprio
+  (../css/relatorio-6-jogos.css, não o tema partilhado do resto da app —
+  ver cabeçalho desse ficheiro). Lógica em ../js/relatorio-6-jogos.js.
+
+  Versão: 2.0 (2026-11-02)
+  Histórico:
+    1.0 (2026-11-02) — criação (sem separadores: tudo numa página só).
+    1.1 (2026-11-02) — reorganizado em separadores; 1º ("Overview") com
+                        estado geral, total/média/por-90-min de cada
+                        evento, saldo de remates e cruzamentos, evolução
+                        jogo a jogo, e distribuição percentual dos
+                        eventos. O resto do que já existia (domínio por
+                        métrica, mapa de calor, rotação do plantel) fica
+                        por agora no separador "Outros", à espera de ser
+                        distribuído pelos restantes 6 separadores.
+    1.2 (2026-11-02) — polimento visual dentro do tema partilhado:
+                        cabeçalho com nome da equipa, "Estado geral"/
+                        "Saldo" lado a lado, distribuição percentual
+                        como barra 100% empilhada com paleta validada.
+    2.0 (2026-11-02) — visual totalmente novo (CSS próprio, não mais
+                        css/styles.css), a partir de uma maqueta
+                        fornecida: sidebar à esquerda (equipa + os
+                        separadores), KPIs, cartões com cabeçalho,
+                        legenda por pontos, e tabelas mais densas.
+    2.1 (2026-11-17) — substituída pelo Dashboard Executivo
+                        (pages/direcao.html, "Últimos 6 jogos" nos
+                        filtros): redireciona para lá. O resto da página
+                        fica intacto — basta tirar o script abaixo para
+                        voltar a usá-la.
+-->
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<script>location.replace('direcao.html');</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise de Jogo — Últimos 6 Jogos</title>
+<link rel="stylesheet" href="../css/relatorio-6-jogos.css">
+</head>
+<body>
+
+  <div class="r6-app">
+
+    <aside class="r6-sidebar">
+      <div class="r6-brand">Analise<span>Jogo</span></div>
+      <div class="r6-tag">ÚLTIMOS 6 JOGOS</div>
+
+      <div class="r6-team-field">
+        <label for="team-select">Equipa</label>
+        <select id="team-select"></select>
+      </div>
+
+      <nav class="r6-nav" id="tabs">
+        <button class="active" data-tab="overview">◫ &nbsp; Overview</button>
+        <button data-tab="outros">▤ &nbsp; Outros</button>
+      </nav>
+
+      <div class="r6-sidebar-footer">
+        <button id="btn-voltar">← Voltar ao Dashboard</button>
+        <button id="btn-sign-out">Sair</button>
+      </div>
+    </aside>
+
+    <main class="r6-main">
+
+      <p class="r6-hint" id="sem-equipas" hidden>Não pertences a nenhuma equipa ainda.</p>
+      <p class="r6-hint" id="poucos-jogos" hidden></p>
+      <p class="r6-hint" id="sem-jogos" hidden>Esta equipa ainda não tem nenhum jogo terminado.</p>
+
+      <div id="relatorio-body" hidden>
+
+        <header class="r6-top">
+          <div>
+            <div class="r6-eyebrow">Análise de rendimento</div>
+            <h1 id="report-team-nome"></h1>
+            <div class="r6-sub" id="report-periodo"></div>
+          </div>
+        </header>
+
+        <!-- ---------- Overview ---------- -->
+        <div class="tab-panel" id="tab-overview">
+
+          <section class="r6-kpis" id="estado-geral-counters"></section>
+
+          <div class="r6-grid-even">
+            <div class="r6-card">
+              <div class="r6-cardhead">
+                <h2 class="r6-section-title">Saldo de remates e cruzamentos</h2>
+              </div>
+              <section class="r6-kpis" id="saldo-counters" style="grid-template-columns: repeat(3, 1fr);"></section>
+            </div>
+
+            <div class="r6-card">
+              <div class="r6-cardhead">
+                <div>
+                  <h2 class="r6-section-title">Distribuição percentual dos eventos</h2>
+                  <p class="r6-mini">Peso de cada campo no total de ações registadas</p>
+                </div>
+              </div>
+              <canvas id="chart-distribuicao"></canvas>
+              <div class="r6-legend" id="distribuicao-legend" style="margin-top:12px"></div>
+            </div>
+          </div>
+
+          <div class="r6-grid">
+            <div class="r6-card">
+              <div class="r6-cardhead">
+                <div>
+                  <h2 class="r6-section-title">Evolução — Golos</h2>
+                  <p class="r6-mini">Marcados vs. sofridos, jogo a jogo</p>
+                </div>
+                <div class="r6-legend">
+                  <span><i class="r6-dot" style="background:var(--green)"></i>Marcados</span>
+                  <span><i class="r6-dot" style="background:var(--orange)"></i>Sofridos</span>
+                </div>
+              </div>
+              <canvas id="chart-golos"></canvas>
+            </div>
+
+            <div class="r6-card">
+              <div class="r6-cardhead">
+                <div>
+                  <h2 class="r6-section-title">Evolução — Cartões</h2>
+                  <p class="r6-mini">Amarelos vs. vermelhos, jogo a jogo</p>
+                </div>
+              </div>
+              <canvas id="chart-cartoes"></canvas>
+            </div>
+          </div>
+
+          <div class="r6-card" style="margin-top:15px">
+            <div class="r6-cardhead">
+              <h2 class="r6-section-title">Jogos considerados</h2>
+              <span class="r6-pill" id="jogos-pill"></span>
+            </div>
+            <div class="r6-table-scroll">
+              <table class="r6-table">
+                <thead><tr><th>Data</th><th>Adversário</th><th>Golos M.</th><th>Golos S.</th></tr></thead>
+                <tbody id="jogos-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="r6-card" style="margin-top:15px">
+            <h2 class="r6-section-title">Total e média por jogo de cada evento</h2>
+            <div class="r6-table-scroll">
+              <table class="r6-table">
+                <thead><tr><th>Evento</th><th>Total</th><th>Média/Jogo</th><th>Por 90 min</th></tr></thead>
+                <tbody id="totais-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ---------- Outros (a reorganizar pelos próximos separadores) ---------- -->
+        <div class="tab-panel" id="tab-outros" hidden>
+
+          <div class="r6-card">
+            <h2 class="r6-section-title">Domínio por métrica</h2>
+            <p class="r6-mini">A favor vs. contra, jogo a jogo, por campo do Registo de Jogo</p>
+          </div>
+          <div class="r6-grid-even" id="dominio-charts" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));"></div>
+
+          <div class="r6-card" style="margin-top:15px">
+            <div class="r6-cardhead">
+              <h2 class="r6-section-title">Mapa de calor combinado (6 jogos)</h2>
+              <select id="heat-select"></select>
+            </div>
+            <div class="r6-field-wrap">
+              <img src="../assets/campo.png" alt="Campo de futebol">
+              <div class="r6-heat-grid" id="heat-grid"></div>
+            </div>
+          </div>
+
+          <div class="r6-card" style="margin-top:15px">
+            <h2 class="r6-section-title">Rotação do plantel</h2>
+            <p class="r6-mini">Minutos jogados nestes 6 jogos</p>
+            <canvas id="chart-minutos"></canvas>
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <script type="module" src="../js/relatorio-6-jogos.js"></script>
+</body>
+</html>

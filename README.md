@@ -32,6 +32,8 @@ Site em produção: **https://joaoaraujo144-star.github.io/analise_tatica_jogo/*
   - Na página de um jogo: estatísticas só dos convocados desse jogo. Quando o jogo termina, aparece também o **Registo de Jogo normalizado**: os pontos da 1ª e 2ª parte juntos, rodados 180º conforme a orientação de ataque de cada parte, para ficarem representados no mesmo sentido de ataque. Cada campo tem um botão para trocar entre a vista de **Pontos** (marcadores individuais) e **Mapa de Calor** (grelha 6×4 sobre o campo, mais intensa onde há mais eventos — pensada para funcionar bem mesmo com poucos pontos por jogo), com um segundo seletor para escolher qual dos dois tipos (ex: "A Favor"/"Contra", "Ganhos"/"Perdas") mostrar de cada vez — misturá-los não faria sentido. A zona de cada ponto (para o mapa de calor) é calculada na base de dados, não no browser, para poder ser consultada diretamente por SQL no futuro. Um botão **"Exportar relatório (PDF)"** abre a vista de impressão do browser (guardar como PDF) já só com a tab Relatórios, mostrando sempre os dois mapas de calor (ex: "Ganhos" e "Perdas") lado a lado por campo, independentemente do que estiver escolhido no ecrã.
   - No dashboard da equipa: totais agregados por jogador (jogos convocados vs jogos jogados, minutos jogados, golos, assistências, cartões) ao longo de **todos** os jogos da equipa, exceto os marcados como **Pré-época**.
   - **Dois relatórios gerados** (botões "Ver Relatório Geral" / "Ver Transições e Cruzamentos" na tab Relatórios de um jogo): domínio por métrica, evolução por parte e por momento, distribuição por zona do campo (grelha 4×3), resumo por bloco de 15 min e por jogador (com minutos jogados nesse jogo, Relatório Geral); funis de transição defensiva/ofensiva, remates provenientes de cruzamento, e faltas provocadas por perda/ganho de bola com a zona onde caíram (Transições) — mais uma análise em prosa por botão ("Gerar análise"), escrita pela API da Claude a partir dos números já calculados no browser (nunca dados em bruto) através de uma Edge Function do Supabase, e guardada em cache (`report_insights`) para não voltar a chamar a API sempre que o relatório é reaberto. Ver "Relatórios gerados por IA" abaixo para configurar.
+  - **Dashboard Executivo — Gestão Desportiva** (botão "Gestão Desportiva" no dashboard da equipa, `pages/direcao.html`): seis páginas (Executive Overview, Performance Coletiva, Análise Territorial, Performance Individual, Gestão do Plantel, Alertas) com filtros globais partilhados (época, competição, últimos 3/6/10/12 jogos, época completa ou intervalo, casa/fora, adversário). Feito por fases — as 6 páginas estão prontas: a base (dados, fórmulas, filtros, resumo de qualidade dos dados) e o **Executive Overview** (KPIs com variação face ao período anterior, evolução por jogo, tabela "últimos N vs. N anteriores", tendências positivas/negativas e 3 conclusões executivas com regras explícitas: ≥ 3 jogos por período, variações ≥ 10%) e a **Performance Coletiva** (produção ofensiva e comportamento defensivo por 90 min — incluindo perdas no terço defensivo e recuperações no terço ofensivo —, grelha corredor × terço, a favor vs. contra lado a lado com o saldo só como complemento, evolução por jogo, blocos de 15 min, casa vs. fora e comparação entre jogos) e a **Análise Territorial** (campo com densidade ou pontos dos eventos registados, filtrável por evento, a favor/contra, jogo, jogador e intervalo temporal; distribuição por terço e corredor; os 4 mapas principais; comparação territorial entre períodos; e verificação automática da orientação de ataque de cada parte de cada jogo) e a **Performance Individual** (tabela agrupada por posição — sem rankings entre funções diferentes — com jogos, minutos, ganhos, perdas, rácio, remates, cruzamentos, faltas, terços e evolução recente, em totais ou por 90; detalhe de um jogador com evolução, mapa de ações, comparação com o período anterior e com outro jogador, e jogo a jogo; mostra também que parte dos eventos tem jogador atribuído) e a **Gestão do Plantel** (jogadores por posição com o mínimo desejado editável — défice só quando o mínimo está definido —, quem pode atuar noutras posições, utilização com % dos minutos disponíveis, participação por posição, evolução entre períodos e planeamento com necessidades, prioridades, acompanhamento e possíveis decisões, por regras explícitas; disponibilidade e contratos aparecem como "dados indisponíveis" por não terem fonte) e **Alertas** (alertas por regras transparentes — coletivos face ao período anterior, redução da produção individual e dependência de jogadores — com indicador, atual, anterior, variação, limite, período, gravidade e recomendação; configuração da direção favorável, limite e gravidade de cada indicador, que vale para todo o dashboard; e o resumo de qualidade dos dados do período). Botão **"Exportar PowerPoint"** (no topo do dashboard): gera um `.pptx` com os filtros escolhidos, no visual do template Matchday do clube (fundo escuro, dourado, logótipo da equipa), escolhendo os slides — resumo executivo, evolução por jogo, comparação entre períodos, equilíbrio e casa/fora, momentos do jogo, mapas de território, utilização e planeamento do plantel, alertas e notas de qualidade dos dados. Gráficos nativos (editáveis no PowerPoint; o Keynote não mostra gráficos deste tipo). Os jogos de pré-época nunca entram no dashboard nem no PowerPoint; sem jogos anteriores ao período, não há comparação, mas os valores do período aparecem na mesma (tabela "Indicadores do período"). Para tirar partido dele, indica em cada jogo (tab Jogos) se é em casa ou fora e a competição, e a posição de cada jogador (tab Plantel). A codificação de cada jogo é **completa** por omissão ("nenhum evento" conta como zero); muda para **parcial** um jogo que não tenha sido codificado por inteiro.
+  - **Últimos 6 jogos** (`pages/relatorio-6-jogos.html`, fora da navegação principal, só pelo URL): escolhes a equipa numa dropdown; organizado por separadores, por agora com **Overview** completo (estado geral da equipa, total/média/por-90-min de cada evento, saldo de remates e cruzamentos, evolução jogo a jogo de golos/cartões, distribuição percentual dos eventos) e um separador **Outros** com o que ainda não foi redistribuído (domínio por métrica, mapa de calor combinado, rotação do plantel por minutos jogados) — sem IA, tudo calculado no browser.
 - **Histórico de ações**: cada clique na convocatória (cartões, assistências, golos, estado, substituição — incluindo quando desligas/subtrais algo) fica registado com data e hora, tal como já acontecia com cada coordenada marcada no Registo de Jogo.
 - **Exportação CSV**: descarrega um único ficheiro com todos os dados do jogo atualmente selecionado — jogadores convocados, os golos marcados e sofridos (minuto, marcador quando há, e a cadeia de eventos que lhes deu origem), todos os cliques dos 5 campos (cada um com uma coluna "Golo", a indicar a que golo esse clique está ligado, se estiver), e o histórico de ações com data/hora.
 - **Importação de dados locais**: se existirem dados de uma versão anterior (guardados no `localStorage` do browser), a app oferece um botão para os importar como um novo jogo da equipa atual.
@@ -63,6 +65,11 @@ pages/
                            wellness diário — nunca vê o resto da equipa.
   wellness-jogador.html   Página do treinador: evolução do wellness de um jogador (gráficos
                            Chart.js) e edição de um dia — aberta a partir da tab Wellness.
+  direcao.html            Dashboard Executivo (Gestão Desportiva): 6 páginas numa sidebar,
+                           filtros globais partilhados — aberto pelo botão "Gestão
+                           Desportiva" no dashboard da equipa.
+  relatorio-6-jogos.html  Antigo relatório dos últimos 6 jogos — agora redireciona para
+                           direcao.html (o conteúdo antigo continua no ficheiro).
   calendario-jogos.html   Calendário do campeonato (Zona Norte), com links de Vídeo/ZeroZero
                            por jogo — página à parte, sem login, protegida por código de
                            acesso; não aparece em nenhuma navegação da app.
@@ -80,9 +87,29 @@ js/
   relatorio-dados.js       Agregação partilhada por relatorio.js/transicoes.js (domínio, timeline,
                             zonas, transições, remates de cruzamento, faltas provocadas) — única
                             exceção à regra "cada página duplica os seus helpers pequenos", por
-                            ser lógica grande e igual nas duas páginas.
+                            ser lógica grande e igual nas duas páginas. relatorio-6-jogos.js
+                            também importa a constante TRACKERS daqui.
   relatorio.js, transicoes.js
                             Lógica de pages/relatorio.html e pages/transicoes.html.
+  direcao/                  Dashboard Executivo: metricas.js (fórmulas puras, testadas),
+                            filtros.js (filtros globais), dados.js (pedidos ao Supabase,
+                            em lote e paginados), graficos.js (Chart.js com cores
+                            validadas), ui.js (formatação, "n/d"), app.js (sidebar,
+                            páginas, filtros), territorial.js (densidade, zonas e
+                            verificação da orientação — puro, testado), individual.js
+                            (estatísticas por jogador — puro, testado), plantel.js
+                            (distribuição, utilização, planeamento — puro, testado),
+                            alertas.js (configuração dos indicadores, alertas e
+                            qualidade dos dados — puro, testado), apresentacao.js
+                            (exportação para PowerPoint com PptxGenJS),
+                            campo.js (desenho
+                            do campo) e paginas/ (uma por página do dashboard).
+  relatorio-6-jogos.js      Lógica de pages/relatorio-6-jogos.html — agregação própria
+                            (vários jogos de uma vez, diferente de relatorio-dados.js, que é
+                            sempre sobre um único jogo), gráficos Chart.js e mapa de calor
+                            combinado (mesmo padrão de buildHeatGrid()/renderHeatGrid() de
+                            match.js, copiado — não importado, para não acoplar a uma
+                            página de um jogo só).
   calendario-jogos.js       Lógica de pages/calendario-jogos.html — valida o código de
                             acesso via RPC em vez de Supabase Auth.
   trial.js                  Lógica de pages/trial.html — signInAnonymously() + start_trial(),
@@ -91,6 +118,9 @@ js/
                             RPC (admin_*) em vez de Supabase Auth.
 css/
   styles.css                Estilos partilhados entre todas as páginas.
+  direcao.css               Visual do Dashboard Executivo (mesmo de relatorio-6-jogos.css).
+  relatorio-6-jogos.css     Visual próprio de pages/relatorio-6-jogos.html — exceção
+                             deliberada ao tema partilhado, ver cabeçalho do ficheiro.
 assets/
   campo.png, campo.jpeg    Imagem do campo de futebol usada nos trackers (campo.png = horizontal).
 docs/
@@ -100,7 +130,7 @@ docs/
 supabase/
   schema.sql                Esquema completo — para configurar um projeto Supabase novo de raiz.
   data-model.md             Logical Data Model: diagrama de entidades/relações + dicionário de dados.
-  migrations/               Migrações incrementais, por ordem (001 a 034) — só necessárias em
+  migrations/               Migrações incrementais, por ordem (001 a 036) — só necessárias em
                              projetos já existentes, correr uma vez cada uma, por esta ordem:
                              001_teams, 002_team_logos, 003_substituicao, 004_amarelo2,
                              005_player_events, 006_partes, 007_orientacao, 008_events_parte,
@@ -113,11 +143,18 @@ supabase/
                              026_matches_pre_epoca, 027_competition_calendar,
                              028_competition_video_links, 029_trial_mode,
                              030_trial_resume, 031_trial_admin, 032_trial_admin_delete,
-                             033_trial_one_team_per_code, 034_match_players_minutos.
+                             033_trial_one_team_per_code, 034_match_players_minutos,
+                             035_direcao_desportiva, 036_codificacao_completa_default.
   functions/
     gerar-insights/index.ts  Edge Function (Deno): gera a análise em prosa dos relatórios
                               Geral/Transições via API da Claude — ver "Relatórios gerados
                               por IA" abaixo. Primeira peça server-side deste projeto.
+tests/
+  metricas.test.mjs, filtros.test.mjs, periodos.test.mjs, coletiva.test.mjs,
+  territorial.test.mjs, individual.test.mjs, plantel.test.mjs,
+  alertas.test.mjs, apresentacao.test.mjs
+                            Testes das fórmulas e dos filtros do Dashboard Executivo —
+                            ver "Testes" abaixo.
 scripts/
   seed-demo-match.mjs       Ferramenta de dev: preenche uma equipa + jogo completo com dados
                              realistas para demos rápidas — ver "Ferramentas de desenvolvimento".
@@ -290,6 +327,16 @@ python3 -m http.server 8765
 ```
 
 e abrir `http://localhost:8765/` (redireciona para `pages/login.html`).
+
+## Testes
+
+As fórmulas do Dashboard Executivo (`js/direcao/metricas.js`) e os filtros
+globais (`js/direcao/filtros.js`) são funções puras, testadas com o runner nativo
+do Node (sem `npm install`, sem dependências):
+
+```bash
+node --test 'tests/*.test.mjs'
+```
 
 ## Ferramentas de desenvolvimento
 

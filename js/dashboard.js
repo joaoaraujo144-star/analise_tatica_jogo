@@ -5,7 +5,7 @@
  * Wellness (vista do treinador sobre o questionário diário dos jogadores)
  * e Relatórios (totais agregados por jogador ao longo de todos os jogos).
  *
- * Versão: 1.26 (2026-11-02)
+ * Versão: 1.27 (2026-11-17)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao migrar de localStorage para Supabase (multi-jogo, plantel, relatórios).
  *   1.1 (2026-07-08) — separado do login, que passa a ter página própria.
@@ -73,6 +73,10 @@
  *                        ver supabase/migrations/034_match_players_minutos.sql).
  *   1.26 (2026-11-02) — tabela da tab Relatórios passa a ordenar por
  *                        minutos jogados (antes golos/assistências).
+ *   1.27 (2026-11-17) — Dashboard Executivo: botão "Direção Desportiva";
+ *                        jogos ganham casa/fora, competição e codificação
+ *                        (no "Novo Jogo" e editáveis na lista); Plantel
+ *                        ganha a coluna "Posição".
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -142,6 +146,10 @@ function wireAuthForm() {
   el('btn-switch-team').addEventListener('click', () => {
     window.location.href = 'teams.html';
   });
+
+  el('btn-direcao').addEventListener('click', () => {
+    window.location.href = 'direcao.html';
+  });
 }
 
 // ---------- Tabs ----------
@@ -172,9 +180,14 @@ function wireMatches() {
     const adversario = el('match-opponent').value.trim();
     if (!data || !adversario) return;
     const pre_epoca = el('match-pre-epoca').checked;
+    // local/competição só vão no insert quando preenchidos: assim criar um
+    // jogo continua a funcionar mesmo antes de correr a migração 035.
+    const extra = {};
+    if (el('match-local').value) extra.local = el('match-local').value;
+    if (el('match-competicao').value.trim()) extra.competicao = el('match-competicao').value.trim();
     const { data: row, error } = await supabase
       .from('matches')
-      .insert({ user_id: currentUser.id, team_id: currentTeamId, data, adversario, pre_epoca })
+      .insert({ user_id: currentUser.id, team_id: currentTeamId, data, adversario, pre_epoca, ...extra })
       .select()
       .single();
     if (error) { alert(error.message); return; }
@@ -202,7 +215,12 @@ function renderMatches() {
   body.innerHTML = '';
   matchesCache.forEach(m => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${m.data}</td><td>${m.adversario}</td><td><input type="checkbox" class="match-pre-epoca-input" data-id="${m.id}" ${m.pre_epoca ? 'checked' : ''}></td><td><button class="action" data-id="${m.id}">Abrir</button></td>`;
+    tr.innerHTML = `<td>${m.data}</td><td>${m.adversario}</td>`
+      + `<td><input type="checkbox" class="match-pre-epoca-input" data-id="${m.id}" ${m.pre_epoca ? 'checked' : ''}></td>`
+      + `<td><button class="action" data-id="${m.id}">Abrir</button></td>`
+      + `<td>${selectHtml('match-local-input', m.id, LOCAL_OPCOES, m.local)}</td>`
+      + `<td><input type="text" class="wellness-edit-input match-competicao-input" data-id="${m.id}" value="${escapeAttr(m.competicao)}" placeholder="—" list="competicoes-list"></td>`
+      + `<td>${selectHtml('match-codificacao-input', m.id, CODIFICACAO_OPCOES, m.codificacao)}</td>`;
     body.appendChild(tr);
   });
   el('matches-empty').hidden = matchesCache.length > 0;
@@ -225,6 +243,45 @@ function renderMatches() {
       if (m) m.pre_epoca = pre_epoca;
     });
   });
+  // Casa/fora, competição e codificação — mesmo padrão: grava logo ao
+  // mudar, sem reabrir o jogo (usados pelo Dashboard Executivo).
+  wireMatchField('.match-local-input', 'local');
+  wireMatchField('.match-competicao-input', 'competicao');
+  wireMatchField('.match-codificacao-input', 'codificacao');
+  el('competicoes-list').innerHTML = [...new Set(matchesCache.map(m => m.competicao).filter(Boolean))]
+    .sort().map(c => `<option value="${escapeAttr(c)}"></option>`).join('');
+}
+
+function wireMatchField(selector, campo) {
+  el('matches-body').querySelectorAll(selector).forEach(input => {
+    input.addEventListener('change', async () => {
+      const valor = input.value.trim() || null;
+      const { error } = await supabase.from('matches').update({ [campo]: valor }).eq('id', input.dataset.id);
+      if (error) { alert(error.message); return; }
+      const m = matchesCache.find(x => x.id === input.dataset.id);
+      if (m) m[campo] = valor;
+    });
+  });
+}
+
+const LOCAL_OPCOES = [['casa', 'Casa'], ['fora', 'Fora']];
+const CODIFICACAO_OPCOES = [['completa', 'Completa'], ['parcial', 'Parcial']];
+// Posições (abreviaturas usadas no Dashboard Executivo — Gestão do Plantel).
+const POSICAO_OPCOES = [
+  ['GR', 'GR — Guarda-redes'], ['DD', 'DD — Lateral direito'], ['DC', 'DC — Defesa central'],
+  ['DE', 'DE — Lateral esquerdo'], ['MDC', 'MDC — Médio defensivo'], ['MC', 'MC — Médio centro'],
+  ['MO', 'MO — Médio ofensivo'], ['ED', 'ED — Extremo direito'], ['EE', 'EE — Extremo esquerdo'],
+  ['PL', 'PL — Ponta de lança'],
+];
+
+function escapeAttr(v) {
+  return String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function selectHtml(cls, id, opcoes, valor) {
+  return `<select class="${cls}" data-id="${id}"><option value="">—</option>`
+    + opcoes.map(([v, l]) => `<option value="${v}" ${v === valor ? 'selected' : ''}>${l}</option>`).join('')
+    + '</select>';
 }
 
 // ---------- Plantel ----------
@@ -299,6 +356,15 @@ function wireRoster() {
   // Número editável diretamente na tabela (sem botão "editar" à parte) —
   // útil quando o treinador convocou um jogador sem número ainda definido.
   el('roster-body').addEventListener('change', async (e) => {
+    const posSel = e.target.closest('.roster-posicao-input');
+    if (posSel) {
+      const posicao = posSel.value || null;
+      const { error } = await supabase.from('players').update({ posicao }).eq('id', posSel.dataset.id);
+      if (error) { alert(error.message); return; }
+      const p = rosterCache.find(x => x.id === posSel.dataset.id);
+      if (p) p.posicao = posicao;
+      return;
+    }
     const input = e.target.closest('.roster-number-input');
     if (!input) return;
     const numero = input.value.trim();
@@ -373,7 +439,7 @@ function renderRoster() {
   body.innerHTML = '';
   rosterCache.forEach(p => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input type="text" class="wellness-edit-input roster-number-input" data-id="${p.id}" value="${p.numero || ''}" maxlength="3" placeholder="—"></td><td>${p.nome}</td><td class="roster-access">${accessCellHtml(p)}</td><td><button class="btn-remove-player" data-id="${p.id}" title="Remover">✕</button></td>`;
+    tr.innerHTML = `<td><input type="text" class="wellness-edit-input roster-number-input" data-id="${p.id}" value="${p.numero || ''}" maxlength="3" placeholder="—"></td><td>${p.nome}</td><td>${selectHtml('roster-posicao-input', p.id, POSICAO_OPCOES, p.posicao)}</td><td class="roster-access">${accessCellHtml(p)}</td><td><button class="btn-remove-player" data-id="${p.id}" title="Remover">✕</button></td>`;
     body.appendChild(tr);
   });
   el('roster-empty').hidden = rosterCache.length > 0;

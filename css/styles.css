@@ -2,7 +2,7 @@
  * Análise de Jogo — styles.css
  * Estilos partilhados por todas as páginas (login, teams, dashboard, match, jogador).
  *
- * Versão: 1.42 (2026-09-17)
+ * Versão: 1.43 (2026-11-02)
  * Histórico:
  *   1.0 (2026-07-08) — criação, ao separar o login do resto da app.
  *   1.1 (2026-07-08) — cartões de equipa (emblema, avatar de fallback).
@@ -108,6 +108,8 @@
  *                        input[type="number"] (usado no limite de usos de
  *                        pages/trial-admin.html) e ganha a regra de largura
  *                        "#new-code-max-usos".
+ *   1.43 (2026-11-02) — ".report-header"/".legend-row" para
+ *                        pages/relatorio-6-jogos.html.
  */
 
 /* ---------- Base / layout geral ---------- */
@@ -1373,3 +1375,28 @@ button.action.small { padding: 5px 10px; font-size: 0.8em; }
   font-size: 0.95em;
 }
 .link-popup-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ---------- Relatório de 6 jogos (pages/relatorio-6-jogos.html) ---------- */
+.report-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.report-header h2 { margin: 0; font-size: 1.7em; color: #fff; }
+.report-header p { margin: 0; color: #888; font-size: 0.9em; }
+
+/* Legenda construída em HTML (não a do Chart.js) — usada junto a um
+   gráfico cuja legenda precisa de mostrar algo mais do que só o nome
+   (ex: a percentagem de cada fatia), ver "Distribuição percentual". */
+.legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  justify-content: center;
+  font-size: 0.9em;
+  color: #ccc;
+}
+.legend-row .legend-item { display: flex; align-items: center; gap: 7px; }
+.legend-row .legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
