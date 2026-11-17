@@ -14,9 +14,11 @@
  * superfície #151e30 — os tons claros falham esse validador quando
  * usados em marcas de dados densas.
  *
- * Versão: 1.8 (2026-11-17)
+ * Versão: 1.9 (2026-11-17)
  *
  * Histórico:
+ *   1.9 — Versão para telemóvel (barra de topo, filtros recolhidos,
+ *         tabelas com 1.ª coluna fixa); corrige o conteúdo cortado à direita.
  *   1.8 — Botão e janela de exportação para PowerPoint.
  *   1.7 — Retirados o formulário e o registo de decisões (só alertas).
  *   1.6 — Gravidade, formulário e registo de decisões (Decisões e Alertas).
@@ -167,21 +169,7 @@ button { cursor: pointer; }
   .dx-kpis, .dx-kpis.dx-kpis-6 { grid-template-columns: repeat(2, 1fr); }
   .dx-grid, .dx-grid-even { grid-template-columns: 1fr; }
 }
-@media (max-width: 700px) {
-  .dx-app { grid-template-columns: 1fr; }
-  .dx-sidebar { padding: 12px; border-right: 0; border-bottom: 1px solid var(--line); flex-direction: row; flex-wrap: wrap; align-items: center; }
-  .dx-brand { font-size: 20px; }
-  .dx-tag { display: none; }
-  .dx-team-field { margin: 0 6px; flex: 1 1 160px; }
-  .dx-nav { display: flex; overflow-x: auto; flex: 1 1 100%; order: 3; }
-  .dx-nav button { white-space: nowrap; padding: 9px 12px; }
-  .dx-sidebar-footer { flex-direction: row; margin: 0; order: 2; }
-  .dx-main { padding: 18px; }
-  .dx-kpis, .dx-kpis.dx-kpis-6 { grid-template-columns: repeat(2, 1fr); gap: 9px; }
-  .dx-card { padding: 14px; }
-  .dx-kpi-big { font-size: 23px; }
-  .dx-top h1 { font-size: 23px; }
-}
+/* (versão para telemóvel: ver "Telemóvel" no fim do ficheiro) */
 
 /* ---------- Barra de filtros globais ---------- */
 .dx-filtros {
@@ -364,3 +352,100 @@ button { cursor: pointer; }
 .dx-dialogo-lista { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
 .dx-dialogo-lista label { display: flex; gap: 10px; align-items: center; font-size: 14px; cursor: pointer; }
 .dx-dialogo-botoes { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---------- Telemóvel ---------- */
+.dx-btn-filtros { display: none; }
+
+@media (max-width: 760px) {
+  /* minmax(0, 1fr): sem isto, tabelas e gráficos largos esticavam a
+     página para além do ecrã (o conteúdo ficava cortado à direita). */
+  .dx-app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; align-content: start; }
+  .dx-so-desktop { display: none; }
+
+  /* Barra lateral → barra de topo fixa: marca + equipa + botões numa
+     linha, páginas numa fila que desliza para o lado. */
+  .dx-sidebar {
+    position: sticky; top: 0; z-index: 20;
+    flex-direction: row; flex-wrap: wrap; align-items: center; align-content: flex-start; gap: 8px;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 8px;
+    border-right: 0; border-bottom: 1px solid var(--line);
+  }
+  .dx-brand { font-size: 18px; margin: 0; }
+  .dx-tag { display: none; }
+  .dx-team-field { margin: 0; flex: 1 1 90px; min-width: 0; }
+  .dx-team-field label { display: none; }
+  .dx-team-field select { padding: 7px 9px; font-size: 13px; }
+  .dx-sidebar-footer { order: 2; flex-direction: row; margin: 0; padding: 0; gap: 6px; }
+  .dx-sidebar-footer button { padding: 7px 9px; font-size: 12px; white-space: nowrap; }
+  .dx-nav {
+    order: 3; flex: 1 1 100%; display: flex; gap: 6px; overflow-x: auto;
+    margin: 2px -12px 0; padding: 0 12px 2px; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .dx-nav::-webkit-scrollbar { display: none; }
+  .dx-nav button {
+    flex: 0 0 auto; white-space: nowrap; padding: 7px 12px; font-size: 13px;
+    border: 1px solid var(--line); border-radius: 999px;
+  }
+  .dx-nav button.active { border-color: var(--green); }
+
+  .dx-main { padding: 14px 12px calc(28px + env(safe-area-inset-bottom, 0px)); }
+  .dx-top { margin-bottom: 12px; gap: 10px; }
+  .dx-top h1 { font-size: 22px; }
+  .dx-sub { font-size: 12px; }
+  .dx-btn-exportar { flex: 1 1 100%; padding: 9px; }
+
+  /* Filtros: recolhidos atrás do botão; abertos em 2 colunas. */
+  .dx-filtros { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 12px; margin-bottom: 14px; }
+  .dx-btn-filtros {
+    display: flex; justify-content: space-between; align-items: center; grid-column: 1 / -1;
+    background: transparent; border: 0; color: var(--text); font-weight: 700; padding: 2px 0;
+  }
+  .dx-filtros:not(.aberto) .dx-filtro { display: none; }
+  .dx-filtros.aberto .dx-btn-filtros span { display: inline-block; transform: rotate(180deg); }
+  .dx-filtro { min-width: 0; }
+  .dx-filtro select, .dx-filtro input[type="date"] { width: 100%; min-width: 0; }
+  .dx-filtros-resumo { grid-column: 1 / -1; margin: 0; font-size: 11.5px; }
+  .dx-filtros-pagina:not(.aberto) .dx-filtro { display: flex; } /* filtros próprios das páginas: sempre visíveis */
+
+  /* KPIs e cartões */
+  .dx-kpis, .dx-kpis.dx-kpis-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .dx-card { padding: 13px; border-radius: 12px; }
+  .dx-kpi-label { font-size: 11px; }
+  .dx-kpi-big { font-size: 21px; margin: 6px 0 3px; }
+  .dx-kpi-delta, .dx-kpi-sub { font-size: 11px; }
+  .dx-grid, .dx-grid-even { grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+  .dx-section-title { font-size: 15px; }
+  .dx-cardhead { margin-bottom: 10px; }
+  .dx-cardhead select, .dx-cardhead .dx-toggles { width: 100%; }
+  .dx-toggles .dx-toggle { flex: 1; }
+
+  /* Tabelas: deslizam na horizontal com a 1.ª coluna sempre visível. */
+  .dx-table th, .dx-table td { padding: 9px 7px; font-size: 13px; }
+  .dx-table-scroll .dx-table th:first-child,
+  .dx-table-scroll .dx-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--panel); }
+  .dx-td-texto { min-width: 200px; }
+
+  /* Componentes das páginas */
+  .dx-mapas-mini { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .dx-zbar { grid-template-columns: 68px minmax(0, 1fr) 70px; }
+  .dx-borb { grid-template-columns: 82px minmax(0, 1fr) minmax(0, 1fr); }
+  .dx-input-txt { width: 96px; }
+  .dx-input-area { width: 180px; }
+  .dx-insight { font-size: 12.5px; }
+  .dx-estado { padding: 20px 14px; }
+
+  /* iOS faz zoom ao tocar num campo com letra < 16px — evita-o. */
+  select, input, textarea { font-size: 16px !important; }
+
+  /* Tabela em cartões (Alertas): cada linha é um cartão, com a etiqueta
+     de cada valor ao lado (data-label), em vez de deslizar na horizontal. */
+  .dx-table-cartoes thead { display: none; }
+  .dx-table-cartoes, .dx-table-cartoes tbody, .dx-table-cartoes tr, .dx-table-cartoes td { display: block; width: 100%; }
+  .dx-table-cartoes tr { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .dx-table-scroll .dx-table-cartoes td:first-child { position: static; background: transparent; }
+  .dx-table-cartoes td { border: 0; padding: 3px 0; white-space: normal; font-size: 13px; }
+  .dx-table-cartoes td[data-label] { display: flex; justify-content: space-between; gap: 12px; }
+  .dx-table-cartoes td[data-label]::before { content: attr(data-label); color: var(--muted); }
+  .dx-table-cartoes .dx-cel-titulo { font-weight: 700; font-size: 14px; padding: 6px 0 4px; }
+  .dx-table-cartoes .dx-cel-nota { min-width: 0; padding-top: 6px; color: var(--muted); }
+}

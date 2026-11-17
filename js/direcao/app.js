@@ -8,9 +8,10 @@
  * os gráficos; carregarExtra: dados da equipa que não dependem dos
  * filtros, com cache).
  *
- * Versão: 1.7 (2026-11-17)
+ * Versão: 1.8 (2026-11-17)
  *
  * Histórico:
+ *   1.8 — botão "Filtros" para o telemóvel (abre/fecha os filtros).
  *   1.7 — Exportar para PowerPoint (apresentacao.js + PptxGenJS do CDN,
  *         carregado só ao exportar), com os filtros atuais.
  *   1.6 — Alertas (fase 7); configuração dos indicadores
@@ -299,6 +300,13 @@ function ligarExportacao() {
 
 function ligarEventos() {
   ligarExportacao();
+
+  // Telemóvel: os filtros ficam recolhidos; o botão abre/fecha (no PC o
+  // botão não aparece e os filtros estão sempre visíveis).
+  el('btn-filtros').addEventListener('click', () => {
+    const aberto = el('filtros').classList.toggle('aberto');
+    el('btn-filtros').setAttribute('aria-expanded', String(aberto));
+  });
   el('f-equipa').addEventListener('change', (e) => escolherEquipa(e.target.value));
 
   const campos = { 'f-epoca': 'epoca', 'f-competicao': 'competicao', 'f-janela': 'janela', 'f-local': 'local', 'f-adversario': 'adversario', 'f-desde': 'desde', 'f-ate': 'ate' };

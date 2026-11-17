@@ -12,9 +12,10 @@
  *    dashboard.
  *  - Qualidade dos dados do período.
  *
- * Versão: 1.2 (2026-11-17)
+ * Versão: 1.3 (2026-11-17)
  *
  * Histórico:
+ *   1.3 — no telemóvel, cada alerta é um cartão (dx-table-cartoes).
  *   1.2 — cálculo passou para calcularAlertas() em ../alertas.js.
  *   1.1 — sem o registo de decisões (pedido: só alertas); página passa a
  *         chamar-se "Alertas".
@@ -67,14 +68,14 @@ function alertasHtml(ctx, c) {
     : !c.col.suficiente ? `<div class="dx-insight neutral">Alertas coletivos precisam de pelo menos 3 jogos em cada período (atual: ${ctx.atual.length}, anterior: ${ctx.anterior.length}).</div>` : '';
   const corpo = c.alertas.map(a => `
     <tr>
-      <td>${badgeGravidade(a.gravidade)}</td>
-      <td>${esc(a.label)}</td>
-      <td><strong>${valorAlerta(a, a.atual)}</strong></td>
-      <td>${a.tipo === 'dependencia' ? '—' : valorAlerta(a, a.anterior)}</td>
-      <td>${a.tipo === 'dependencia' ? '—' : pct(a.variacao)}</td>
-      <td>${a.tipo === 'dependencia' ? `≥ ${num(a.limite, 0)}% (${a.alternativas} alternativa(s))` : `${num(a.limite, 0)}%`}</td>
-      <td>${a.tipo === 'dependencia' ? `${intervalo(ctx.atual)}` : periodoTexto}</td>
-      <td class="dx-td-texto">${esc(a.recomendacao)}</td>
+      <td class="dx-cel-topo">${badgeGravidade(a.gravidade)}</td>
+      <td class="dx-cel-titulo">${esc(a.label)}</td>
+      <td data-label="Atual"><strong>${valorAlerta(a, a.atual)}</strong></td>
+      <td data-label="Anterior">${a.tipo === 'dependencia' ? '—' : valorAlerta(a, a.anterior)}</td>
+      <td data-label="Variação">${a.tipo === 'dependencia' ? '—' : pct(a.variacao)}</td>
+      <td data-label="Limite">${a.tipo === 'dependencia' ? `≥ ${num(a.limite, 0)}% (${a.alternativas} alternativa(s))` : `${num(a.limite, 0)}%`}</td>
+      <td data-label="Período">${a.tipo === 'dependencia' ? `${intervalo(ctx.atual)}` : periodoTexto}</td>
+      <td class="dx-td-texto dx-cel-nota">${esc(a.recomendacao)}</td>
     </tr>`).join('');
   return `
     <div class="dx-card">
@@ -83,7 +84,7 @@ function alertasHtml(ctx, c) {
       ${semComparacao}
       ${c.alertas.length ? `
         <div class="dx-table-scroll" style="margin-top:10px">
-          <table class="dx-table">
+          <table class="dx-table dx-table-cartoes">
             <thead><tr><th>Gravidade</th><th>Indicador</th><th>Atual</th><th>Anterior</th><th>Variação</th><th>Limite</th><th>Período</th><th>Recomendação de análise</th></tr></thead>
             <tbody>${corpo}</tbody>
           </table>
